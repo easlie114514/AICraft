@@ -963,7 +963,7 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
         text_size=13,
     )
 
-    # SSE 字段组
+    # SSE 字段
     url_field = ft.TextField(
         label="完整URL（优先）",
         hint_text="例如: http://172.28.33.101/api/sse",
@@ -971,36 +971,30 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
     )
     host_field = ft.TextField(label="主机地址", hint_text="例如: 127.0.0.1", text_size=13)
     port_field = ft.TextField(label="端口", hint_text="例如: 8080", text_size=13)
-    sse_fields = [
-        url_field,
-        ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
-        ft.Row([host_field, port_field]),
-    ]
+    sse_hint = ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+    sse_row = ft.Row([host_field, port_field])
 
-    # Stdio 字段组
-    command_field = ft.TextField(label="命令", hint_text="例如: py 或 python", text_size=13, value="py")
+    # Stdio 字段（默认隐藏）
+    command_field = ft.TextField(label="命令", hint_text="例如: py 或 python", text_size=13, value="py", visible=False)
     args_field = ft.TextField(
         label="参数（空格分隔）",
         hint_text="例如: -3.13 D:/sipp_workshop_mcp.py",
         text_size=13,
+        visible=False,
     )
-    stdio_fields = [command_field, args_field]
-
-    # 字段插槽 — 通过替换 controls 来切换 SSE/Stdio 表单
-    fields_slot = ft.Column(sse_fields)
 
     form_status = ft.Text("", size=12)
 
     def on_type_change(e):
-        """切换连接类型时显示对应字段"""
+        """切换连接类型时显示/隐藏对应字段"""
         is_sse = type_dd.value == "sse"
-        fields_slot.controls.clear()
-        if is_sse:
-            fields_slot.controls.extend(sse_fields)
-        else:
-            fields_slot.controls.extend(stdio_fields)
+        url_field.visible = is_sse
+        sse_hint.visible = is_sse
+        sse_row.visible = is_sse
+        command_field.visible = not is_sse
+        args_field.visible = not is_sse
         form_status.value = ""
-        fields_slot.update()
+        form_expand.update()
         page.update()
 
     type_dd.on_change = on_type_change
@@ -1056,7 +1050,11 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
         ft.Text("新增MCP连接", size=15, weight=ft.FontWeight.BOLD),
         name_field,
         type_dd,
-        fields_slot,
+        url_field,
+        sse_hint,
+        sse_row,
+        command_field,
+        args_field,
         form_status,
         ft.Row([
             ft.FilledButton("保存", icon=ft.Icons.SAVE, on_click=on_save_mcp),
