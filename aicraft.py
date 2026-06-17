@@ -1055,9 +1055,9 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
     ], visible=False)
 
     def refresh_mcp_list():
-        """刷新MCP连接列表"""
+        """刷新MCP连接列表（使用内存中的状态，不从磁盘重新加载）"""
         mcp_list.controls.clear()
-        connections = manager.load_connections()
+        connections = manager.connections
         if connections:
             for conn in connections:
                 mcp_list.controls.append(_build_mcp_card(conn, manager, page, refresh_mcp_list))
