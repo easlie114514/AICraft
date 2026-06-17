@@ -12,7 +12,16 @@ from pathlib import Path
 
 import flet as ft
 
-from src.core.chat_history import save_conversation, load_conversation
+from src.core.chat_history import (
+    delete_conversation as delete_chat,
+    get_recent_messages,
+    list_conversations,
+    load_conversation,
+    save_conversation,
+)
+from src.core.memory import MemoryManager
+from src.core.rag_engine import RAGEngine
+from src.core.web_search import format_search_results, web_search
 from src.core.llm import (
     chat_completion,
     get_available_models,
@@ -23,6 +32,7 @@ from src.core.mcp_client import MCPManager
 from src.core.role_loader import RoleLoader
 from src.core.skill_loader import SkillLoader
 from src.utils.config import (
+    MEMORY_DIR,
     MODELS_DIR,
     ROLES_DIR,
     SKILLS_DIR,
@@ -144,12 +154,19 @@ def build_chat_view(page: ft.Page, app_state: dict) -> ft.Column:
     )
 
     # 三个开关
+    web_search_switch = ft.Switch(label="联网搜索", value=False, label_text_style=ft.TextStyle(size=12))
+    rag_switch = ft.Switch(label="RAG检索", value=True, label_text_style=ft.TextStyle(size=12))
+    memory_switch = ft.Switch(label="记忆注入", value=True, label_text_style=ft.TextStyle(size=12))
+
+    # 存入 app_state 供 _on_send 读取
+    app_state["chat_toggles"] = {
+        "web_search": web_search_switch,
+        "rag": rag_switch,
+        "memory": memory_switch,
+    }
+
     toggles_row = ft.Row(
-        [
-            ft.Switch(label="联网搜索", value=False, label_text_style=ft.TextStyle(size=12)),
-            ft.Switch(label="RAG检索", value=True, label_text_style=ft.TextStyle(size=12)),
-            ft.Switch(label="记忆注入", value=True, label_text_style=ft.TextStyle(size=12)),
-        ],
+        [web_search_switch, rag_switch, memory_switch],
         alignment=ft.MainAxisAlignment.START,
     )
 
@@ -229,6 +246,49 @@ async def _on_send(
         skill_prompt = skill_loader.build_skill_prompt()
         if skill_prompt:
             system_prompt = system_prompt + skill_prompt
+
+    # ── Phase 3 新增注入 ──
+    toggles = app_state.get("chat_toggles", {}) if app_state else {}
+
+    # 1. 联网搜索注入
+    if toggles.get("web_search") and toggles["web_search"].value:
+        try:
+            search_results = web_search(user_text)
+            system_prompt += format_search_results(search_results)
+        except Exception:
+            pass
+
+    # 2. RAG 检索注入
+    if toggles.get("rag") and toggles["rag"].value:
+        rag_engine: RAGEngine | None = app_state.get("rag_engine") if app_state else None
+        if rag_engine:
+            try:
+                fragments = rag_engine.search(user_text)
+                if fragments:
+                    system_prompt += "\n\n# 相关知识库片段\n" + "\n---\n".join(fragments)
+            except Exception:
+                pass
+
+    # 3. 记忆注入（笔记 + 最近对话）
+    if toggles.get("memory") and toggles["memory"].value:
+        mm: MemoryManager | None = app_state.get("memory_manager") if app_state else None
+        if mm:
+            try:
+                notes = mm.load_all_notes()
+                if notes:
+                    system_prompt += notes
+            except Exception:
+                pass
+            try:
+                recent = get_recent_messages(limit=10)
+                if recent:
+                    parts = ["\n\n# 最近对话历史\n"]
+                    for m in recent:
+                        role_label = "用户" if m.get("role") == "user" else "AI"
+                        parts.append(f"**{role_label}**: {m.get('content', '')}")
+                    system_prompt += "\n".join(parts)
+            except Exception:
+                pass
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -1036,32 +1096,394 @@ def _build_mcp_card(conn, manager: MCPManager, page: ft.Page, refresh_fn) -> ft.
 
 
 def build_rag_view(page: ft.Page, app_state: dict) -> ft.Column:
+    """构建RAG页 - 数据源管理"""
+    engine: RAGEngine = app_state["rag_engine"]
+    rag_list = ft.Column(spacing=0)
+
+    def refresh_rag_list():
+        """刷新RAG数据源列表"""
+        rag_list.controls.clear()
+        sources = engine.load_sources()
+        if sources:
+            for s in sources:
+                rag_list.controls.append(_build_rag_card(s, engine, page, refresh_rag_list))
+        else:
+            rag_list.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.LOCAL_LIBRARY, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("尚未添加任何数据源", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text(
+                            "点击上方「添加数据源」按钮，指定本地文件夹路径，系统将自动索引其中的文档",
+                            size=12, color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    alignment=ft.Alignment.CENTER,
+                    padding=40,
+                )
+            )
+        page.update()
+
+    def on_add_source(e):
+        _show_add_rag_dialog(page, engine, refresh_rag_list)
+
+    refresh_rag_list()
+    app_state["refresh_rag_list"] = refresh_rag_list
+
     return ft.Column(
         [
-            ft.Row([ft.Button("添加数据源", icon=ft.Icons.ADD)]),
+            ft.Row([
+                ft.Button("＋ 添加数据源", icon=ft.Icons.ADD, on_click=on_add_source),
+            ]),
             ft.Divider(),
-            ft.Container(
-                content=ft.Text("RAG数据源列表 - Phase 3 开发中", size=16),
-                expand=True,
-                alignment=ft.Alignment.CENTER,
-            ),
+            ft.Text("RAG数据源列表", size=14, weight=ft.FontWeight.BOLD),
+            rag_list,
         ],
         expand=True,
+        scroll=ft.ScrollMode.AUTO,
+        spacing=0,
     )
 
 
+def _build_rag_card(source, engine: RAGEngine, page: ft.Page, refresh_fn) -> ft.Container:
+    """构建单个RAG数据源卡片"""
+    stats = engine.get_chroma_stats()
+    indexed_count = stats.get(source.name, 0)
+
+    # 状态指示
+    if source.indexed:
+        status_text = ft.Text(
+            f"已索引 {source.file_count} 个文件  |  ChromaDB: {indexed_count} 片段",
+            size=12, color=ft.Colors.GREEN,
+        )
+        idx_label = "重新索引"
+    else:
+        status_text = ft.Text("未索引", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+        idx_label = "索引"
+
+    # 索引状态文字（索引过程中使用）
+    index_status = ft.Text(status_text.value, size=12, color=status_text.color)
+
+    def on_toggle(e):
+        engine.toggle_source(source.name, e.control.value)
+        refresh_fn()
+
+    def on_index(e):
+        async def _do_index():
+            index_status.value = "⏳ 正在索引..."
+            index_status.color = ft.Colors.AMBER
+            index_status.update()
+            count = await engine.index_source(source)
+            if count > 0:
+                index_status.value = f"已索引 {source.file_count} 个文件"
+                index_status.color = ft.Colors.GREEN
+            else:
+                index_status.value = "索引完成（无新文件）"
+                index_status.color = ft.Colors.ON_SURFACE_VARIANT
+            index_status.update()
+            refresh_fn()
+        page.run_task(_do_index)
+
+    def on_delete(e):
+        engine.remove_source(source.name)
+        refresh_fn()
+
+    return ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Icon(ft.Icons.FOLDER, color=ft.Colors.PRIMARY, size=20),
+                ft.Column([
+                    ft.Text(source.name, size=15, weight=ft.FontWeight.BOLD),
+                    ft.Text(source.path, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                    index_status,
+                ], expand=True, spacing=2),
+                ft.Switch(value=source.enabled, on_change=on_toggle),
+                ft.IconButton(
+                    icon=ft.Icons.REFRESH,
+                    tooltip=idx_label,
+                    icon_size=18,
+                    on_click=on_index,
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.DELETE_OUTLINE,
+                    tooltip="删除数据源",
+                    icon_size=18,
+                    icon_color=ft.Colors.ERROR,
+                    on_click=on_delete,
+                ),
+            ]),
+        ]),
+        bgcolor=ft.Colors.SURFACE_CONTAINER if source.enabled else None,
+        border_radius=10,
+        padding=12,
+        margin=ft.Margin(top=0, left=0, right=0, bottom=8),
+    )
+
+
+def _show_add_rag_dialog(page: ft.Page, engine: RAGEngine, refresh_fn) -> None:
+    """显示添加RAG数据源对话框"""
+    name_field = ft.TextField(label="数据源名称", hint_text="例如: 项目文档", text_size=13)
+    path_field = ft.TextField(label="目录路径", hint_text="例如: D:/docs/api", text_size=13)
+    status_text = ft.Text("", size=12)
+
+    def on_save(e):
+        name = name_field.value.strip()
+        path = path_field.value.strip()
+        if not name:
+            status_text.value = "❌ 名称不能为空"
+            status_text.color = ft.Colors.ERROR; status_text.update(); return
+        if not path:
+            status_text.value = "❌ 路径不能为空"
+            status_text.color = ft.Colors.ERROR; status_text.update(); return
+        if not Path(path).exists():
+            status_text.value = "❌ 目录不存在"
+            status_text.color = ft.Colors.ERROR; status_text.update(); return
+
+        engine.add_source(name, path)
+        dlg.open = False
+        page.update()
+        refresh_fn()
+
+    def close_dlg(e):
+        dlg.open = False
+        page.update()
+
+    dlg = ft.AlertDialog(
+        title=ft.Text("添加RAG数据源"),
+        content=ft.Column([
+            name_field,
+            path_field,
+            status_text,
+        ], width=450, height=200),
+        actions=[
+            ft.FilledButton("保存", on_click=on_save),
+            ft.TextButton("取消", on_click=close_dlg),
+        ],
+    )
+    page.overlay.append(dlg)
+    dlg.open = True
+    page.update()
+
+
 def build_memory_view(page: ft.Page, app_state: dict) -> ft.Column:
+    """构建记忆页 - 对话历史 + 项目笔记 + 智能检索"""
+    mm: MemoryManager = app_state["memory_manager"]
+    memory_list = ft.Column(spacing=0)
+
+    def refresh_memory_list():
+        """刷新记忆列表"""
+        memory_list.controls.clear()
+
+        # ── 对话历史 ──
+        memory_list.controls.append(
+            ft.Text("📁 对话历史", size=14, weight=ft.FontWeight.BOLD)
+        )
+        convs = list_conversations()
+        if convs:
+            for c in convs[:20]:  # 最多显示20条
+                memory_list.controls.append(_build_history_card(c, page, refresh_memory_list))
+        else:
+            memory_list.controls.append(
+                ft.Text("暂无对话记录", size=12, italic=True,
+                        color=ft.Colors.ON_SURFACE_VARIANT)
+            )
+
+        memory_list.controls.append(ft.Divider(height=16))
+
+        # ── 项目笔记 ──
+        memory_list.controls.append(
+            ft.Text("📁 项目笔记", size=14, weight=ft.FontWeight.BOLD)
+        )
+        notes = mm.list_notes()
+        if notes:
+            for n in notes:
+                memory_list.controls.append(_build_note_card(n, page))
+        else:
+            memory_list.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("暂无项目笔记", size=12, italic=True,
+                                color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text(
+                            f"在 {mm.notes_dir} 目录下放入 .md 文件即可自动识别",
+                            size=11, color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                    ]),
+                    padding=ft.Padding(left=0, top=4, right=0, bottom=8),
+                )
+            )
+
+        memory_list.controls.append(ft.Divider(height=16))
+
+        # ── 智能检索 ──
+        memory_list.controls.append(
+            ft.Text("🔍 智能检索", size=14, weight=ft.FontWeight.BOLD)
+        )
+        search_field = ft.TextField(
+            hint_text="输入关键词，在记忆中检索相关内容...",
+            text_size=13,
+            expand=True,
+        )
+        search_result = ft.Column(spacing=2)
+
+        def on_search(e):
+            query = search_field.value.strip()
+            if not query:
+                return
+            search_result.controls.clear()
+            results = mm.search_memory(query)
+            if results:
+                for i, r in enumerate(results[:5], 1):
+                    snippet = r[:200] + ("..." if len(r) > 200 else "")
+                    search_result.controls.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(f"{i}.", size=12, color=ft.Colors.PRIMARY),
+                                ft.Text(snippet, size=12, selectable=True,
+                                        color=ft.Colors.ON_SURFACE_VARIANT),
+                            ]),
+                            padding=ft.Padding(left=8, top=4, right=8, bottom=4),
+                            border=ft.Border(bottom=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
+                        )
+                    )
+            else:
+                search_result.controls.append(
+                    ft.Text("未找到相关内容", size=12, italic=True,
+                            color=ft.Colors.ON_SURFACE_VARIANT)
+                )
+            page.update()
+
+        memory_list.controls.append(
+            ft.Row([
+                search_field,
+                ft.IconButton(icon=ft.Icons.SEARCH, tooltip="搜索",
+                              on_click=on_search),
+            ])
+        )
+        memory_list.controls.append(search_result)
+
+        page.update()
+
+    refresh_memory_list()
+
     return ft.Column(
         [
-            ft.Row([ft.Button("打开记忆文件夹", icon=ft.Icons.FOLDER_OPEN)]),
+            ft.Row([
+                ft.Button("打开记忆文件夹", icon=ft.Icons.FOLDER_OPEN,
+                          on_click=lambda e: _open_folder(MEMORY_DIR)),
+                ft.IconButton(icon=ft.Icons.REFRESH, tooltip="刷新",
+                              on_click=lambda e: refresh_memory_list()),
+            ]),
             ft.Divider(),
-            ft.Container(
-                content=ft.Text("记忆管理 - Phase 3 开发中", size=16),
-                expand=True,
-                alignment=ft.Alignment.CENTER,
-            ),
+            memory_list,
         ],
         expand=True,
+        scroll=ft.ScrollMode.AUTO,
+        spacing=0,
+    )
+
+
+def _build_history_card(conv: dict, page: ft.Page, refresh_fn) -> ft.Container:
+    """构建单个对话历史卡片"""
+    created = conv.get("created", "")[:16].replace("T", " ")
+    model = conv.get("model", "未知")
+    role = conv.get("role", "")
+    msg_count = conv.get("message_count", 0)
+    conv_id = conv.get("id", "")
+
+    def on_view(e):
+        """查看完整对话"""
+        data = load_conversation(conv_id)
+        if not data:
+            return
+        messages = data.get("messages", [])
+        content_col = ft.Column(spacing=8)
+
+        for m in messages:
+            role_label = "You" if m.get("role") == "user" else "AI"
+            content_col.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text(role_label, size=11, weight=ft.FontWeight.BOLD,
+                                color=ft.Colors.PRIMARY if role_label == "You" else ft.Colors.TERTIARY),
+                        ft.Text(m.get("content", "")[:500], size=13, selectable=True),
+                    ]),
+                    padding=8,
+                    border_radius=8,
+                    bgcolor=ft.Colors.SURFACE_CONTAINER,
+                )
+            )
+
+        def close_dlg(e):
+            dlg.open = False
+            page.update()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"对话详情 ({created})"),
+            content=ft.Container(
+                content=ft.ListView(
+                    [content_col],
+                    expand=True,
+                ),
+                width=550,
+                height=400,
+            ),
+            actions=[ft.TextButton("关闭", on_click=close_dlg)],
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
+    def on_delete(e):
+        delete_chat(conv_id)
+        refresh_fn()
+
+    return ft.Container(
+        content=ft.Row([
+            ft.Icon(ft.Icons.CHAT, color=ft.Colors.PRIMARY, size=18),
+            ft.Column([
+                ft.Text(
+                    f"{created}  |  模型: {model}" + (f"  |  角色: {role}" if role else ""),
+                    size=13, weight=ft.FontWeight.BOLD,
+                ),
+                ft.Text(f"{msg_count} 条消息", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+            ], expand=True, spacing=2),
+            ft.IconButton(
+                icon=ft.Icons.VISIBILITY,
+                tooltip="查看对话",
+                icon_size=16,
+                on_click=on_view,
+            ),
+            ft.IconButton(
+                icon=ft.Icons.DELETE_OUTLINE,
+                tooltip="删除",
+                icon_size=16,
+                icon_color=ft.Colors.ERROR,
+                on_click=on_delete,
+            ),
+        ]),
+        bgcolor=ft.Colors.SURFACE_CONTAINER,
+        border_radius=10,
+        padding=10,
+        margin=ft.Margin(top=0, left=0, right=0, bottom=6),
+    )
+
+
+def _build_note_card(note: dict, page: ft.Page) -> ft.Container:
+    """构建单个项目笔记卡片"""
+    return ft.Container(
+        content=ft.Row([
+            ft.Icon(ft.Icons.DESCRIPTION, color=ft.Colors.TERTIARY, size=18),
+            ft.Column([
+                ft.Text(note["name"], size=13, weight=ft.FontWeight.BOLD),
+                ft.Text(note.get("preview", ""), size=12,
+                        color=ft.Colors.ON_SURFACE_VARIANT),
+            ], expand=True, spacing=2),
+        ]),
+        bgcolor=ft.Colors.SURFACE_CONTAINER,
+        border_radius=10,
+        padding=10,
+        margin=ft.Margin(top=0, left=0, right=0, bottom=6),
     )
 
 
@@ -1164,6 +1586,9 @@ def main(page: ft.Page):
     mcp_manager.load_connections()
     skill_loader = SkillLoader()
     skill_loader.scan()
+    rag_engine = RAGEngine()
+    rag_engine.load_sources()
+    memory_manager = MemoryManager()
 
     # 共享状态字典
     app_state = {
@@ -1173,6 +1598,9 @@ def main(page: ft.Page):
         "refresh_role_dd": _refresh_role_dropdown,
         "mcp_manager": mcp_manager,
         "skill_loader": skill_loader,
+        "rag_engine": rag_engine,
+        "memory_manager": memory_manager,
+        "chat_toggles": {},
     }
 
     # ----- 构建所有视图（缓存，避免切换标签时状态丢失）-----
@@ -1208,6 +1636,9 @@ def main(page: ft.Page):
         # 切换到 MCP 页时自动刷新
         if idx == 2 and "refresh_mcp_list" in app_state:
             app_state["refresh_mcp_list"]()
+        # 切换到 RAG 页时自动刷新
+        if idx == 3 and "refresh_rag_list" in app_state:
+            app_state["refresh_rag_list"]()
         page.update()
 
     page.navigation_bar = ft.NavigationBar(
