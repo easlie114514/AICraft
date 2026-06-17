@@ -1173,6 +1173,9 @@ def _build_rag_card(source, engine: RAGEngine, page: ft.Page, refresh_fn) -> ft.
             index_status.value = "⏳ 正在索引..."
             index_status.color = ft.Colors.AMBER
             index_status.update()
+            page.update()
+            # 让出事件循环，确保 UI 更新先发送到浏览器
+            await asyncio.sleep(0.05)
             count = await engine.index_source(source)
             if count > 0:
                 index_status.value = f"已索引 {source.file_count} 个文件"
