@@ -965,47 +965,25 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
 
     # SSE 字段
     url_field = ft.TextField(
-        label="完整URL（优先）",
+        label="完整URL（SSE模式）",
         hint_text="例如: http://172.28.33.101/api/sse",
         text_size=13,
     )
-    host_field = ft.TextField(label="主机地址", hint_text="例如: 127.0.0.1", text_size=13)
-    port_field = ft.TextField(label="端口", hint_text="例如: 8080", text_size=13)
-    sse_hint = ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
-    sse_row = ft.Row([host_field, port_field])
+    host_field = ft.TextField(label="主机地址（SSE模式）", hint_text="例如: 127.0.0.1", text_size=13)
+    port_field = ft.TextField(label="端口（SSE模式）", hint_text="例如: 8080", text_size=13)
 
     # Stdio 字段
-    command_field = ft.TextField(label="命令", hint_text="例如: py 或 python", text_size=13, value="py")
+    command_field = ft.TextField(label="命令（Stdio模式）", hint_text="例如: py 或 python", text_size=13, value="py")
     args_field = ft.TextField(
-        label="参数（空格分隔）",
+        label="参数（Stdio模式，空格分隔）",
         hint_text="例如: -3.13 D:/sipp_workshop_mcp.py",
         text_size=13,
     )
 
     form_status = ft.Text("", size=12)
 
-    def _apply_type_visibility():
-        """根据当前类型设置字段可见性"""
-        is_sse = type_dd.value == "sse"
-        url_field.visible = is_sse
-        sse_hint.visible = is_sse
-        sse_row.visible = is_sse
-        command_field.visible = not is_sse
-        args_field.visible = not is_sse
-        form_status.value = ""
-
-    def on_type_change(e):
-        """切换连接类型时显示/隐藏对应字段"""
-        _apply_type_visibility()
-        form_expand.update()
-        page.update()
-
-    type_dd.on_change = on_type_change
-
     def toggle_form(e):
         form_expand.visible = not form_expand.visible
-        if form_expand.visible:
-            _apply_type_visibility()  # 展开时确保可见性正确
         form_status.value = ""
         form_expand.update()
         page.update()
@@ -1055,9 +1033,12 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
         ft.Text("新增MCP连接", size=15, weight=ft.FontWeight.BOLD),
         name_field,
         type_dd,
+        ft.Text("SSE 模式", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY),
         url_field,
-        sse_hint,
-        sse_row,
+        ft.Text("或使用 host:port", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+        ft.Row([host_field, port_field]),
+        ft.Divider(),
+        ft.Text("Stdio 模式", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.SECONDARY),
         command_field,
         args_field,
         form_status,
