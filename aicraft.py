@@ -974,19 +974,18 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
     sse_hint = ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
     sse_row = ft.Row([host_field, port_field])
 
-    # Stdio 字段（默认隐藏）
-    command_field = ft.TextField(label="命令", hint_text="例如: py 或 python", text_size=13, value="py", visible=False)
+    # Stdio 字段
+    command_field = ft.TextField(label="命令", hint_text="例如: py 或 python", text_size=13, value="py")
     args_field = ft.TextField(
         label="参数（空格分隔）",
         hint_text="例如: -3.13 D:/sipp_workshop_mcp.py",
         text_size=13,
-        visible=False,
     )
 
     form_status = ft.Text("", size=12)
 
-    def on_type_change(e):
-        """切换连接类型时显示/隐藏对应字段"""
+    def _apply_type_visibility():
+        """根据当前类型设置字段可见性"""
         is_sse = type_dd.value == "sse"
         url_field.visible = is_sse
         sse_hint.visible = is_sse
@@ -994,6 +993,10 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
         command_field.visible = not is_sse
         args_field.visible = not is_sse
         form_status.value = ""
+
+    def on_type_change(e):
+        """切换连接类型时显示/隐藏对应字段"""
+        _apply_type_visibility()
         form_expand.update()
         page.update()
 
@@ -1001,6 +1004,8 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
 
     def toggle_form(e):
         form_expand.visible = not form_expand.visible
+        if form_expand.visible:
+            _apply_type_visibility()  # 展开时确保可见性正确
         form_status.value = ""
         form_expand.update()
         page.update()
