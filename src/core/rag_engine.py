@@ -1,10 +1,29 @@
 """RAG引擎 - 文档索引与检索"""
 
+import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from src.utils.config import RAG_DIR, load_json, save_json, CHROMA_DIR
+
+
+def _safe_collection_name(name: str) -> str:
+    """将数据源名称转换为 ChromaDB 合法的集合名称（仅 [a-zA-Z0-9._-]）"""
+    # 保留字母数字和 . _ -
+    safe = re.sub(r"[^a-zA-Z0-9._-]", "_", name)
+    # 确保以字母数字开头和结尾
+    safe = safe.strip("_.-")
+    if not safe or len(safe) < 3:
+        safe = "src_" + hashlib.md5(name.encode()).hexdigest()[:12]
+    # 如果首字符不是字母数字，加前缀
+    if not safe[0].isalnum():
+        safe = "src_" + safe
+    # 如果尾字符不是字母数字
+    if not safe[-1].isalnum():
+        safe = safe + "0"
+    return safe
 
 
 @dataclass
@@ -100,7 +119,7 @@ class RAGEngine:
         # 初始化ChromaDB
         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
         collection = client.get_or_create_collection(
-            name=f"rag_{source.name}",
+            name=f"rag_{_safe_collection_name(source.name)}",
             metadata={"hnsw:space": "cosine"}
         )
 
@@ -152,7 +171,7 @@ class RAGEngine:
                 if not source.enabled or not source.indexed:
                     continue
                 try:
-                    collection = client.get_collection(f"rag_{source.name}")
+                    collection = client.get_collection(f"rag_{_safe_collection_name(source.name)}")
                     result = collection.query(
                         query_texts=[query],
                         n_results=top_k,
@@ -174,7 +193,7 @@ class RAGEngine:
             stats = {}
             for source in self.sources:
                 try:
-                    collection = client.get_collection(f"rag_{source.name}")
+                    collection = client.get_collection(f"rag_{_safe_collection_name(source.name)}")
                     stats[source.name] = collection.count()
                 except Exception:
                     stats[source.name] = 0
