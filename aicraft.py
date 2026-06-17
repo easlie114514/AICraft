@@ -249,12 +249,16 @@ async def _on_send(
 
     # ── Phase 3 新增注入 ──
     toggles = app_state.get("chat_toggles", {}) if app_state else {}
+    injected_info = []  # 记录注入了什么，用于最后展示
 
     # 1. 联网搜索注入
     if toggles.get("web_search") and toggles["web_search"].value:
         try:
             search_results = web_search(user_text)
-            system_prompt += format_search_results(search_results)
+            formatted = format_search_results(search_results)
+            if search_results and not search_results[0].get("title") == "搜索失败":
+                system_prompt += formatted
+                injected_info.append(f"联网搜索: {len(search_results)} 条结果")
         except Exception:
             pass
 
@@ -266,8 +270,11 @@ async def _on_send(
                 fragments = rag_engine.search(user_text)
                 if fragments:
                     system_prompt += "\n\n# 相关知识库片段\n" + "\n---\n".join(fragments)
-            except Exception:
-                pass
+                    injected_info.append(f"RAG检索: {len(fragments)} 条片段")
+                else:
+                    injected_info.append("RAG检索: 未找到相关片段")
+            except Exception as ex:
+                injected_info.append(f"RAG检索失败: {ex}")
 
     # 3. 记忆注入（笔记 + 最近对话）
     if toggles.get("memory") and toggles["memory"].value:
@@ -277,6 +284,7 @@ async def _on_send(
                 notes = mm.load_all_notes()
                 if notes:
                     system_prompt += notes
+                    injected_info.append("记忆: 已注入笔记")
             except Exception:
                 pass
             try:
@@ -287,6 +295,7 @@ async def _on_send(
                         role_label = "用户" if m.get("role") == "user" else "AI"
                         parts.append(f"**{role_label}**: {m.get('content', '')}")
                     system_prompt += "\n".join(parts)
+                    injected_info.append(f"记忆: {len(recent)} 条历史")
             except Exception:
                 pass
 
@@ -338,18 +347,31 @@ async def _on_send(
         response_text.value = f"❌ 调用失败: {str(ex)}"
         response_text.update()
     else:
-        # 流式结束后，格式化展示工具调用摘要
+        # 流式结束后，格式化展示工具调用摘要和注入信息
+        suffix_parts = []
+
         if tool_calls_pending:
             import json as _json
-            full_text += "\n\n" + "─" * 30
+            suffix_parts.append("─" * 30)
             for idx in sorted(tool_calls_pending):
                 tc = tool_calls_pending[idx]
-                full_text += f"\n🔧 工具调用: {tc['name']}\n"
+                suffix_parts.append(f"🔧 工具调用: {tc['name']}")
                 try:
                     args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
-                    full_text += _json.dumps(args, ensure_ascii=False, indent=2) + "\n"
+                    suffix_parts.append(_json.dumps(args, ensure_ascii=False, indent=2))
                 except Exception:
-                    full_text += (tc.get("arguments", "") or "") + "\n"
+                    suffix_parts.append(tc.get("arguments", "") or "")
+
+        # 显示 Phase 3 注入了什么
+        if injected_info:
+            if suffix_parts:
+                suffix_parts.append("")  # 空行
+            suffix_parts.append("─" * 30)
+            for info in injected_info:
+                suffix_parts.append(f"📎 {info}")
+
+        if suffix_parts:
+            full_text += "\n\n" + "\n".join(suffix_parts)
             response_text.value = full_text
             response_text.update()
         elif full_text == "" and get_streaming():
