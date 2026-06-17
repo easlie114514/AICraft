@@ -159,6 +159,30 @@ class RAGEngine:
         # TODO: 支持远程文件访问
         return 0
 
+    async def warmup(self) -> bool:
+        """预热：提前下载 Embedding 模型，避免首次索引时长时间无响应
+
+        返回 True 表示模型已就绪，False 表示失败。
+        """
+        try:
+            import chromadb
+            client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+            # 创建临时 collection 触发模型下载
+            collection = client.get_or_create_collection(
+                name="_warmup_test",
+                metadata={"hnsw:space": "cosine"},
+            )
+            # 试索引一条数据确认 embedding 函数正常
+            collection.upsert(
+                documents=["warmup"],
+                ids=["warmup_1"],
+            )
+            # 清理
+            client.delete_collection("_warmup_test")
+            return True
+        except Exception:
+            return False
+
     def search(self, query: str, top_k: int = 5) -> list[str]:
         """检索相关文档片段"""
         try:

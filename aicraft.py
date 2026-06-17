@@ -1170,12 +1170,21 @@ def _build_rag_card(source, engine: RAGEngine, page: ft.Page, refresh_fn) -> ft.
 
     def on_index(e):
         async def _do_index():
-            index_status.value = "⏳ 正在索引..."
-            index_status.color = ft.Colors.AMBER
-            index_status.update()
-            page.update()
-            # 让出事件循环，确保 UI 更新先发送到浏览器
-            await asyncio.sleep(0.05)
+            # 检查是否需要下载模型
+            import os as _os
+            _model_cache = Path(_os.path.expanduser("~")) / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2" / "onnx.tar.gz"
+            if not _model_cache.exists():
+                index_status.value = "⏳ 首次使用：正在下载Embedding模型(~80MB)，请耐心等待..."
+                index_status.color = ft.Colors.AMBER
+                index_status.update()
+                page.update()
+            else:
+                index_status.value = "⏳ 正在索引文档..."
+                index_status.color = ft.Colors.AMBER
+                index_status.update()
+                page.update()
+            # 让出事件循环，确保 UI 刷新
+            await asyncio.sleep(0.1)
             count = await engine.index_source(source)
             if count > 0:
                 index_status.value = f"已索引 {source.file_count} 个文件"
@@ -1605,6 +1614,32 @@ def main(page: ft.Page):
         "memory_manager": memory_manager,
         "chat_toggles": {},
     }
+
+    # ── 检查 RAG Embedding 模型是否已缓存，未缓存则后台下载 ──
+    import os as _os
+    _model_cache = Path(_os.path.expanduser("~")) / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2"
+    if not (_model_cache / "onnx.tar.gz").exists():
+        # 显示 SnackBar 提示
+        page.snack_bar = ft.SnackBar(
+            ft.Text("⏳ 首次使用RAG，正在后台下载Embedding模型(~80MB)，期间请勿索引...",
+                    size=13),
+            duration=30000,  # 30秒
+        )
+        page.snack_bar.open = True
+        page.update()
+
+        def _warmup_thread():
+            """在后台线程中触发模型下载"""
+            try:
+                from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+                ef = SentenceTransformerEmbeddingFunction()
+                _ = ef(["warmup"])
+            except Exception:
+                pass
+
+        import concurrent.futures
+        _executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        _executor.submit(_warmup_thread)
 
     # ----- 构建所有视图（缓存，避免切换标签时状态丢失）-----
     chat_page = build_chat_view(page, app_state)
