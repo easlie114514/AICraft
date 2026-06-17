@@ -899,8 +899,13 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
 
     # 添加MCP表单字段
     name_field = ft.TextField(label="连接名称", hint_text="例如: Jira MCP", text_size=13)
-    host_field = ft.TextField(label="主机地址", hint_text="例如: 127.0.0.1", text_size=13, value="127.0.0.1")
-    port_field = ft.TextField(label="端口", hint_text="例如: 8080", text_size=13, value="8080")
+    url_field = ft.TextField(
+        label="完整URL（优先）",
+        hint_text="例如: http://172.28.33.101/api/sse",
+        text_size=13,
+    )
+    host_field = ft.TextField(label="主机地址", hint_text="例如: 127.0.0.1", text_size=13)
+    port_field = ft.TextField(label="端口", hint_text="例如: 8080", text_size=13)
     form_status = ft.Text("", size=12)
 
     def toggle_form(e):
@@ -911,22 +916,29 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
 
     def on_save_mcp(e):
         name = name_field.value.strip()
+        full_url = url_field.value.strip()
         host = host_field.value.strip()
         port_str = port_field.value.strip()
         if not name:
             form_status.value = "❌ 连接名称不能为空"
             form_status.color = ft.Colors.ERROR; form_status.update(); return
-        if not host:
-            form_status.value = "❌ 主机地址不能为空"
-            form_status.color = ft.Colors.ERROR; form_status.update(); return
-        try:
-            port = int(port_str)
-        except ValueError:
-            form_status.value = "❌ 端口必须是数字"
-            form_status.color = ft.Colors.ERROR; form_status.update(); return
 
-        manager.add_connection(name, host, port)
-        name_field.value = ""; host_field.value = "127.0.0.1"; port_field.value = "8080"
+        if full_url:
+            # 使用完整URL模式
+            manager.add_connection(name, url=full_url)
+        else:
+            # 使用 host+port 模式
+            if not host:
+                form_status.value = "❌ 请填写主机地址或完整URL"
+                form_status.color = ft.Colors.ERROR; form_status.update(); return
+            try:
+                port = int(port_str) if port_str else 0
+            except ValueError:
+                form_status.value = "❌ 端口必须是数字"
+                form_status.color = ft.Colors.ERROR; form_status.update(); return
+            manager.add_connection(name, host=host, port=port)
+
+        name_field.value = ""; url_field.value = ""; host_field.value = ""; port_field.value = ""
         form_expand.visible = False; form_status.value = ""
         refresh_mcp_list()
 
@@ -940,6 +952,8 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
     form_expand = ft.Column([
         ft.Text("新增MCP连接", size=15, weight=ft.FontWeight.BOLD),
         name_field,
+        url_field,
+        ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
         ft.Row([host_field, port_field]),
         form_status,
         ft.Row([
@@ -1097,7 +1111,7 @@ def _build_mcp_card(conn, manager: MCPManager, page: ft.Page, refresh_fn) -> ft.
                 ft.Icon(ft.Icons.POWER, color=ft.Colors.PRIMARY, size=20),
                 ft.Column([
                     ft.Text(conn.name, size=15, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"{conn.host}:{conn.port}  |  工具: {len(conn.tools)}",
+                    ft.Text(f"{conn.display_url}  |  工具: {len(conn.tools)}",
                             size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     status_text,
                 ], expand=True, spacing=2),

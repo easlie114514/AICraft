@@ -11,8 +11,9 @@ from src.utils.config import load_json, save_json, RAG_DIR
 class MCPConnection:
     """MCP连接配置"""
     name: str
-    host: str
-    port: int
+    host: str = ""
+    port: int = 0
+    url: str = ""  # 完整URL（优先级高于 host+port）
     enabled: bool = True
     status: str = "disconnected"  # disconnected / connecting / connected / error
     tools: list[dict] = None
@@ -23,12 +24,18 @@ class MCPConnection:
             self.tools = []
 
     @property
-    def url(self) -> str:
-        return f"http://{self.host}:{self.port}"
+    def sse_url(self) -> str:
+        """获取SSE连接URL"""
+        if self.url:
+            return self.url
+        return f"http://{self.host}:{self.port}/sse"
 
     @property
-    def sse_url(self) -> str:
-        return f"http://{self.host}:{self.port}/sse"
+    def display_url(self) -> str:
+        """用于UI展示的地址"""
+        if self.url:
+            return self.url
+        return f"{self.host}:{self.port}"
 
 
 class MCPManager:
@@ -52,6 +59,7 @@ class MCPManager:
                 name=item.get("name", ""),
                 host=item.get("host", ""),
                 port=item.get("port", 0),
+                url=item.get("url", ""),
                 enabled=item.get("enabled", True),
             )
             connections.append(conn)
@@ -68,6 +76,7 @@ class MCPManager:
                     "name": c.name,
                     "host": c.host,
                     "port": c.port,
+                    "url": c.url,
                     "enabled": c.enabled,
                 }
                 for c in self.connections
@@ -75,9 +84,9 @@ class MCPManager:
         }
         save_profile_config("mcp_connections", data)
 
-    def add_connection(self, name: str, host: str, port: int) -> MCPConnection:
-        """添加新的MCP连接"""
-        conn = MCPConnection(name=name, host=host, port=port)
+    def add_connection(self, name: str, host: str = "", port: int = 0, url: str = "") -> MCPConnection:
+        """添加新的MCP连接，支持 host+port 或完整 URL"""
+        conn = MCPConnection(name=name, host=host, port=port, url=url)
         self.connections.append(conn)
         self.save_connections()
         return conn
