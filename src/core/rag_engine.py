@@ -26,6 +26,24 @@ def _safe_collection_name(name: str) -> str:
     return safe
 
 
+def _extract_text(file_path: Path) -> str:
+    """从文件中提取文本内容，支持 txt/md/py/json/csv/html/xml/docx/pdf"""
+    suffix = file_path.suffix.lower()
+
+    if suffix == ".docx":
+        import docx
+        doc = docx.Document(str(file_path))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+    if suffix == ".pdf":
+        from PyPDF2 import PdfReader
+        reader = PdfReader(str(file_path))
+        return "\n".join(p.extract_text() or "" for p in reader.pages)
+
+    # 其他文本格式直接 UTF-8 读取
+    return file_path.read_text(encoding="utf-8", errors="ignore")
+
+
 @dataclass
 class RAGSource:
     """RAG数据源"""
@@ -130,24 +148,25 @@ class RAGEngine:
         )
 
         # 支持的文件类型
-        supported_extensions = {".txt", ".md", ".py", ".json", ".csv", ".html", ".xml"}
+        supported_extensions = {".txt", ".md", ".py", ".json", ".csv", ".html", ".xml", ".docx", ".pdf"}
 
         count = 0
         for f in doc_dir.rglob("*"):
-            if f.suffix.lower() in supported_extensions:
-                try:
-                    text = f.read_text(encoding="utf-8")
-                    chunks = splitter.split_text(text)
-                    if chunks:
-                        ids = [f"{source.name}_{count}_{i}" for i in range(len(chunks))]
-                        collection.upsert(
-                            documents=chunks,
-                            ids=ids,
-                            metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
-                        )
-                        count += 1
-                except Exception:
-                    continue
+            if f.suffix.lower() not in supported_extensions:
+                continue
+            try:
+                text = _extract_text(f)
+                chunks = splitter.split_text(text)
+                if chunks:
+                    ids = [f"{source.name}_{count}_{i}" for i in range(len(chunks))]
+                    collection.upsert(
+                        documents=chunks,
+                        ids=ids,
+                        metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
+                    )
+                    count += 1
+            except Exception:
+                continue
 
         source.file_count = count
         source.indexed = True
