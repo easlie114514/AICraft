@@ -1004,14 +1004,14 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
                 form_status.value = "❌ 命令不能为空"
                 form_status.color = ft.Colors.ERROR; form_status.update(); return
             args = args_str.split() if args_str else []
-            manager.add_connection(name, conn_type="stdio", command=command, args=args)
+            conn = manager.add_connection(name, conn_type="stdio", command=command, args=args)
         else:
             # SSE 模式
             full_url = url_field.value.strip()
             host = host_field.value.strip()
             port_str = port_field.value.strip()
             if full_url:
-                manager.add_connection(name, url=full_url)
+                conn = manager.add_connection(name, url=full_url)
             else:
                 if not host:
                     form_status.value = "❌ 请填写主机地址或完整URL"
@@ -1021,13 +1021,19 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
                 except ValueError:
                     form_status.value = "❌ 端口必须是数字"
                     form_status.color = ft.Colors.ERROR; form_status.update(); return
-                manager.add_connection(name, host=host, port=port)
+                conn = manager.add_connection(name, host=host, port=port)
 
         # 清空表单
         name_field.value = ""; url_field.value = ""; host_field.value = ""; port_field.value = ""
         command_field.value = "py"; args_field.value = ""
         form_expand.visible = False; form_status.value = ""
         refresh_mcp_list()
+
+        # 自动连接
+        async def _auto_connect():
+            await manager.connect(conn)
+            refresh_mcp_list()
+        page.run_task(_auto_connect)
 
     form_expand = ft.Column([
         ft.Text("新增MCP连接", size=15, weight=ft.FontWeight.BOLD),
