@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<scenario name="Register UAC">
+  <!-- 发送REGISTER（无认证） -->
+  <send retrans="500">
+    <![CDATA[
+      REGISTER sip:[remote_ip] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: <sip:[field0]@[remote_ip]>;tag=[call_number]
+      To: <sip:[field0]@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: [cseq] REGISTER
+      Contact: <sip:[field0]@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Expires: 3600
+      Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- 接收401 Unauthorized（要求认证） -->
+  <recv response="401" auth="true">
+  </recv>
+
+  <!-- 发送REGISTER（带认证信息） -->
+  <send retrans="500">
+    <![CDATA[
+      REGISTER sip:[remote_ip] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: <sip:[field0]@[remote_ip]>;tag=[call_number]
+      To: <sip:[field0]@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: [cseq+1] REGISTER
+      Contact: <sip:[field0]@[local_ip]:[local_port]>
+      [authentication]
+      Max-Forwards: 70
+      Expires: 3600
+      Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- 接收200 OK（注册成功） -->
+  <recv response="200" rtd="true">
+  </recv>
+</scenario>

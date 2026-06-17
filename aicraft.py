@@ -19,10 +19,13 @@ from src.core.llm import (
     get_current_model_config,
     test_connection,
 )
+from src.core.mcp_client import MCPManager
 from src.core.role_loader import RoleLoader
+from src.core.skill_loader import SkillLoader
 from src.utils.config import (
     MODELS_DIR,
     ROLES_DIR,
+    SKILLS_DIR,
     delete_model_config,
     get_current_role_name,
     save_model_config,
@@ -77,7 +80,7 @@ def _open_folder(path: Path) -> None:
 # 对话页
 # ============================================================
 
-def build_chat_view(page: ft.Page) -> ft.Column:
+def build_chat_view(page: ft.Page, app_state: dict) -> ft.Column:
     """构建对话页"""
     chat_list = ft.ListView(expand=True, spacing=4, padding=10, auto_scroll=True)
     streaming_ref = [False]  # mutable ref for closure access
@@ -104,7 +107,7 @@ def build_chat_view(page: ft.Page) -> ft.Column:
             # 使用 page.run_task 调度异步任务（Flet 官方推荐方式）
             page.run_task(
                 _on_send, page, chat_list, input_field, send_btn,
-                _get_streaming, _set_streaming,
+                _get_streaming, _set_streaming, app_state,
             )
 
     send_btn = ft.FilledButton(
@@ -172,6 +175,7 @@ async def _on_send(
     send_btn: ft.FilledButton,
     get_streaming,
     set_streaming,
+    app_state: dict,
 ) -> None:
     """处理发送消息"""
     if get_streaming():
@@ -218,6 +222,14 @@ async def _on_send(
     role_loader.scan()
     role_name = get_current_role_name()
     system_prompt = role_loader.build_system_prompt(role_name)
+
+    # 注入已启用的Skill prompts
+    skill_loader: SkillLoader | None = app_state.get("skill_loader") if app_state else None
+    if skill_loader:
+        skill_prompt = skill_loader.build_skill_prompt()
+        if skill_prompt:
+            system_prompt = system_prompt + skill_prompt
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_text},
@@ -225,9 +237,21 @@ async def _on_send(
 
     full_text = ""
     error_occurred = False
+    tool_calls_pending = {}  # index -> {id, name, arguments}
+
+    # 获取已连接的MCP工具列表
+    mcp_tools = None
+    mcp_manager: MCPManager | None = app_state.get("mcp_manager") if app_state else None
+    if mcp_manager:
+        mcp_tools = mcp_manager.get_enabled_tools() or None
 
     try:
-        async for chunk in chat_completion(messages, model_config=model_config, stream=True):
+        async for chunk in chat_completion(
+            messages,
+            model_config=model_config,
+            stream=True,
+            tools=mcp_tools,
+        ):
             # 检查是否被用户停止
             if not get_streaming():
                 break
@@ -237,15 +261,38 @@ async def _on_send(
                 response_text.value = full_text
                 response_text.update()
             elif isinstance(chunk, dict) and chunk.get("type") == "tool_call":
-                full_text += f"\n\n🔧 [工具调用: {chunk['data']}]\n"
-                response_text.value = full_text
-                response_text.update()
+                # 累积流式工具调用
+                for tc in chunk["data"]:
+                    idx = tc.index
+                    if idx not in tool_calls_pending:
+                        tool_calls_pending[idx] = {"name": "", "arguments": ""}
+                        if hasattr(tc, 'id') and tc.id:
+                            tool_calls_pending[idx]["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            tool_calls_pending[idx]["name"] += tc.function.name
+                        if tc.function.arguments:
+                            tool_calls_pending[idx]["arguments"] += tc.function.arguments
     except Exception as ex:
         error_occurred = True
         response_text.value = f"❌ 调用失败: {str(ex)}"
         response_text.update()
     else:
-        if full_text == "" and get_streaming():
+        # 流式结束后，格式化展示工具调用摘要
+        if tool_calls_pending:
+            import json as _json
+            full_text += "\n\n" + "─" * 30
+            for idx in sorted(tool_calls_pending):
+                tc = tool_calls_pending[idx]
+                full_text += f"\n🔧 工具调用: {tc['name']}\n"
+                try:
+                    args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
+                    full_text += _json.dumps(args, ensure_ascii=False, indent=2) + "\n"
+                except Exception:
+                    full_text += (tc.get("arguments", "") or "") + "\n"
+            response_text.value = full_text
+            response_text.update()
+        elif full_text == "" and get_streaming():
             response_text.value = "（模型未返回内容）"
             response_text.update()
 
@@ -375,7 +422,7 @@ def _on_delete_model(model: dict, page: ft.Page, refresh_fn) -> None:
         refresh_fn()
 
 
-def build_model_view(page: ft.Page) -> ft.Column:
+def build_model_view(page: ft.Page, app_state: dict) -> ft.Column:
     """构建模型页"""
     model_list = ft.Column(spacing=0)
 
@@ -517,7 +564,7 @@ def build_model_view(page: ft.Page) -> ft.Column:
 # 角色页
 # ============================================================
 
-def build_role_view(page: ft.Page) -> ft.Column:
+def build_role_view(page: ft.Page, app_state: dict) -> ft.Column:
     """构建角色页"""
     role_loader = RoleLoader()
     role_list = ft.Column(spacing=4)
@@ -685,37 +732,310 @@ def _show_new_role_dialog(page: ft.Page, role_loader: RoleLoader, refresh_fn) ->
 # 占位页（Phase 2-3 开发）
 # ============================================================
 
-def build_skill_view(page: ft.Page) -> ft.Column:
+def build_skill_view(page: ft.Page, app_state: dict) -> ft.Column:
+    """构建Skill页"""
+    loader: SkillLoader = app_state["skill_loader"]
+    skill_list = ft.Column(spacing=0)
+
+    def refresh_skill_list():
+        """刷新Skill列表"""
+        skill_list.controls.clear()
+        skills = loader.scan()
+        if skills:
+            for s in skills:
+                skill_list.controls.append(_build_skill_card(s, loader, page, refresh_skill_list))
+        else:
+            # 空状态
+            skill_list.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.BUILD, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("暂无Skill", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text(
+                            "在 skills/ 目录下创建文件夹，放入 SKILL.md 文件即可自动识别",
+                            size=12, color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                        ft.Text(
+                            "例如: skills/my-skill/SKILL.md",
+                            size=11, color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    alignment=ft.Alignment.CENTER,
+                    padding=40,
+                )
+            )
+        page.update()
+
+    refresh_skill_list()
+
+    # 注册刷新函数供导航回调使用
+    app_state["refresh_skill_list"] = refresh_skill_list
+
     return ft.Column(
         [
-            ft.Row([ft.Button("打开Skill文件夹", icon=ft.Icons.FOLDER_OPEN)]),
+            ft.Row([
+                ft.Button("打开Skill文件夹", icon=ft.Icons.FOLDER_OPEN,
+                          on_click=lambda e: _open_folder(SKILLS_DIR)),
+                ft.IconButton(icon=ft.Icons.REFRESH, tooltip="刷新", on_click=lambda e: refresh_skill_list()),
+            ]),
             ft.Divider(),
-            ft.Container(
-                content=ft.Text("Skill列表 - Phase 2 开发中", size=16),
-                expand=True,
-                alignment=ft.Alignment.CENTER,
-            ),
+            ft.Text("Skill列表", size=14, weight=ft.FontWeight.BOLD),
+            skill_list,
         ],
         expand=True,
+        scroll=ft.ScrollMode.AUTO,
+        spacing=0,
     )
 
 
-def build_mcp_view(page: ft.Page) -> ft.Column:
-    return ft.Column(
-        [
-            ft.Row([ft.Button("添加MCP", icon=ft.Icons.ADD)]),
-            ft.Divider(),
-            ft.Container(
-                content=ft.Text("MCP连接列表 - Phase 2 开发中", size=16),
-                expand=True,
-                alignment=ft.Alignment.CENTER,
-            ),
-        ],
-        expand=True,
+def _build_skill_card(skill, loader: SkillLoader, page: ft.Page, refresh_fn) -> ft.Container:
+    """构建单个Skill卡片"""
+    def on_toggle(e):
+        loader.toggle(skill.name, e.control.value)
+        refresh_fn()
+
+    return ft.Container(
+        content=ft.Row([
+            ft.Icon(ft.Icons.BUILD, color=ft.Colors.PRIMARY, size=20),
+            ft.Column([
+                ft.Text(skill.name, size=14, weight=ft.FontWeight.BOLD),
+                ft.Text(skill.description, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+            ], expand=True, spacing=2),
+            ft.Switch(value=skill.enabled, on_change=on_toggle),
+        ]),
+        bgcolor=ft.Colors.SURFACE_CONTAINER if skill.enabled else None,
+        border_radius=10,
+        padding=12,
+        margin=ft.Margin(top=0, left=0, right=0, bottom=8),
     )
 
 
-def build_rag_view(page: ft.Page) -> ft.Column:
+def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
+    """构建MCP页"""
+    manager: MCPManager = app_state["mcp_manager"]
+    mcp_list = ft.Column(spacing=0)
+
+    # 添加MCP表单字段
+    name_field = ft.TextField(label="连接名称", hint_text="例如: Jira MCP", text_size=13)
+    host_field = ft.TextField(label="主机地址", hint_text="例如: 127.0.0.1", text_size=13, value="127.0.0.1")
+    port_field = ft.TextField(label="端口", hint_text="例如: 8080", text_size=13, value="8080")
+    form_status = ft.Text("", size=12)
+
+    def toggle_form(e):
+        form_expand.visible = not form_expand.visible
+        form_status.value = ""
+        form_expand.update()
+        page.update()
+
+    def on_save_mcp(e):
+        name = name_field.value.strip()
+        host = host_field.value.strip()
+        port_str = port_field.value.strip()
+        if not name:
+            form_status.value = "❌ 连接名称不能为空"
+            form_status.color = ft.Colors.ERROR; form_status.update(); return
+        if not host:
+            form_status.value = "❌ 主机地址不能为空"
+            form_status.color = ft.Colors.ERROR; form_status.update(); return
+        try:
+            port = int(port_str)
+        except ValueError:
+            form_status.value = "❌ 端口必须是数字"
+            form_status.color = ft.Colors.ERROR; form_status.update(); return
+
+        manager.add_connection(name, host, port)
+        name_field.value = ""; host_field.value = "127.0.0.1"; port_field.value = "8080"
+        form_expand.visible = False; form_status.value = ""
+        refresh_mcp_list()
+
+    # 添加表单按钮
+    def toggle_form_btn(e):
+        form_expand.visible = not form_expand.visible
+        form_status.value = ""
+        form_expand.update()
+        page.update()
+
+    form_expand = ft.Column([
+        ft.Text("新增MCP连接", size=15, weight=ft.FontWeight.BOLD),
+        name_field,
+        ft.Row([host_field, port_field]),
+        form_status,
+        ft.Row([
+            ft.FilledButton("保存", icon=ft.Icons.SAVE, on_click=on_save_mcp),
+            ft.TextButton("取消", on_click=toggle_form_btn),
+        ]),
+    ], visible=False)
+
+    def refresh_mcp_list():
+        """刷新MCP连接列表"""
+        mcp_list.controls.clear()
+        connections = manager.load_connections()
+        if connections:
+            for conn in connections:
+                mcp_list.controls.append(_build_mcp_card(conn, manager, page, refresh_mcp_list))
+        else:
+            # 空状态
+            mcp_list.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.POWER, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text("尚未添加任何MCP连接", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text(
+                            "点击上方「添加MCP」按钮，填写MCP Server的地址和端口",
+                            size=12, color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    alignment=ft.Alignment.CENTER,
+                    padding=40,
+                )
+            )
+        page.update()
+
+    refresh_mcp_list()
+
+    # 注册刷新函数
+    app_state["refresh_mcp_list"] = refresh_mcp_list
+
+    return ft.Column(
+        [
+            ft.Row([
+                ft.Button("添加MCP", icon=ft.Icons.ADD, on_click=toggle_form),
+            ]),
+            # 添加MCP表单
+            ft.Container(
+                content=form_expand,
+                bgcolor=ft.Colors.SURFACE_CONTAINER,
+                border_radius=10,
+                padding=16,
+                margin=ft.Margin(top=0, left=0, right=0, bottom=12),
+            ),
+            ft.Divider(),
+            ft.Text("MCP连接列表", size=14, weight=ft.FontWeight.BOLD),
+            mcp_list,
+        ],
+        expand=True,
+        scroll=ft.ScrollMode.AUTO,
+        spacing=0,
+    )
+
+
+def _build_mcp_card(conn, manager: MCPManager, page: ft.Page, refresh_fn) -> ft.Container:
+    """构建单个MCP连接卡片"""
+    # 状态映射
+    STATUS_MAP = {
+        "connected": (ft.Colors.GREEN, "已连接"),
+        "connecting": (ft.Colors.AMBER, "连接中..."),
+        "error": (ft.Colors.ERROR, conn.error_msg[:30] or "错误"),
+        "disconnected": (ft.Colors.ON_SURFACE_VARIANT, "断开"),
+    }
+    status_color, status_label = STATUS_MAP.get(conn.status,
+        (ft.Colors.ON_SURFACE_VARIANT, "未知"))
+    status_text = ft.Text(f"● {status_label}", size=12, color=status_color)
+
+    # 开关
+    def on_toggle(e):
+        manager.toggle_connection(conn.name, e.control.value)
+        refresh_fn()
+    toggle_switch = ft.Switch(value=conn.enabled, on_change=on_toggle)
+
+    # 工具展开区域
+    tools_section = ft.Column(visible=False, spacing=2)
+    expand_btn = ft.TextButton(
+        f"▶ 工具列表 ({len(conn.tools)})" if conn.tools else "工具列表 (0)",
+        size=12,
+    )
+
+    def on_toggle_tools(e):
+        tools_section.visible = not tools_section.visible
+        direction = "▼" if tools_section.visible else "▶"
+        count = len(conn.tools)
+        expand_btn.text = f"{direction} 工具列表 ({count})" if count else f"{direction} 工具列表 (0)"
+        page.update()
+    expand_btn.on_click = on_toggle_tools
+
+    # 填充工具列表
+    if conn.tools:
+        for t in conn.tools:
+            tools_section.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text(f"🔧 {t['name']}", size=13, weight=ft.FontWeight.BOLD),
+                        ft.Text(t.get("description", "")[:80], size=11,
+                                color=ft.Colors.ON_SURFACE_VARIANT),
+                    ]),
+                    padding=ft.Padding(left=20, top=2, right=8, bottom=2),
+                )
+            )
+    elif conn.status == "connected":
+        tools_section.controls.append(ft.Text("未发现工具", size=12, italic=True,
+            color=ft.Colors.ON_SURFACE_VARIANT))
+    else:
+        tools_section.controls.append(ft.Text("连接后可发现工具", size=12, italic=True,
+            color=ft.Colors.ON_SURFACE_VARIANT))
+
+    # 连接按钮
+    def on_connect(e):
+        async def _do_connect():
+            status_text.value = "● 连接中..."
+            status_text.color = ft.Colors.AMBER
+            status_text.update()
+            await manager.connect(conn)
+            # 填充工具列表
+            tools_section.controls.clear()
+            if conn.tools:
+                for t in conn.tools:
+                    tools_section.controls.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(f"🔧 {t['name']}", size=13, weight=ft.FontWeight.BOLD),
+                                ft.Text(t.get("description", "")[:80], size=11,
+                                        color=ft.Colors.ON_SURFACE_VARIANT),
+                            ]),
+                            padding=ft.Padding(left=20, top=2, right=8, bottom=2),
+                        )
+                    )
+            elif conn.status == "connected":
+                tools_section.controls.append(ft.Text("未发现工具", size=12, italic=True,
+                    color=ft.Colors.ON_SURFACE_VARIANT))
+            else:
+                tools_section.controls.append(ft.Text("连接失败", size=12, italic=True,
+                    color=ft.Colors.ERROR))
+            expand_btn.text = f"▶ 工具列表 ({len(conn.tools)})"
+            refresh_fn()
+        page.run_task(_do_connect)
+
+    # 删除按钮
+    def on_delete(e):
+        manager.remove_connection(conn.name)
+        refresh_fn()
+
+    return ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Icon(ft.Icons.POWER, color=ft.Colors.PRIMARY, size=20),
+                ft.Column([
+                    ft.Text(conn.name, size=15, weight=ft.FontWeight.BOLD),
+                    ft.Text(f"{conn.host}:{conn.port}  |  工具: {len(conn.tools)}",
+                            size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                    status_text,
+                ], expand=True, spacing=2),
+                ft.IconButton(icon=ft.Icons.REFRESH, tooltip="连接/刷新工具",
+                              icon_size=18, on_click=on_connect),
+                toggle_switch,
+                ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, tooltip="删除",
+                              icon_size=18, icon_color=ft.Colors.ERROR, on_click=on_delete),
+            ]),
+            ft.Row([expand_btn]),
+            tools_section,
+        ]),
+        bgcolor=ft.Colors.SURFACE_CONTAINER if conn.enabled else None,
+        border_radius=10,
+        padding=12,
+        margin=ft.Margin(top=0, left=0, right=0, bottom=8),
+    )
+
+
+def build_rag_view(page: ft.Page, app_state: dict) -> ft.Column:
     return ft.Column(
         [
             ft.Row([ft.Button("添加数据源", icon=ft.Icons.ADD)]),
@@ -730,7 +1050,7 @@ def build_rag_view(page: ft.Page) -> ft.Column:
     )
 
 
-def build_memory_view(page: ft.Page) -> ft.Column:
+def build_memory_view(page: ft.Page, app_state: dict) -> ft.Column:
     return ft.Column(
         [
             ft.Row([ft.Button("打开记忆文件夹", icon=ft.Icons.FOLDER_OPEN)]),
@@ -839,14 +1159,30 @@ def main(page: ft.Page):
     model_dd.on_change = on_model_dd_change
     role_dd.on_change = on_role_dd_change
 
+    # ----- 创建核心管理器实例（跨视图共享）-----
+    mcp_manager = MCPManager()
+    mcp_manager.load_connections()
+    skill_loader = SkillLoader()
+    skill_loader.scan()
+
+    # 共享状态字典
+    app_state = {
+        "model_dd": model_dd,
+        "role_dd": role_dd,
+        "refresh_model_dd": _refresh_model_dropdown,
+        "refresh_role_dd": _refresh_role_dropdown,
+        "mcp_manager": mcp_manager,
+        "skill_loader": skill_loader,
+    }
+
     # ----- 构建所有视图（缓存，避免切换标签时状态丢失）-----
-    chat_page = build_chat_view(page)
-    skill_page = build_skill_view(page)
-    mcp_page = build_mcp_view(page)
-    rag_page = build_rag_view(page)
-    memory_page = build_memory_view(page)
-    role_page = build_role_view(page)
-    model_page = build_model_view(page)
+    chat_page = build_chat_view(page, app_state)
+    skill_page = build_skill_view(page, app_state)
+    mcp_page = build_mcp_view(page, app_state)
+    rag_page = build_rag_view(page, app_state)
+    memory_page = build_memory_view(page, app_state)
+    role_page = build_role_view(page, app_state)
+    model_page = build_model_view(page, app_state)
 
     cached_views = [
         chat_page,    # 0: 对话
@@ -860,21 +1196,18 @@ def main(page: ft.Page):
 
     content_area = ft.Container(content=cached_views[0], expand=True)
 
-    # 存储引用供导航回调使用
-    app_state = {
-        "model_dd": model_dd,
-        "role_dd": role_dd,
-        "refresh_model_dd": _refresh_model_dropdown,
-        "refresh_role_dd": _refresh_role_dropdown,
-    }
-
-    # 导航回调中刷新下拉框
+    # 导航回调中刷新下拉框及 Skill/MCP 列表
     def on_nav_change(e):
         idx = e.control.selected_index
         content_area.content = cached_views[idx]
-        # 切换到模型页或角色页时刷新下拉框
         _refresh_model_dropdown()
         _refresh_role_dropdown()
+        # 切换到 Skill 页时自动刷新
+        if idx == 1 and "refresh_skill_list" in app_state:
+            app_state["refresh_skill_list"]()
+        # 切换到 MCP 页时自动刷新
+        if idx == 2 and "refresh_mcp_list" in app_state:
+            app_state["refresh_mcp_list"]()
         page.update()
 
     page.navigation_bar = ft.NavigationBar(

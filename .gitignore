@@ -38,3 +38,5 @@ Thumbs.db
 # Logs
 *.log
 /memory/conversations/
+/skills/toggles.json
+/models/
