@@ -1,0 +1,11 @@
+litellm>=1.50.0
+mcp>=1.0.0
+chromadb>=0.5.0
+sentence-transformers>=3.0
+langchain-text-splitters
+PyPDF2
+python-docx
+duckduckgo-search
+watchdog
+pyperclip
+flet>=0.25.0

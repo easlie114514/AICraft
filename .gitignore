@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.spec
+*.exe
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ChromaDB vector data
+chroma_db/
+
+# Environment and secrets
+.env
+*.key
+api_keys*.json
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Flet build artifacts
+.flet/
+
+# Logs
+*.log

@@ -1,0 +1,9 @@
+{
+  "model_id": "",
+  "role": "通用助手",
+  "toggles": {
+    "web_search": false,
+    "rag": true,
+    "memory": true
+  }
+}
