@@ -23,11 +23,11 @@ from src.core.memory import MemoryManager
 from src.core.rag_engine import RAGEngine
 from src.core.web_search import format_search_results, web_search
 from src.core.llm import (
-    chat_completion,
     get_available_models,
     get_current_model_config,
     test_connection,
 )
+from src.core.agent_loop import agent_loop
 from src.core.mcp_client import MCPManager
 from src.core.role_loader import RoleLoader
 from src.core.skill_loader import SkillLoader
@@ -75,6 +75,50 @@ def _make_message_bubble(role: str, text: str | ft.Control) -> ft.Container:
             bottom=8,
         ),
         animate_opacity=300,
+    )
+
+
+def _make_tool_card(name: str, detail: str, card_type: str = "calling") -> ft.Container:
+    """创建工具调用/结果卡片，显示在对话流中"""
+    import json as _json
+
+    is_calling = card_type == "calling"
+    icon = "🔧" if is_calling else "✅"
+    label = "调用工具" if is_calling else "工具返回"
+
+    # 格式化参数或结果
+    if is_calling:
+        try:
+            detail_str = _json.dumps(detail, ensure_ascii=False, indent=2) if isinstance(detail, dict) else str(detail)
+        except Exception:
+            detail_str = str(detail)
+    else:
+        detail_str = str(detail)
+
+    if len(detail_str) > 250:
+        detail_str = detail_str[:250] + "..."
+
+    return ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Text(icon, size=14),
+                ft.Text(f"{label}: ", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                ft.Text(name, size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.TERTIARY),
+            ]),
+            ft.Text(detail_str, size=11, color=ft.Colors.ON_SURFACE_VARIANT,
+                    font_family="monospace", selectable=True,
+                    max_lines=6),
+        ], spacing=2),
+        bgcolor=ft.Colors.SURFACE_CONTAINER,
+        border=ft.Border(
+            left=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+            top=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+            right=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+            bottom=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+        ),
+        border_radius=8,
+        padding=ft.Padding(left=12, top=8, right=12, bottom=8),
+        margin=ft.Margin(left=60, top=2, right=60, bottom=2),
     )
 
 
@@ -194,7 +238,7 @@ async def _on_send(
     set_streaming,
     app_state: dict,
 ) -> None:
-    """处理发送消息"""
+    """处理发送消息 — 使用 Agent 循环支持多轮工具调用"""
     if get_streaming():
         return  # 正在流式输出中，忽略
 
@@ -232,9 +276,13 @@ async def _on_send(
     response_text = ft.Text("思考中...", size=14, selectable=True)
     assistant_bubble = _make_message_bubble("assistant", response_text)
     chat_list.controls.append(assistant_bubble)
+
+    # 记录 AI 气泡在 chat_list 中的位置（用于在其前插入工具调用卡片）
+    assistant_idx = len(chat_list.controls) - 1
+
     page.update()
 
-    # 构建消息列表
+    # ── 构建消息列表 ──
     role_loader = RoleLoader()
     role_loader.scan()
     role_name = get_current_role_name()
@@ -247,7 +295,7 @@ async def _on_send(
         if skill_prompt:
             system_prompt = system_prompt + skill_prompt
 
-    # ── Phase 3 新增注入 ──
+    # ── Phase 3 注入：联网搜索 / RAG / 记忆 ──
     toggles = app_state.get("chat_toggles", {}) if app_state else {}
     injected_info = []  # 记录注入了什么，用于最后展示
 
@@ -299,102 +347,106 @@ async def _on_send(
             except Exception:
                 pass
 
+    # ── 拼装 messages（含近期对话历史）──
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_text},
     ]
+    # 添加最近对话历史（跨对话，帮助 LLM 理解上下文）
+    try:
+        history_msgs = get_recent_messages(limit=20)
+        for m in history_msgs:
+            role = m.get("role", "")
+            # 只保留 user/assistant 消息（过滤 tool/system），content 可能为 None
+            if role in ("user", "assistant"):
+                content = m.get("content") or ""
+                messages.append({"role": role, "content": content})
+    except Exception:
+        pass
+    messages.append({"role": "user", "content": user_text})
 
-    full_text = ""
-    error_occurred = False
-    tool_calls_pending = {}  # index -> {id, name, arguments}
-
-    # 获取已连接的MCP工具列表
+    # ── 获取 MCP 工具列表 ──
     mcp_tools = None
     mcp_manager: MCPManager | None = app_state.get("mcp_manager") if app_state else None
     if mcp_manager:
         mcp_tools = mcp_manager.get_enabled_tools() or None
 
+    # ── Agent 循环 ──
+    full_text = ""
+    error_occurred = False
+    tool_call_count = 0
+
     try:
-        async for chunk in chat_completion(
-            messages,
-            model_config=model_config,
-            stream=True,
+        async for event in agent_loop(
+            messages=messages,
             tools=mcp_tools,
+            model_config=model_config,
+            mcp_manager=mcp_manager,
+            max_rounds=10,
         ):
             # 检查是否被用户停止
             if not get_streaming():
                 break
 
-            if isinstance(chunk, str):
-                full_text += chunk
+            event_type = event.get("type", "")
+
+            if event_type == "text":
+                # 流式文本 → 更新响应气泡
+                full_text += event.get("content", "")
                 response_text.value = full_text
                 response_text.update()
-            elif isinstance(chunk, dict) and chunk.get("type") == "tool_call":
-                # 累积流式工具调用
-                for tc in chunk["data"]:
-                    idx = tc.index
-                    if idx not in tool_calls_pending:
-                        tool_calls_pending[idx] = {"name": "", "arguments": ""}
-                        if hasattr(tc, 'id') and tc.id:
-                            tool_calls_pending[idx]["id"] = tc.id
-                    if tc.function:
-                        if tc.function.name:
-                            tool_calls_pending[idx]["name"] += tc.function.name
-                        if tc.function.arguments:
-                            tool_calls_pending[idx]["arguments"] += tc.function.arguments
+
+            elif event_type == "tool_call":
+                tool_call_count += 1
+                tool_name = event.get("name", "未知工具")
+                tool_args = event.get("args", {})
+                # 在 AI 气泡之前插入工具调用卡片
+                tc_card = _make_tool_card(tool_name, tool_args, "calling")
+                chat_list.controls.insert(assistant_idx, tc_card)
+                assistant_idx += 1
+                page.update()
+
+            elif event_type == "tool_result":
+                tool_name = event.get("name", "未知工具")
+                result = event.get("result", "")
+                # 在 AI 气泡之前插入工具结果卡片
+                tr_card = _make_tool_card(tool_name, result, "result")
+                chat_list.controls.insert(assistant_idx, tr_card)
+                assistant_idx += 1
+                page.update()
+
     except Exception as ex:
         error_occurred = True
         response_text.value = f"❌ 调用失败: {str(ex)}"
         response_text.update()
     else:
-        # 流式结束后，格式化展示工具调用摘要和注入信息
-        suffix_parts = []
-
-        if tool_calls_pending:
-            import json as _json
-            suffix_parts.append("─" * 30)
-            for idx in sorted(tool_calls_pending):
-                tc = tool_calls_pending[idx]
-                suffix_parts.append(f"🔧 工具调用: {tc['name']}")
-                try:
-                    args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
-                    suffix_parts.append(_json.dumps(args, ensure_ascii=False, indent=2))
-                except Exception:
-                    suffix_parts.append(tc.get("arguments", "") or "")
-
-        # 显示 Phase 3 注入了什么
-        if injected_info:
-            if suffix_parts:
-                suffix_parts.append("")  # 空行
-            suffix_parts.append("─" * 30)
+        # Agent 循环正常结束 — 追加注入信息摘要
+        if full_text and injected_info:
+            suffix_parts = ["", "─" * 30]
             for info in injected_info:
                 suffix_parts.append(f"📎 {info}")
-
-        if suffix_parts:
-            full_text += "\n\n" + "\n".join(suffix_parts)
+            full_text += "\n" + "\n".join(suffix_parts)
             response_text.value = full_text
             response_text.update()
-        elif full_text == "" and get_streaming():
-            response_text.value = "（模型未返回内容）"
+        elif full_text == "":
+            if tool_call_count > 0:
+                response_text.value = "（工具调用已完成）"
+            elif get_streaming():
+                response_text.value = "（模型未返回内容）"
             response_text.update()
 
-    # 保存对话历史
+    # ── 保存对话历史 ──
     if full_text and not error_occurred:
         try:
-            history_msgs = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_text},
-                {"role": "assistant", "content": full_text},
-            ]
+            # 保存完整的 messages 历史（含 system/user/assistant/tool 消息）
             save_conversation(
-                history_msgs,
+                messages,
                 model=model_config.get("model_id", ""),
                 role=role_name,
             )
         except Exception:
             pass  # 保存失败不阻塞
 
-    # 恢复发送按钮
+    # ── 恢复发送按钮 ──
     set_streaming(False)
     send_btn.text = "发送"
     send_btn.icon = ft.Icons.SEND
@@ -899,6 +951,19 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
 
     # 添加MCP表单字段
     name_field = ft.TextField(label="连接名称", hint_text="例如: Jira MCP", text_size=13)
+
+    # 连接类型选择
+    type_dd = ft.Dropdown(
+        label="连接类型",
+        options=[
+            ft.dropdown.Option("sse", "SSE (远程服务)"),
+            ft.dropdown.Option("stdio", "Stdio (本地脚本)"),
+        ],
+        value="sse",
+        text_size=13,
+    )
+
+    # SSE 字段组
     url_field = ft.TextField(
         label="完整URL（优先）",
         hint_text="例如: http://172.28.33.101/api/sse",
@@ -906,7 +971,35 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
     )
     host_field = ft.TextField(label="主机地址", hint_text="例如: 127.0.0.1", text_size=13)
     port_field = ft.TextField(label="端口", hint_text="例如: 8080", text_size=13)
+    sse_fields = ft.Column([
+        url_field,
+        ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+        ft.Row([host_field, port_field]),
+    ])
+
+    # Stdio 字段组
+    command_field = ft.TextField(label="命令", hint_text="例如: py 或 python", text_size=13, value="py")
+    args_field = ft.TextField(
+        label="参数（空格分隔）",
+        hint_text="例如: -3.13 D:/sipp_workshop_mcp.py",
+        text_size=13,
+    )
+    stdio_fields = ft.Column([
+        command_field,
+        args_field,
+    ], visible=False)
+
     form_status = ft.Text("", size=12)
+
+    def on_type_change(e):
+        """切换连接类型时显示对应字段"""
+        is_sse = type_dd.value == "sse"
+        sse_fields.visible = is_sse
+        stdio_fields.visible = not is_sse
+        form_status.value = ""
+        page.update()
+
+    type_dd.on_change = on_type_change
 
     def toggle_form(e):
         form_expand.visible = not form_expand.visible
@@ -916,49 +1009,55 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
 
     def on_save_mcp(e):
         name = name_field.value.strip()
-        full_url = url_field.value.strip()
-        host = host_field.value.strip()
-        port_str = port_field.value.strip()
+        conn_type = type_dd.value if type_dd.value else "sse"
+
         if not name:
             form_status.value = "❌ 连接名称不能为空"
             form_status.color = ft.Colors.ERROR; form_status.update(); return
 
-        if full_url:
-            # 使用完整URL模式
-            manager.add_connection(name, url=full_url)
+        if conn_type == "stdio":
+            # Stdio 模式
+            command = command_field.value.strip()
+            args_str = args_field.value.strip()
+            if not command:
+                form_status.value = "❌ 命令不能为空"
+                form_status.color = ft.Colors.ERROR; form_status.update(); return
+            args = args_str.split() if args_str else []
+            manager.add_connection(name, conn_type="stdio", command=command, args=args)
         else:
-            # 使用 host+port 模式
-            if not host:
-                form_status.value = "❌ 请填写主机地址或完整URL"
-                form_status.color = ft.Colors.ERROR; form_status.update(); return
-            try:
-                port = int(port_str) if port_str else 0
-            except ValueError:
-                form_status.value = "❌ 端口必须是数字"
-                form_status.color = ft.Colors.ERROR; form_status.update(); return
-            manager.add_connection(name, host=host, port=port)
+            # SSE 模式
+            full_url = url_field.value.strip()
+            host = host_field.value.strip()
+            port_str = port_field.value.strip()
+            if full_url:
+                manager.add_connection(name, url=full_url)
+            else:
+                if not host:
+                    form_status.value = "❌ 请填写主机地址或完整URL"
+                    form_status.color = ft.Colors.ERROR; form_status.update(); return
+                try:
+                    port = int(port_str) if port_str else 0
+                except ValueError:
+                    form_status.value = "❌ 端口必须是数字"
+                    form_status.color = ft.Colors.ERROR; form_status.update(); return
+                manager.add_connection(name, host=host, port=port)
 
+        # 清空表单
         name_field.value = ""; url_field.value = ""; host_field.value = ""; port_field.value = ""
+        command_field.value = "py"; args_field.value = ""
         form_expand.visible = False; form_status.value = ""
         refresh_mcp_list()
-
-    # 添加表单按钮
-    def toggle_form_btn(e):
-        form_expand.visible = not form_expand.visible
-        form_status.value = ""
-        form_expand.update()
-        page.update()
 
     form_expand = ft.Column([
         ft.Text("新增MCP连接", size=15, weight=ft.FontWeight.BOLD),
         name_field,
-        url_field,
-        ft.Text("或使用 host:port 方式", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
-        ft.Row([host_field, port_field]),
+        type_dd,
+        sse_fields,
+        stdio_fields,
         form_status,
         ft.Row([
             ft.FilledButton("保存", icon=ft.Icons.SAVE, on_click=on_save_mcp),
-            ft.TextButton("取消", on_click=toggle_form_btn),
+            ft.TextButton("取消", on_click=toggle_form),
         ]),
     ], visible=False)
 
@@ -977,7 +1076,7 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
                         ft.Icon(ft.Icons.POWER, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Text("尚未添加任何MCP连接", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Text(
-                            "点击上方「添加MCP」按钮，填写MCP Server的地址和端口",
+                            "点击上方「添加MCP」按钮，配置 SSE 远程服务或 Stdio 本地脚本",
                             size=12, color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -1109,7 +1208,16 @@ def _build_mcp_card(conn, manager: MCPManager, page: ft.Page, refresh_fn) -> ft.
             ft.Row([
                 ft.Icon(ft.Icons.POWER, color=ft.Colors.PRIMARY, size=20),
                 ft.Column([
-                    ft.Text(conn.name, size=15, weight=ft.FontWeight.BOLD),
+                    ft.Row([
+                        ft.Text(conn.name, size=15, weight=ft.FontWeight.BOLD),
+                        ft.Container(
+                            content=ft.Text(conn.type.upper(), size=10, color=ft.Colors.ON_SECONDARY_CONTAINER,
+                                            weight=ft.FontWeight.BOLD),
+                            bgcolor=ft.Colors.SECONDARY_CONTAINER,
+                            border_radius=4,
+                            padding=ft.Padding(left=5, top=1, right=5, bottom=1),
+                        ),
+                    ], spacing=6),
                     ft.Text(f"{conn.display_url}  |  工具: {len(conn.tools)}",
                             size=12, color=ft.Colors.ON_SURFACE_VARIANT),
                     status_text,
@@ -1631,6 +1739,11 @@ def main(page: ft.Page):
     # ----- 创建核心管理器实例（跨视图共享）-----
     mcp_manager = MCPManager()
     mcp_manager.load_connections()
+
+    # 应用退出时清理 stdio 子进程
+    import atexit as _atexit
+    _atexit.register(mcp_manager.disconnect_all_sync)
+
     skill_loader = SkillLoader()
     skill_loader.scan()
     rag_engine = RAGEngine()

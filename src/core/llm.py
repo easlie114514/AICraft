@@ -1,6 +1,6 @@
 """LLM调用模块 - 基于litellm的统一调用接口"""
 
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import litellm
 
@@ -48,18 +48,22 @@ async def chat_completion(
     tools: list[dict] | None = None,
     model_config: dict | None = None,
     stream: bool = True,
-) -> AsyncGenerator[str | dict, None]:
-    """调用LLM，支持流式输出和工具调用
+) -> AsyncGenerator[dict[str, Any], None]:
+    """调用LLM，支持流式输出和工具调用（自动累积 tool_call delta）
 
     Args:
         messages: 消息列表 [{"role": "user", "content": "..."}, ...]
-        tools: MCP工具列表（可选）
+        tools: MCP工具列表（litellm function-calling 格式），None 表示无工具
         model_config: 模型配置dict，不传则用当前模型
         stream: 是否流式输出
 
     Yields:
-        str: 文本增量内容
-        dict: 工具调用 {"type": "tool_call", "data": ...}
+        {"type": "text", "content": "..."}
+            — 流式文本增量（可能 yield 多次）
+        {"type": "tool_calls", "tool_calls": [...], "text": "..."}
+            — 累积完成的工具调用列表（仅在流结束时 yield 一次，如果有工具调用）
+             tool_calls 格式: [{"id": "...", "function_name": "...", "function_arguments": "..."}, ...]
+             text 字段是 LLM 在工具调用之前的文本内容（可能为空字符串）
     """
     if model_config is None:
         model_config = get_current_model_config()
@@ -85,17 +89,60 @@ async def chat_completion(
 
     if stream:
         response = await litellm.acompletion(**kwargs)
+
+        full_text = ""
+        tool_call_deltas: dict[int, dict[str, str]] = {}
+
         async for chunk in response:
             delta = chunk.choices[0].delta
+
+            # 文本增量 → 实时 yield
             if delta.content:
-                yield delta.content
-            # 处理工具调用（Phase 2 集成）
+                full_text += delta.content
+                yield {"type": "text", "content": delta.content}
+
+            # 工具调用增量 → 按 index 累加
             if delta.tool_calls:
-                yield {"type": "tool_call", "data": delta.tool_calls}
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_call_deltas:
+                        tool_call_deltas[idx] = {
+                            "id": tc.id or "",
+                            "function_name": "",
+                            "function_arguments": "",
+                        }
+                    if tc.function and tc.function.name:
+                        tool_call_deltas[idx]["function_name"] += tc.function.name
+                    if tc.function and tc.function.arguments:
+                        tool_call_deltas[idx]["function_arguments"] += tc.function.arguments
+
+        # 流结束 — yield 累积完成的工具调用（如果有）
+        if tool_call_deltas:
+            yield {
+                "type": "tool_calls",
+                "tool_calls": list(tool_call_deltas.values()),
+                "text": full_text,
+            }
     else:
         response = await litellm.acompletion(**kwargs)
-        content = response.choices[0].message.content
-        yield content
+        msg = response.choices[0].message
+        content = msg.content or ""
+        yield {"type": "text", "content": content}
+
+        # 非流式模式也可能有 tool_calls
+        if msg.tool_calls:
+            yield {
+                "type": "tool_calls",
+                "tool_calls": [
+                    {
+                        "id": tc.id or "",
+                        "function_name": tc.function.name if tc.function else "",
+                        "function_arguments": tc.function.arguments if tc.function else "",
+                    }
+                    for tc in msg.tool_calls
+                ],
+                "text": content,
+            }
 
 
 async def test_connection(model_config: dict) -> tuple[bool, str]:
