@@ -1838,5 +1838,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    # 浏览器模式，无需下载Flet桌面客户端
-    ft.run(main, view=ft.AppView.WEB_BROWSER)
+    ft.app(target=main)
