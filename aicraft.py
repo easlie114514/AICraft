@@ -1038,7 +1038,6 @@ def _build_mcp_card(conn, manager: MCPManager, page: ft.Page, refresh_fn) -> ft.
     tools_section = ft.Column(visible=False, spacing=2)
     expand_btn = ft.TextButton(
         f"▶ 工具列表 ({len(conn.tools)})" if conn.tools else "工具列表 (0)",
-        size=12,
     )
 
     def on_toggle_tools(e):
