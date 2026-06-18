@@ -76,16 +76,17 @@ class SkillLoader:
         return [s for s in self.skills if s.enabled]
 
     def build_skill_prompt(self) -> str:
-        """构建注入到system prompt的Skill描述"""
+        """构建注入到system prompt的Skill描述
+        只注入名称和简短描述，不注入完整SKILL.md内容，
+        防止模型在回复中念出技能描述。
+        """
         enabled = self.get_enabled_skills()
         if not enabled:
             return ""
 
-        parts = ["\n\n# 可用技能\n你可以使用以下技能来完成任务：\n"]
+        parts = ["\n\n# 可用技能\n你具备以下技能，当用户问题匹配时可以调用对应工具：\n"]
         for skill in enabled:
-            content = skill.skill_md.read_text(encoding="utf-8")
-            parts.append(f"\n## {skill.name}\n{content}\n")
-
+            parts.append(f"- {skill.name}：{skill.description}")
         return "\n".join(parts)
 
     def _extract_description(self, path: Path) -> str:

@@ -28,7 +28,7 @@ interface RoleOption {
 export default function ChatPage() {
   const { messages, streaming, error, sendMessage, stopStreaming, resetChat } = useChat()
   const [input, setInput] = useState('')
-  const [toggles, setToggles] = useState({ web_search: false, rag: false, memory: false })
+  const [toggles, setToggles] = useState({ rag: false, memory: true })
   const [models, setModels] = useState<ModelOption[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [selectedModel, setSelectedModel] = useState('')
@@ -186,15 +186,6 @@ export default function ChatPage() {
       <div className="shrink-0 p-4 space-y-3">
         {/* Toggles */}
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="toggle-search"
-              className="rounded-xl"
-              checked={toggles.web_search}
-              onCheckedChange={(v) => setToggles({ ...toggles, web_search: v })}
-            />
-            <Label htmlFor="toggle-search" className="text-xs text-muted-foreground cursor-pointer">联网搜索</Label>
-          </div>
           <div className="flex items-center gap-2">
             <Switch
               id="toggle-rag"

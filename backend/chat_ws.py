@@ -143,6 +143,7 @@ async def chat_websocket(ws: WebSocket):
                             f"---\n\n"
                         )
                     system_content += deps.role_loader.build_system_prompt(role_name or None)
+                    system_content += f"\n\n当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}"
 
                     await ws.send_json({
                         "type": "inject_info",
@@ -150,6 +151,7 @@ async def chat_websocket(ws: WebSocket):
                     })
                 else:
                     system_content = deps.role_loader.build_system_prompt(role_name or None)
+                    system_content += f"\n\n当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}"
                 current_role = new_role
 
                 # 注入技能 prompt
@@ -163,30 +165,55 @@ async def chat_websocket(ws: WebSocket):
                         rag_results = await loop.run_in_executor(None, deps.rag_engine.search, user_text, 5)
                         if rag_results:
                             rag_text = "\n\n".join(rag_results)
-                            system_content += f"\n\n[RAG检索结果]\n{rag_text}"
+                            system_content += (
+                                "\n\n[知识库检索结果 — 供参考，基于这些信息回答。"
+                                "如果片段中没有相关信息请如实说明，不要编造。]\n"
+                                + rag_text
+                            )
                             inject_items.append(f"RAG检索: {len(rag_results)} 条片段")
                     except Exception as e:
                         inject_items.append(f"RAG检索失败: {e}")
 
                 if toggles.get("memory"):
                     try:
-                        # 跨会话记忆：从其他历史对话中抽取最近消息
-                        cross_memories = await loop.run_in_executor(None, get_recent_messages, 20)
-                        if cross_memories:
+                        # 跨会话记忆：注入其他会话的最近消息，排除当前session已包含的
+                        cross_memories = await loop.run_in_executor(None, get_recent_messages, 10)
+                        # 过滤掉当前session已包含的消息（按内容去重）
+                        session_contents = {m.get("content", "") for m in session_history if m.get("role") in ("user", "assistant")}
+                        unique_memories = [m for m in cross_memories if m.get("content", "") not in session_contents]
+                        if unique_memories:
                             mem_text = "\n".join(
                                 f"[{m['role']}]: {m.get('content', '')[:200]}"
-                                for m in cross_memories[:10]
+                                for m in unique_memories[:10]
                             )
-                            system_content += f"\n\n[跨会话记忆]\n{mem_text}"
-                            inject_items.append(f"记忆: 已注入 {len(cross_memories)} 条历史")
+                            system_content += (
+                                "\n\n[跨会话记忆 — 之前的对话片段，供参考，"
+                                "不要在回复中提及你看到了这些内容，自然运用即可。]\n"
+                                + mem_text
+                            )
+                            inject_items.append(f"记忆: 已注入 {len(unique_memories)} 条历史")
 
                         # 项目笔记
                         notes = await loop.run_in_executor(None, deps.memory_manager.load_all_notes)
                         if notes:
-                            system_content += f"\n\n[项目笔记]\n{notes}"
+                            system_content += (
+                                "\n\n[项目笔记 — 供参考，"
+                                "不要在回复中提及你看到了笔记，自然运用相关信息即可。]\n"
+                                + notes
+                            )
                             inject_items.append("记忆: 已注入项目笔记")
                     except Exception as e:
                         inject_items.append(f"记忆注入失败: {e}")
+
+                # ── 行为约束（固定尾部约束，防止幻觉和失控）──
+                system_content += (
+                    "\n\n# 行为约束\n"
+                    "- 不要编造你不知道的信息，不知道就说不知道\n"
+                    "- 不要编造工具调用结果，只有真正执行了工具才能报告结果\n"
+                    "- 如果工具调用失败，如实告知用户失败原因\n"
+                    "- 不要在回复中提及你看到了注入的笔记、搜索结果等内容\n"
+                    f"- 当前时间是{datetime.now().strftime('%Y年%m月%d日 %H:%M')}，不要编造日期和时间"
+                )
 
                 if inject_items:
                     await ws.send_json({"type": "inject_info", "items": inject_items})
@@ -199,9 +226,19 @@ async def chat_websocket(ws: WebSocket):
 
                 # ── Agent Loop ──
                 tools: list[dict] = list(deps.mcp_manager.get_enabled_tools() or [])
-                if toggles.get("web_search"):
-                    tools.append(WEB_SEARCH_TOOL)
-                    inject_items.append("联网搜索: 工具已启用")
+                # 联网搜索始终作为 function-calling 工具可用，模型自行判断是否需要搜索
+                tools.append(WEB_SEARCH_TOOL)
+
+                # 当没有 MCP 工具可用时注入提示
+                mcp_tools = deps.mcp_manager.get_enabled_tools() or []
+                if not mcp_tools:
+                    system_content += (
+                        "\n\n# 工具状态\n"
+                        "你当前没有 MCP 外部工具可用（读写文件、执行命令等），不要编造工具调用。"
+                        "如果需要执行本地操作，请告知用户需要启用对应 MCP 工具。"
+                        "你仍然可以使用联网搜索功能来查找信息。"
+                    )
+
                 all_tools = tools if tools else None  # None 表示无工具，减少 litellm 开销
 
                 try:
