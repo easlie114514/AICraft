@@ -1,0 +1,82 @@
+"""FastAPI 应用入口"""
+
+import asyncio
+import atexit
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from backend.deps import init_deps, get_deps
+from backend.routers import models, roles, skills, mcp, rag, memory, search
+from backend.chat_ws import router as chat_ws_router
+
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期"""
+    deps = init_deps()
+    asyncio.create_task(deps.rag_engine.warmup())
+    asyncio.create_task(deps.mcp_manager.connect_all_enabled())
+    atexit.register(deps.mcp_manager.disconnect_all_sync)
+    yield
+    deps.mcp_manager.disconnect_all_sync()
+
+
+app = FastAPI(title="AICraft API", version="2.0.0", lifespan=lifespan)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8765",
+        "http://127.0.0.1:8765",
+        "app://.",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# API 路由
+app.include_router(models.router, prefix="/api")
+app.include_router(roles.router, prefix="/api")
+app.include_router(skills.router, prefix="/api")
+app.include_router(mcp.router, prefix="/api")
+app.include_router(rag.router, prefix="/api")
+app.include_router(memory.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
+app.include_router(chat_ws_router, prefix="/api")
+
+# 生产模式：挂载前端静态资源
+frontend_assets = FRONTEND_DIST / "assets"
+frontend_fonts = FRONTEND_DIST / "fonts"
+if frontend_assets.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_assets)), name="assets")
+if frontend_fonts.exists():
+    app.mount("/fonts", StaticFiles(directory=str(frontend_fonts)), name="fonts")
+
+# 生产模式：根路径返回 index.html
+@app.get("/")
+async def root():
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"message": "AICraft API - 开发模式请使用 Vite dev server (localhost:5173)"}
+
+
+@app.get("/api/health")
+async def health():
+    deps = get_deps()
+    return {
+        "status": "ok",
+        "mcp_connections": len(deps.mcp_manager.connections),
+        "rag_sources": len(deps.rag_engine.sources),
+    }
