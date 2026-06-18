@@ -73,8 +73,8 @@ export default function ModelPage() {
   }
 
   return (
-    <div className="flex flex-col h-full p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col h-full overflow-hidden p-6">
+      <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">模型配置</h2>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={loadModels} className="rounded-xl">
@@ -87,7 +87,7 @@ export default function ModelPage() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         {models.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Cpu className="h-12 w-12 mb-3 opacity-30" />

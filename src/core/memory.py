@@ -96,3 +96,74 @@ class MemoryManager:
         # 确保memory目录已被索引
         # TODO: 自动索引memory目录
         return engine.search(query, top_k)
+
+    # ── 记忆压缩 ──
+
+    async def compact_memory(self, messages: list[dict], model_config: dict, role: str = "") -> str | None:
+        """将对话压缩为结构化记忆条目并写入文件
+
+        提取对话中的关键信息（决策、偏好、学到的东西），生成简洁的记忆条目。
+
+        Args:
+            messages: 需要压缩的对话消息列表（不含 system prompt）
+            model_config: 模型配置（用于调用 LLM 做总结）
+            role: 当前角色名称
+
+        Returns:
+            生成的文件路径，失败则返回 None
+        """
+        if not messages or len(messages) < 2:
+            return None
+
+        # 去掉 system 消息，只保留 user/assistant/tool
+        filtered = [m for m in messages if m.get("role") != "system"]
+        if len(filtered) < 2:
+            return None
+
+        # 生成压缩提示
+        conv_text = "\n".join(
+            f"[{m['role']}]: {str(m.get('content', ''))[:300]}"
+            for m in filtered[-20:]  # 只取最近20条做总结
+        )
+        prompt = (
+            "你是一个对话记忆压缩器。请从以下对话片段中提取关键信息，"
+            "用简洁的要点形式总结（每点一行，只记录事实/决策/偏好/学到的东西）。"
+            "不要包含闲聊内容，不要重复已经说过的事情。\n\n"
+            f"{conv_text}\n\n"
+            "关键要点："
+        )
+
+        try:
+            import litellm
+            api_key = model_config.get("api_key", "")
+            api_base = model_config.get("api_base", "")
+            kwargs: dict = {
+                "model": model_config.get("model_id", ""),
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 500,
+            }
+            if api_key:
+                kwargs["api_key"] = api_key
+            if api_base:
+                kwargs["api_base"] = api_base
+
+            response = await litellm.acompletion(**kwargs)
+            summary = response.choices[0].message.content or ""
+            if not summary.strip():
+                return None
+
+            # 写入记忆文件
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.notes_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"auto_compact_{timestamp}.md"
+            path = self.notes_dir / filename
+            header = (
+                f"# 自动记忆压缩 {timestamp}\n\n"
+                f"角色: {role}\n\n"
+                f"---\n\n"
+            )
+            path.write_text(header + summary, encoding="utf-8")
+            return str(path)
+        except Exception:
+            return None

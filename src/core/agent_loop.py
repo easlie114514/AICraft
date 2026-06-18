@@ -18,6 +18,7 @@
               循环直到 LLM 不再调工具
 """
 
+import asyncio
 import json
 from typing import Any, AsyncGenerator
 
@@ -185,14 +186,25 @@ async def agent_loop(
                 "args": tool_args,
             }
 
-            # 执行 MCP 工具
-            if mcp_manager is not None:
+            # 内置工具: web_search
+            if tool_name == "web_search":
+                from src.core.web_search import web_search as _ws, format_search_results as _fmt
+                try:
+                    results = await asyncio.get_event_loop().run_in_executor(
+                        None, _ws, tool_args.get("query", ""), tool_args.get("max_results", 5)
+                    )
+                    result = _fmt(results)
+                except Exception as e:
+                    result = f"联网搜索失败: {str(e)}"
+
+            # MCP 工具
+            elif mcp_manager is not None:
                 try:
                     result = await execute_mcp_tool(tool_name, tool_args, mcp_manager)
                 except Exception as e:
                     result = f"工具执行异常: {str(e)}"
             else:
-                result = "未配置 MCP 管理器，无法执行工具调用"
+                result = f"未找到可执行工具 '{tool_name}'"
 
             yield {
                 "type": "tool_result",

@@ -74,8 +74,8 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="flex flex-col h-full p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col h-full overflow-hidden p-6">
+      <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">记忆</h2>
         <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes() }} className="rounded-xl">
           <RefreshCw className="h-4 w-4" />
@@ -83,7 +83,7 @@ export default function MemoryPage() {
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="shrink-0 flex items-center gap-2 mb-4">
         <Input
           placeholder="搜索记忆..."
           value={searchQuery}
@@ -97,13 +97,15 @@ export default function MemoryPage() {
       </div>
 
       {searchResults.length > 0 && (
-        <div className="mb-4">
+        <div className="shrink-0 mb-4">
           <p className="text-xs font-medium text-muted-foreground mb-2">搜索结果</p>
-          <div className="space-y-2">
-            {searchResults.map((r, i) => (
-              <div key={i} className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap break-all">{r}</div>
-            ))}
-          </div>
+          <ScrollArea className="max-h-40">
+            <div className="space-y-2">
+              {searchResults.map((r, i) => (
+                <div key={i} className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap break-all">{r}</div>
+              ))}
+            </div>
+          </ScrollArea>
         </div>
       )}
 
@@ -120,7 +122,7 @@ export default function MemoryPage() {
         </TabsList>
 
         <TabsContent value="conversations" className="flex-1">
-          <ScrollArea className="h-full">
+          <ScrollArea className="flex-1 min-h-0">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mb-2 opacity-30" />
@@ -159,7 +161,7 @@ export default function MemoryPage() {
         </TabsContent>
 
         <TabsContent value="notes" className="flex-1">
-          <ScrollArea className="h-full">
+          <ScrollArea className="flex-1 min-h-0">
             {notes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <FileText className="h-10 w-10 mb-2 opacity-30" />

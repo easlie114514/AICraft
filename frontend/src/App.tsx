@@ -7,6 +7,7 @@ import SkillPage from '@/pages/SkillPage'
 import MCPPage from '@/pages/MCPPage'
 import RAGPage from '@/pages/RAGPage'
 import MemoryPage from '@/pages/MemoryPage'
+import { ChatProvider } from '@/hooks/useChat'
 
 const PAGES = [
   { key: 'chat', label: '对话', component: ChatPage },
@@ -26,16 +27,18 @@ function App() {
   const ActivePage = PAGES.find((p) => p.key === activeTab)?.component ?? ChatPage
 
   return (
-    <div className="flex flex-col h-screen">
-      <NavBar
-        tabs={PAGES.map((p) => ({ key: p.key, label: p.label }))}
-        activeTab={activeTab}
-        onTabChange={(key) => setActiveTab(key as TabKey)}
-      />
-      <main className="flex-1 overflow-hidden bg-background">
-        <ActivePage />
-      </main>
-    </div>
+    <ChatProvider>
+      <div className="flex flex-col h-screen">
+        <NavBar
+          tabs={PAGES.map((p) => ({ key: p.key, label: p.label }))}
+          activeTab={activeTab}
+          onTabChange={(key) => setActiveTab(key as TabKey)}
+        />
+        <main className="flex-1 overflow-hidden bg-background">
+          <ActivePage />
+        </main>
+      </div>
+    </ChatProvider>
   )
 }
 

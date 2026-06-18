@@ -3,8 +3,12 @@
   "role": "通用助手",
   "toggles": {
     "web_search": false,
-    "rag": true,
+    "rag": false,
     "memory": true
+  },
+  "context": {
+    "max_history_chars": 50000,
+    "memory_compact_interval_chars": 5000,
+    "memory_compact_enabled": true
   }
 }
-

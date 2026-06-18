@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Square, RefreshCw } from 'lucide-react'
+import { Send, Square, RefreshCw, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,6 +11,8 @@ import ChatMessage from '@/components/ChatMessage'
 import ToolCallCard from '@/components/ToolCallCard'
 import { useChat } from '@/hooks/useChat'
 import { api } from '@/lib/api'
+
+const SCROLL_NEAR_BOTTOM_THRESHOLD = 60
 
 interface ModelOption {
   name: string
@@ -31,8 +33,8 @@ export default function ChatPage() {
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [selectedModel, setSelectedModel] = useState('')
   const [selectedRole, setSelectedRole] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const lastMsgCountRef = useRef(0)
+  const viewportRef = useRef<HTMLDivElement | null>(null)
+  const [isNearBottom, setIsNearBottom] = useState(true)
 
   // Load models and roles
   useEffect(() => {
@@ -55,24 +57,53 @@ export default function ChatPage() {
     }
   }, [roles, selectedRole])
 
-  // Auto-scroll
+  // Persist role choice to backend when user changes role
+  useEffect(() => {
+    if (selectedRole) {
+      api.put('/roles/current', { name: selectedRole }).catch(() => {})
+    }
+  }, [selectedRole])
+
+  // ── Scroll helpers ──
+
   const scrollToBottom = useCallback(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    const el = viewportRef.current
+    if (el) {
+      el.scrollTop = el.scrollHeight
     }
   }, [])
 
+  // Check if near bottom
+  const checkNearBottom = useCallback(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+    setIsNearBottom(dist <= SCROLL_NEAR_BOTTOM_THRESHOLD)
+  }, [])
+
+  // Auto-scroll when messages change (streaming or new) — but only if user is near bottom
   useEffect(() => {
-    if (messages.length !== lastMsgCountRef.current) {
-      lastMsgCountRef.current = messages.length
+    if (isNearBottom) {
       requestAnimationFrame(scrollToBottom)
     }
-  }, [messages.length, scrollToBottom])
+  }, [messages, isNearBottom, scrollToBottom])
+
+  // Also scroll after a brief delay when streaming starts (catch late-arriving renders)
+  useEffect(() => {
+    if (streaming) {
+      const id = setTimeout(() => {
+        if (isNearBottom) scrollToBottom()
+      }, 50)
+      return () => clearTimeout(id)
+    }
+  }, [streaming, isNearBottom, scrollToBottom])
 
   const handleSend = () => {
     const text = input.trim()
     if (!text || streaming) return
     setInput('')
+    // Force scroll to bottom when user sends a message
+    setIsNearBottom(true)
     sendMessage(text, selectedModel, selectedRole, toggles)
   }
 
@@ -86,9 +117,13 @@ export default function ChatPage() {
   const hasMessages = messages.length > 0
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden relative">
       {/* Messages */}
-      <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+      <ScrollArea
+        className="flex-1 min-h-0 px-4"
+        viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
+        onScroll={checkNearBottom}
+      >
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -98,7 +133,7 @@ export default function ChatPage() {
             <p className="text-xs mt-1">选择模型和角色，开始对话</p>
           </div>
         ) : (
-          <div className="py-4 space-y-0">
+          <div className="py-4 space-y-0 relative">
             {messages.map((msg) => {
               if (msg.role === 'tool_call') {
                 return (
@@ -131,10 +166,24 @@ export default function ChatPage() {
         )}
       </ScrollArea>
 
+      {/* Scroll-to-bottom floating button */}
+      {!isNearBottom && hasMessages && (
+        <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-10">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { scrollToBottom(); setIsNearBottom(true) }}
+            className="rounded-full shadow-lg h-8 w-8 p-0"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       <Separator />
 
       {/* Input Area */}
-      <div className="p-4 space-y-3">
+      <div className="shrink-0 p-4 space-y-3">
         {/* Toggles */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">

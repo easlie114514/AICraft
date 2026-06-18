@@ -22,7 +22,7 @@ def _conn_to_dict(conn):
         "status": conn.status,
         "tools": conn.tools,
         "error_msg": conn.error_msg,
-        "display_url": conn.display_url(),
+        "display_url": conn.display_url,
     }
 
 

@@ -1,3 +1,12 @@
 {
-  "sources": []
+  "sources": [
+    {
+      "name": "SDK测试报告",
+      "path": "D:\\2\\sdk",
+      "type": "local",
+      "enabled": true,
+      "file_count": 5,
+      "indexed": true
+    }
+  ]
 }

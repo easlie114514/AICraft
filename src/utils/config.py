@@ -162,3 +162,14 @@ def set_current_role_name(role_name: str) -> None:
     profile_config = load_profile_config("model")
     profile_config["role"] = role_name
     save_profile_config("model", profile_config)
+
+
+def get_context_config() -> dict[str, int | bool]:
+    """获取上下文管理配置（记忆压缩间隔、聊天历史长度等）"""
+    profile_config = load_profile_config("model")
+    ctx = profile_config.get("context", {})
+    return {
+        "max_history_chars": int(ctx.get("max_history_chars", 50000)),
+        "memory_compact_interval_chars": int(ctx.get("memory_compact_interval_chars", 5000)),
+        "memory_compact_enabled": bool(ctx.get("memory_compact_enabled", True)),
+    }

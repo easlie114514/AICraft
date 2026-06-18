@@ -1,3 +1,17 @@
 {
-  "connections": []
+  "connections": [
+    {
+      "name": "积木工坊",
+      "type": "stdio",
+      "host": "",
+      "port": 0,
+      "url": "",
+      "command": "py",
+      "args": [
+        "D:\\Downloads\\sipp_workshop_mcp.py"
+      ],
+      "env": {},
+      "enabled": false
+    }
+  ]
 }
