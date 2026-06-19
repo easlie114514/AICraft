@@ -36,7 +36,7 @@ export default function SkillPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">Skill 管理</h2>
         <Button variant="outline" size="icon" onClick={loadSkills} className="rounded-xl">

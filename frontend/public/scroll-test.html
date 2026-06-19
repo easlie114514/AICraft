@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scroll Test</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; overflow: hidden; }
+
+    /* Debug: highlight key layout boxes */
+    .debug-root { outline: 2px dashed red; }
+    .debug-main { outline: 2px dashed blue; }
+    .debug-page { outline: 2px dashed green; }
+    .debug-scroll { outline: 2px solid orange; }
+
+    /* Diagnostic panel */
+    #diagnostics {
+      position: fixed; bottom: 4px; right: 4px;
+      background: rgba(0,0,0,0.85); color: #0f0;
+      font-family: monospace; font-size: 11px;
+      padding: 8px 12px; border-radius: 6px;
+      z-index: 9999; max-width: 320px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- ═══ Method 1: fixed inset-0 ═══ -->
+  <div class="flex flex-col fixed inset-0 debug-root">
+    <div class="h-12 shrink-0 bg-gray-200 flex items-center px-4 font-medium text-sm">
+      NavBar (48px) — fixed inset-0 method
+    </div>
+    <main class="flex-1 overflow-hidden bg-gray-50 flex flex-col debug-main">
+      <div class="flex-1 min-h-0 flex flex-col overflow-hidden p-6 bg-white debug-page">
+        <div class="shrink-0 mb-4">
+          <h2 class="text-lg font-bold">Scroll Test (fixed inset-0)</h2>
+          <p class="text-xs text-gray-500">Should scroll ⬇</p>
+        </div>
+        <div class="flex-1 min-h-0 overflow-y-auto bg-orange-50 border-2 border-orange-400 rounded-lg debug-scroll">
+          <div class="p-4 space-y-3">
+            <p class="text-sm font-bold text-orange-600">⬇ Scroll down ⬇</p>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 01</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 02</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 03</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 04</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 05</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 06</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 07</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 08</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 09</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 10</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 11</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 12</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 13</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 14</div>
+            <div class="h-16 bg-blue-100 rounded flex items-center px-3 text-sm font-mono">Item 15</div>
+            <p class="text-sm font-bold text-orange-600">⬆ End ⬆</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Diagnostic overlay -->
+  <div id="diagnostics">
+    <div>ScrollTest v2 (fixed inset-0)</div>
+    <div id="diag-viewport"></div>
+    <div id="diag-root"></div>
+    <div id="diag-main"></div>
+    <div id="diag-page"></div>
+    <div id="diag-scroll"></div>
+    <div id="diag-status"></div>
+  </div>
+
+  <script>
+    function update() {
+      const root = document.querySelector('.debug-root');
+      const main = document.querySelector('.debug-main');
+      const page = document.querySelector('.debug-page');
+      const scroll = document.querySelector('.debug-scroll');
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+
+      document.getElementById('diag-viewport').textContent = `Viewport: ${vw}x${vh}`;
+      document.getElementById('diag-root').textContent = `Root: ${root?.offsetWidth}x${root?.offsetHeight} fixed`;
+      document.getElementById('diag-main').textContent = `Main: ${main?.offsetWidth}x${main?.offsetHeight} flex-1`;
+      document.getElementById('diag-page').textContent = `Page: ${page?.offsetWidth}x${page?.offsetHeight}`;
+
+      if (scroll) {
+        const canScroll = scroll.scrollHeight > scroll.clientHeight;
+        const atBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2;
+        document.getElementById('diag-scroll').textContent =
+          `Scroll: ${scroll.clientWidth}x${scroll.clientHeight} | content: ${scroll.scrollHeight}px | canScroll: ${canScroll} | atBottom: ${atBottom}`;
+        document.getElementById('diag-status').textContent =
+          canScroll ? (atBottom ? '✅ Works! Scroll to see more ⬆' : '✅ Scrolling works!') : '❌ Cannot scroll (content fits)';
+      }
+    }
+
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update);
+    // Also listen on the inner scroll element
+    document.querySelector('.debug-scroll')?.addEventListener('scroll', update);
+
+    update();
+    setTimeout(update, 500);
+  </script>
+</body>
+</html>

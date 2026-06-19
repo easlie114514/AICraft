@@ -28,13 +28,13 @@ function App() {
 
   return (
     <ChatProvider>
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col fixed inset-0">
         <NavBar
           tabs={PAGES.map((p) => ({ key: p.key, label: p.label }))}
           activeTab={activeTab}
           onTabChange={(key) => setActiveTab(key as TabKey)}
         />
-        <main className="flex-1 overflow-hidden bg-background">
+        <main className="flex-1 overflow-hidden bg-background flex flex-col">
           <ActivePage />
         </main>
       </div>

@@ -73,7 +73,7 @@ export default function ModelPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">模型配置</h2>
         <div className="flex items-center gap-2">

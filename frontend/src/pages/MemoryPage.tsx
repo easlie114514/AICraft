@@ -74,7 +74,7 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">记忆</h2>
         <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes() }} className="rounded-xl">
@@ -121,8 +121,8 @@ export default function MemoryPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="conversations" className="flex-1">
-          <ScrollArea className="flex-1 min-h-0">
+        <TabsContent value="conversations" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mb-2 opacity-30" />
@@ -157,11 +157,11 @@ export default function MemoryPage() {
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </TabsContent>
 
-        <TabsContent value="notes" className="flex-1">
-          <ScrollArea className="flex-1 min-h-0">
+        <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {notes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <FileText className="h-10 w-10 mb-2 opacity-30" />
@@ -183,7 +183,7 @@ export default function MemoryPage() {
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </TabsContent>
       </Tabs>
 

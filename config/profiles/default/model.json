@@ -1,6 +1,6 @@
 {
   "model_id": "",
-  "role": "通用助手",
+  "role": "猫",
   "toggles": {
     "web_search": false,
     "rag": false,

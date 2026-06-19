@@ -27,6 +27,11 @@
   --radius-xl: calc(var(--radius) + 0.5rem);
 }
 
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   background-color: hsl(210 20% 96%);

@@ -36,6 +36,22 @@ export default function ChatPage() {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [isNearBottom, setIsNearBottom] = useState(true)
 
+  // ── Smart auto-scroll: once user scrolls up during streaming, stop following ──
+  const userPausedScrollRef = useRef(false)
+  const streamingRef = useRef(false)
+  streamingRef.current = streaming
+
+  // Reset the pause flag when streaming ends
+  const prevStreamingRef = useRef(false)
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current
+    prevStreamingRef.current = streaming
+    if (wasStreaming && !streaming) {
+      // Stream just ended — reset pause for next round
+      userPausedScrollRef.current = false
+    }
+  }, [streaming])
+
   // Load models and roles
   useEffect(() => {
     api.get<ModelOption[]>('/models').then(setModels).catch(() => {})
@@ -73,26 +89,31 @@ export default function ChatPage() {
     }
   }, [])
 
-  // Check if near bottom
+  // Check if near bottom; if user scrolls away during streaming, pause auto-scroll
   const checkNearBottom = useCallback(() => {
     const el = viewportRef.current
     if (!el) return
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    setIsNearBottom(dist <= SCROLL_NEAR_BOTTOM_THRESHOLD)
+    const near = dist <= SCROLL_NEAR_BOTTOM_THRESHOLD
+    setIsNearBottom(near)
+    // User scrolled away during streaming → pause auto-follow until stream ends
+    if (!near && streamingRef.current) {
+      userPausedScrollRef.current = true
+    }
   }, [])
 
-  // Auto-scroll when messages change (streaming or new) — but only if user is near bottom
+  // Auto-scroll when messages change — but NOT if user has paused
   useEffect(() => {
-    if (isNearBottom) {
+    if (!userPausedScrollRef.current && isNearBottom) {
       requestAnimationFrame(scrollToBottom)
     }
   }, [messages, isNearBottom, scrollToBottom])
 
-  // Also scroll after a brief delay when streaming starts (catch late-arriving renders)
+  // When streaming starts and user hasn't paused, scroll to bottom (catch late-arriving renders)
   useEffect(() => {
-    if (streaming) {
+    if (streaming && !userPausedScrollRef.current) {
       const id = setTimeout(() => {
-        if (isNearBottom) scrollToBottom()
+        if (!userPausedScrollRef.current && isNearBottom) scrollToBottom()
       }, 50)
       return () => clearTimeout(id)
     }
@@ -102,8 +123,10 @@ export default function ChatPage() {
     const text = input.trim()
     if (!text || streaming) return
     setInput('')
-    // Force scroll to bottom when user sends a message
+    // Reset pause and force scroll to bottom when user sends a message
+    userPausedScrollRef.current = false
     setIsNearBottom(true)
+    scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles)
   }
 
@@ -117,7 +140,7 @@ export default function ChatPage() {
   const hasMessages = messages.length > 0
 
   return (
-    <div className="flex flex-col h-full overflow-hidden relative">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
       {/* Messages */}
       <ScrollArea
         className="flex-1 min-h-0 px-4"
@@ -172,7 +195,7 @@ export default function ChatPage() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => { scrollToBottom(); setIsNearBottom(true) }}
+            onClick={() => { userPausedScrollRef.current = false; scrollToBottom(); setIsNearBottom(true) }}
             className="rounded-full shadow-lg h-8 w-8 p-0"
           >
             <ArrowDown className="h-4 w-4" />
