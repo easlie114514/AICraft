@@ -10,7 +10,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "D:\\AICraft\\workspace"
+        "E:\\AICraft\\workspace"
       ],
       "env": {},
       "enabled": true
@@ -21,10 +21,9 @@
       "host": "",
       "port": 0,
       "url": "",
-      "command": "npx",
+      "command": "python",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-python"
+        "E:\\AICraft\\src\\mcp_servers\\code_executor.py"
       ],
       "env": {},
       "enabled": true

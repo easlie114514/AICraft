@@ -1,6 +1,6 @@
 {
-  "model_id": "deepseek-v4-pro",
-  "role": "猫",
+  "model_id": "",
+  "role": "通用助手",
   "toggles": {
     "web_search": false,
     "rag": false,

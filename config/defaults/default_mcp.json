@@ -10,8 +10,8 @@
   {
     "name": "代码执行",
     "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-python"],
+    "command": "python",
+    "args": ["src/mcp_servers/code_executor.py"],
     "env": {},
     "enabled": true
   }

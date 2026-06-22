@@ -113,20 +113,31 @@ class MCPManager:
     def _resolve_mcp_args(args: list[str]) -> list[str]:
         """将 MCP stdio args 中的文件系统路径解析为绝对路径。
 
-        跳过 flags（-开头）、npm 包名（@开头）、占位符（{开头）、URL（http开头）、
-        纯数字（端口/超时值），其余参数都视为可能的文件系统路径并尝试解析。
+        只解析「看起来像路径」的参数：包含路径分隔符、以 . 开头、或文件/目录已存在。
+        跳过 flags（-开头）、npm 包名（@开头或无作用域包名如 code-executor-mcp）、
+        占位符（{开头）、URL（http开头）、纯数字（端口/超时值）。
         """
+        from pathlib import Path
         result = []
         for arg in args:
             if not isinstance(arg, str):
                 result.append(arg)
                 continue
-            # 跳过非路径模式：flags、npm 包、占位符、URL、纯数字
+            # 跳过明确的非路径模式
             if arg.startswith(("-", "@", "{", "http")) or arg.isdigit():
                 result.append(arg)
-            else:
+                continue
+            # 只有「看起来像路径」的参数才做解析
+            looks_like_path = (
+                "/" in arg or "\\" in arg
+                or arg.startswith(".")
+                or Path(arg).exists()
+            )
+            if looks_like_path:
                 resolved = resolve_path(arg)
                 result.append(str(resolved))
+            else:
+                result.append(arg)
         return result
 
     def add_connection(
@@ -218,68 +229,125 @@ class MCPManager:
             conn.error_msg = str(e)[:200]
             return False
 
-    # ── Stdio 连接（长连接，保持子进程存活）──
+    # ── Stdio 连接（长连接：后台 Task + 消息队列）──
+    #
+    #  所有 anyio/MCP session 操作必须在同一个 asyncio task 中执行，
+    #  否则 anyio 会抛出 "cancel scope in a different task" 错误。
+    #  因此采用「后台 Task 持有连接 + 消息队列派发调用」的架构：
+    #
+    #    connect_stdio()  ──启动──▶  _run_session() (后台 task)
+    #                                   │
+    #    call_tool()  ──request──▶   msg_queue  ──▶  session.call_tool()
+    #                   ◀──response───  resp_queue  ◀──
+    #
 
     async def connect_stdio(self, conn: MCPConnection) -> bool:
-        """通过 stdio 连接本地 MCP 脚本并保持长连接"""
+        """启动后台 task 持有 stdio 长连接"""
         conn.status = "connecting"
 
         # 先清理旧连接
         if conn.name in self._stdio_procs:
             await self.disconnect_stdio(conn.name)
 
+        from mcp import ClientSession
+        from mcp.client.stdio import StdioServerParameters, stdio_client
+
+        server_params = StdioServerParameters(
+            command=conn.command,
+            args=conn.args,
+            env=conn.env if conn.env else None,
+        )
+
+        result_queue: asyncio.Queue = asyncio.Queue(maxsize=1)
+
+        async def _run_session():
+            """在单一 task 中持有连接、处理所有 call_tool 请求"""
+            msg_queue: asyncio.Queue = asyncio.Queue()
+            try:
+                async with stdio_client(server_params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        tools_result = await session.list_tools()
+
+                        # 存储消息队列供 call_tool 使用
+                        self._stdio_procs[conn.name] = {
+                            "msg_queue": msg_queue,
+                            "task": asyncio.current_task(),
+                        }
+
+                        # 通知调用方连接成功
+                        result_queue.put_nowait({
+                            "ok": True,
+                            "tools": [
+                                {
+                                    "name": t.name,
+                                    "description": t.description or "",
+                                    "inputSchema": t.inputSchema or {},
+                                }
+                                for t in tools_result.tools
+                            ]
+                        })
+
+                        # 循环处理 call_tool 请求
+                        while True:
+                            req = await msg_queue.get()
+                            if req["type"] == "shutdown":
+                                break
+                            # call_tool 请求
+                            resp_q = req["resp_q"]
+                            try:
+                                result = await session.call_tool(
+                                    req["tool_name"], req["arguments"]
+                                )
+                                resp_q.put_nowait({"ok": True, "result": result})
+                            except Exception as e:
+                                resp_q.put_nowait({"ok": False, "error": str(e)})
+
+            except asyncio.CancelledError:
+                pass  # 正常取消，async with 的 __aexit__ 在同一 task 中执行
+            except Exception as e:
+                try:
+                    result_queue.put_nowait({"ok": False, "error": str(e)[:200]})
+                except asyncio.QueueFull:
+                    pass
+            finally:
+                self._stdio_procs.pop(conn.name, None)
+
+        # 启动后台 task
+        task = asyncio.create_task(_run_session())
+        self._stdio_procs[conn.name] = {"task": task}
+
+        # 等待连接结果（超时 30 秒）
         try:
-            from mcp import ClientSession
-            from mcp.client.stdio import StdioServerParameters, stdio_client
+            result = await asyncio.wait_for(result_queue.get(), timeout=30.0)
+        except asyncio.TimeoutError:
+            task.cancel()
+            try:
+                await task
+            except Exception:
+                pass
+            conn.status = "error"
+            conn.error_msg = "连接超时"
+            return False
 
-            server_params = StdioServerParameters(
-                command=conn.command,
-                args=conn.args,
-                env=conn.env if conn.env else None,
-            )
-
-            # 手动进入上下文——不退出，保持子进程存活
-            transport_ctx = stdio_client(server_params)
-            read, write = await transport_ctx.__aenter__()
-
-            session_ctx = ClientSession(read, write)
-            session = await session_ctx.__aenter__()
-            await session.initialize()
-
-            tools_result = await session.list_tools()
-
-            # 存储上下文，供后续 call_tool 复用
-            self._stdio_procs[conn.name] = {
-                "transport_ctx": transport_ctx,
-                "session_ctx": session_ctx,
-                "session": session,
-            }
-
-            conn.tools = [
-                {
-                    "name": t.name,
-                    "description": t.description or "",
-                    "inputSchema": t.inputSchema or {},
-                }
-                for t in tools_result.tools
-            ]
+        if result["ok"]:
+            conn.tools = result["tools"]
             conn.status = "connected"
             conn.error_msg = ""
             return True
-
-        except Exception as e:
+        else:
             conn.status = "error"
-            conn.error_msg = str(e)[:200]
+            conn.error_msg = result["error"]
             return False
 
-    # ── 工具调用（复用长连接）──
+    # ── 工具调用 ──
 
     async def call_tool(
         self, conn_name: str, tool_name: str, arguments: dict
     ) -> str:
         """调用 MCP 工具（自动判断模式，返回文本结果）
 
-        - stdio: 复用长连接 session
+        - stdio: 通过消息队列派发给后台 task 执行，确保 anyio 不报错
         - sse:  新建短连接
         """
         conn = next((c for c in self.connections if c.name == conn_name), None)
@@ -290,10 +358,26 @@ class MCPManager:
             proc = self._stdio_procs.get(conn_name)
             if not proc:
                 return f"stdio 连接 {conn_name} 无活跃会话，请先连接"
-            try:
-                result = await proc["session"].call_tool(tool_name, arguments)
-            except Exception as e:
-                return f"工具执行失败: {str(e)}"
+            msg_queue = proc.get("msg_queue")
+            if not msg_queue:
+                return f"stdio 连接 {conn_name} 尚未就绪"
+            resp_q: asyncio.Queue = asyncio.Queue(maxsize=1)
+            msg_queue.put_nowait({
+                "type": "call",
+                "tool_name": tool_name,
+                "arguments": arguments,
+                "resp_q": resp_q,
+            })
+            resp = await resp_q.get()
+            if resp["ok"]:
+                result = resp["result"]
+                if result.content:
+                    return "\n".join(
+                        c.text for c in result.content if hasattr(c, "text")
+                    )
+                return str(result)
+            else:
+                return f"工具执行失败: {resp['error']}"
         else:
             # SSE: 每次新建短连接
             try:
@@ -347,17 +431,28 @@ class MCPManager:
             return "disconnected"
 
     async def disconnect_stdio(self, conn_name: str) -> None:
-        """关闭 stdio 连接，清理子进程"""
+        """关闭 stdio 连接：发 shutdown 消息给后台 task，触发 async with __aexit__"""
         proc = self._stdio_procs.pop(conn_name, None)
         if not proc:
             return
-        # 先退出 session，再退出 transport
+        task = proc.get("task")
+        if not task or task.done():
+            return
+        # 先尝试通过消息队列优雅关闭（如果 msg_queue 已就绪）
+        msg_queue = proc.get("msg_queue")
+        if msg_queue:
+            try:
+                msg_queue.put_nowait({"type": "shutdown"})
+                await asyncio.wait_for(task, timeout=5.0)
+                return
+            except (asyncio.TimeoutError, asyncio.QueueFull):
+                pass
+        # 回退：cancel task
+        task.cancel()
         try:
-            await proc["session_ctx"].__aexit__(None, None, None)
-        except Exception:
+            await task
+        except asyncio.CancelledError:
             pass
-        try:
-            await proc["transport_ctx"].__aexit__(None, None, None)
         except Exception:
             pass
 

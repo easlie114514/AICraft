@@ -53,6 +53,20 @@ def init_deps() -> AppDeps:
 
     rag = RAGEngine()
     rag.load_sources()
+
+    # 首次启动自动导入出厂 RAG 配置
+    if not rag.sources:
+        defaults_file = BASE_DIR / "config" / "defaults" / "default_rag.json"
+        if defaults_file.exists():
+            import json as _json
+            default_data = _json.loads(defaults_file.read_text(encoding="utf-8"))
+            for item in default_data:
+                rag.add_source(
+                    name=item["name"],
+                    path=item["path"],  # add_source() 内部会 resolve_path
+                    source_type=item.get("type", "local"),
+                )
+
     memory = MemoryManager()
     role = RoleLoader()
     role.scan()
