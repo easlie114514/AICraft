@@ -10,11 +10,11 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.deps import get_deps
 from src.core.agent_loop import agent_loop
-from src.core.chat_history import save_conversation, get_recent_messages
+from src.core.chat_history import save_conversation, load_conversation, get_recent_messages
 from src.core.llm import get_current_model_config, get_model_config, simple_completion
 from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
-from src.utils.config import get_context_config
+from src.utils.config import get_context_config, NOTES_DIR
 
 
 def _count_chars(messages: list[dict]) -> int:
@@ -39,6 +39,59 @@ def _trim_history(history: list[dict], max_chars: int) -> list[dict]:
             break
         kept.insert(0, m)
     return kept
+
+async def _compact_current_scene(
+    history: list[dict],
+    model_config: dict,
+    role_name: str,
+) -> None:
+    """场景切换时全量压缩 — 不限 window，归档整个场景"""
+    try:
+        from src.core.llm import simple_completion
+
+        # 全量文本（不限制 window）
+        conv_text = "\n".join(
+            f"[{m.get('role', '?')}]: {str(m.get('content', ''))[:300]}"
+            for m in history
+            if m.get('role') in ('user', 'assistant', 'tool')
+        )
+        if not conv_text.strip():
+            return
+
+        prompt = (
+            "你是一个场景记忆归档器。以下是一段完整对话场景的全部内容。\n\n"
+            "请提取：\n"
+            "1. 用户的核心目标/任务\n"
+            "2. 已完成的进度和关键决策\n"
+            "3. 值得跨场景记住的用户偏好\n"
+            "4. 技术细节（如果涉及代码/配置）\n\n"
+            "【严格禁止】\n"
+            "- 保留任何角色的说话风格、方言、口头禅、语气词\n"
+            "- 保留角色的性格特征或情绪表达\n"
+            "- 使用非标准普通话的表述\n\n"
+            "用要点形式输出，每点一行。不要包含闲聊。\n\n"
+            f"{conv_text}\n\n"
+            "场景归档："
+        )
+
+        summary = await simple_completion(
+            model_config=model_config,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+        )
+
+        if summary and summary.strip():
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            NOTES_DIR.mkdir(parents=True, exist_ok=True)
+            path = NOTES_DIR / f"scene_compact_{timestamp}.md"
+            path.write_text(
+                f"# 场景记忆归档 {timestamp}\n"
+                f"角色: {role_name}\n\n---\n\n{summary}",
+                encoding="utf-8",
+            )
+    except Exception:
+        pass
+
 
 router = APIRouter(tags=["chat"])
 
@@ -65,6 +118,77 @@ async def chat_websocket(ws: WebSocket):
 
             if msg_type == "stop":
                 await ws.send_json({"type": "done"})
+                continue
+
+            if msg_type == "new_scene":
+                # 场景切换：全量压缩当前对话 → 清空上下文 → 新 conv_id
+                if session_history:
+                    sc_role = current_role
+                    sc_history = list(session_history)
+                    # 使用当前配置的模型做压缩（降级到 Flash）
+                    try:
+                        sc_model_config = get_current_model_config()
+                        compact_model = select_model_for_task("memory_compact", sc_model_config)
+                        asyncio.create_task(_compact_current_scene(sc_history, compact_model, sc_role))
+                    except Exception:
+                        pass
+
+                session_history.clear()
+                memory_char_counter = 0
+                memory_msg_counter = 0
+                new_conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                await ws.send_json({
+                    "type": "conv_id",
+                    "id": new_conv_id,
+                })
+                await ws.send_json({
+                    "type": "inject_info",
+                    "items": [f"新场景已创建，上下文已重置"]
+                })
+                continue
+
+            if msg_type == "load_conv":
+                # ── 加载指定对话（用于重启后恢复显示）──
+                load_conv_id = data.get("conv_id", "")
+                if not load_conv_id:
+                    # 没有指定 conv_id → 自动找最近的对话
+                    from src.core.chat_history import list_conversations
+                    conv_list = await loop.run_in_executor(None, list_conversations)
+                    if conv_list:
+                        load_conv_id = conv_list[0]["id"]
+                if load_conv_id:
+                    try:
+                        saved = await loop.run_in_executor(None, load_conversation, load_conv_id)
+                        if saved and saved.get("messages"):
+                            # 发送消息给前端展示（排除 tool，前端不单独展示工具调用）
+                            display_msgs: list[dict] = []
+                            for m in saved["messages"]:
+                                r = m.get("role", "")
+                                if r in ("user", "assistant"):
+                                    display_msgs.append({
+                                        "role": r,
+                                        "content": m.get("content", ""),
+                                    })
+                            if display_msgs:
+                                await ws.send_json({
+                                    "type": "conv_loaded",
+                                    "conv_id": load_conv_id,
+                                    "role": saved.get("role", ""),
+                                    "model": saved.get("model", ""),
+                                    "messages": display_msgs,
+                                })
+                                # 同时填充 session_history，确保后续对话上下文连贯
+                                current_role = saved.get("role", "")
+                                session_history.clear()
+                                for m in saved["messages"]:
+                                    r = m.get("role", "")
+                                    if r in ("user", "assistant", "tool"):
+                                        session_history.append(m)
+                        else:
+                            await ws.send_json({"type": "error", "content": f"对话 {load_conv_id} 不存在"})
+                    except Exception:
+                        await ws.send_json({"type": "error", "content": "加载对话失败"})
                 continue
 
             if msg_type == "message":
@@ -103,6 +227,33 @@ async def chat_websocket(ws: WebSocket):
                 if not model_config or not model_config.get("model_id"):
                     await ws.send_json({"type": "error", "content": "未配置模型，请先在模型页添加API配置"})
                     continue
+
+                # ── 会话 ID 管理 ──
+                if not conv_id:
+                    conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    await ws.send_json({"type": "conv_id", "id": conv_id})
+                elif not session_history:
+                    # WS 重连后恢复历史（仅当角色匹配）
+                    try:
+                        saved = await loop.run_in_executor(None, load_conversation, conv_id)
+                        if saved and saved.get("messages"):
+                            saved_role = saved.get("role", "")
+                            if saved_role == role_name:
+                                for m in saved["messages"]:
+                                    r = m.get("role", "")
+                                    if r in ("user", "assistant", "tool"):
+                                        session_history.append(m)
+                                if session_history:
+                                    await ws.send_json({
+                                        "type": "inject_info",
+                                        "items": [f"已恢复对话 ({len(session_history)} 条消息)"]
+                                    })
+                            else:
+                                # 角色变了，旧消息风格不兼容，生成新 conv_id
+                                conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                await ws.send_json({"type": "conv_id", "id": conv_id})
+                    except Exception:
+                        pass
 
                 # ── 刷新上下文配置（支持热更新）──
                 ctx_config = get_context_config()
@@ -238,14 +389,16 @@ async def chat_websocket(ws: WebSocket):
 
                 if toggles.get("memory"):
                     try:
-                        # 跨会话记忆：注入其他会话的最近消息（使用配置的条数）
-                        cross_memories = await loop.run_in_executor(None, get_recent_messages, cross_session_inject_count)
+                        # 跨会话记忆：注入其他会话的最近用户消息（仅 user，避免其他角色风格污染）
+                        cross_memories = await loop.run_in_executor(None, get_recent_messages, cross_session_inject_count * 2)
+                        # 只保留 user 消息（assistant 来自不同角色会污染风格）
+                        cross_memories = [m for m in cross_memories if m.get("role") == "user"]
                         # 过滤掉当前session已包含的消息（按内容去重）
-                        session_contents = {m.get("content", "") for m in session_history if m.get("role") in ("user", "assistant")}
+                        session_contents = {m.get("content", "") for m in session_history if m.get("role") == "user"}
                         unique_memories = [m for m in cross_memories if m.get("content", "") not in session_contents]
                         if unique_memories:
                             mem_text = "\n".join(
-                                f"[{m['role']}]: {m.get('content', '')[:200]}"
+                                f"[用户]: {m.get('content', '')[:200]}"
                                 for m in unique_memories[:cross_session_inject_count]
                             )
                             system_pieces.append((
@@ -425,7 +578,7 @@ async def chat_websocket(ws: WebSocket):
                         messages=save_data_msgs,
                         model=model_config.get("model_id", ""),
                         role=role_name or str(deps.role_loader.get_default_role()),
-                        conv_id=conv_id or datetime.now().strftime("%Y%m%d_%H%M%S"),
+                        conv_id=conv_id,
                     )
 
                     # ── 记忆压缩（双计数器 + 三种触发模式）──

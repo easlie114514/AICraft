@@ -4,7 +4,7 @@ import { createContext, useContext, useReducer, useRef, useCallback, useEffect, 
 
 export interface ChatMessage {
   id: string
-  role: 'user' | 'assistant' | 'tool_call' | 'tool_result' | 'system' | 'inject'
+  role: 'user' | 'assistant' | 'tool_call' | 'tool_result' | 'system' | 'inject' | 'divider'
   content: string
   timestamp: number
   toolName?: string
@@ -12,6 +12,7 @@ export interface ChatMessage {
   toolResult?: string
   thinking?: string
   thinkingDuration?: number
+  scene?: number
 }
 
 export interface ContextBudgetInfo {
@@ -26,6 +27,7 @@ interface ChatState {
   streaming: boolean
   error: string | null
   contextInfo: ContextBudgetInfo | null
+  sceneCount: number
 }
 
 type ChatAction =
@@ -39,7 +41,8 @@ type ChatAction =
   | { type: 'ADD_SYSTEM'; content: string }
   | { type: 'SET_DONE' }
   | { type: 'SET_ERROR'; content: string }
-  | { type: 'RESET' }
+  | { type: 'NEW_SCENE' }
+  | { type: 'LOAD_CONVERSATION'; messages: Array<{ role: string; content: string }>; convId: string }
 
 // ── Reducer (same logic, now at module level) ──
 
@@ -178,8 +181,31 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'SET_ERROR': {
       return { ...state, streaming: false, error: action.content }
     }
-    case 'RESET': {
-      return { messages: [], streaming: false, error: null, contextInfo: null }
+    case 'NEW_SCENE': {
+      const nextScene = state.sceneCount + 1
+      return {
+        ...state,
+        sceneCount: nextScene,
+        messages: [
+          ...state.messages,
+          {
+            id: nextId(),
+            role: 'divider' as const,
+            content: `场景 ${nextScene} · ${new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
+            timestamp: Date.now(),
+            scene: nextScene,
+          },
+        ],
+      }
+    }
+    case 'LOAD_CONVERSATION': {
+      const loadedMsgs = action.messages.map((m) => ({
+        id: nextId(),
+        role: m.role as ChatMessage['role'],
+        content: m.content,
+        timestamp: Date.now() - 1,  // 稍早于当前时间，排序在旧消息中
+      }))
+      return { ...state, messages: loadedMsgs, streaming: false, error: null }
     }
     default:
       return state
@@ -192,7 +218,7 @@ interface ChatContextValue {
   state: ChatState
   sendMessage: (content: string, modelId: string, role: string, toggles: Record<string, boolean>) => void
   stopStreaming: () => void
-  resetChat: () => void
+  newScene: () => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -200,9 +226,9 @@ const ChatContext = createContext<ChatContextValue | null>(null)
 // ── Provider ──
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null, contextInfo: null })
+  const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null, contextInfo: null, sceneCount: 1 })
   const wsRef = useRef<WebSocket | null>(null)
-  const convIdRef = useRef<string>('')
+  const convIdRef = useRef<string>(localStorage.getItem('aicraft_last_conv_id') || '')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
@@ -251,13 +277,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           case 'done':
             dispatch({ type: 'SET_DONE' })
             break
+          case 'conv_id':
+            if (data.id) {
+              convIdRef.current = data.id
+              localStorage.setItem('aicraft_last_conv_id', data.id)
+            }
+            break
+          case 'conv_loaded':
+            if (data.messages && Array.isArray(data.messages)) {
+              convIdRef.current = data.conv_id || ''
+              localStorage.setItem('aicraft_last_conv_id', data.conv_id || '')
+              dispatch({ type: 'LOAD_CONVERSATION', messages: data.messages, convId: data.conv_id || '' })
+            }
+            break
           case 'error':
             dispatch({ type: 'SET_ERROR', content: data.content })
+            // 如果对话文件不存在，清除本地缓存的 convId
+            if (data.content && data.content.includes('不存在')) {
+              convIdRef.current = ''
+              localStorage.removeItem('aicraft_last_conv_id')
+            }
             break
         }
       } catch {
         /* ignore malformed */
       }
+    }
+
+    ws.onopen = () => {
+      // 启动时自动恢复上一次对话（无 convId 时后端自动找最近对话）
+      ws.send(JSON.stringify({ type: 'load_conv', conv_id: convIdRef.current }))
     }
 
     ws.onerror = () => {
@@ -332,13 +381,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_DONE' })
   }, [])
 
-  const resetChat = useCallback(() => {
-    dispatch({ type: 'RESET' })
+  const newScene = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'new_scene' }))
+    }
+    dispatch({ type: 'NEW_SCENE' })
     convIdRef.current = ''
+    localStorage.removeItem('aicraft_last_conv_id')
   }, [])
 
   return (
-    <ChatContext.Provider value={{ state, sendMessage, stopStreaming, resetChat }}>
+    <ChatContext.Provider value={{ state, sendMessage, stopStreaming, newScene }}>
       {children}
     </ChatContext.Provider>
   )
@@ -356,8 +409,9 @@ export function useChat() {
     streaming: ctx.state.streaming,
     error: ctx.state.error,
     contextInfo: ctx.state.contextInfo,
+    sceneCount: ctx.state.sceneCount,
     sendMessage: ctx.sendMessage,
     stopStreaming: ctx.stopStreaming,
-    resetChat: ctx.resetChat,
+    newScene: ctx.newScene,
   }
 }

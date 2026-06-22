@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Square, RefreshCw, ArrowDown } from 'lucide-react'
+import { Send, Square, RefreshCw, ArrowDown, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -25,7 +25,9 @@ interface RoleOption {
 }
 
 export default function ChatPage() {
-  const { messages, streaming, error, contextInfo, sendMessage, stopStreaming, resetChat } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, sendMessage, stopStreaming, newScene } = useChat()
+
+  const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
   const [toggles, setToggles] = useState({ rag: false, memory: true, thinking: false })
   const [models, setModels] = useState<ModelOption[]>([])
@@ -137,8 +139,6 @@ export default function ChatPage() {
     }
   }
 
-  const hasMessages = messages.length > 0
-
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
       {/* Messages */}
@@ -223,21 +223,31 @@ export default function ChatPage() {
 
           {/* Context Budget Indicator */}
           {contextInfo && (
-            <div className="ml-auto flex items-center gap-1.5">
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                  contextInfo.pct >= 90
-                    ? 'bg-destructive/10 text-destructive'
-                    : contextInfo.pct >= 75
-                    ? 'bg-yellow-500/10 text-yellow-600'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-                title={`已用 ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.inputBudget.toLocaleString()} tokens`}
-              >
-                📊 {contextInfo.pct}%
-              </span>
-            </div>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                contextInfo.pct >= 90
+                  ? 'bg-destructive/10 text-destructive'
+                  : contextInfo.pct >= 75
+                  ? 'bg-yellow-500/10 text-yellow-600'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+              title={`已用 ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.inputBudget.toLocaleString()} tokens`}
+            >
+              📊 {contextInfo.pct}%
+            </span>
           )}
+
+          {/* 新场景按钮 */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={newScene}
+            disabled={streaming || !hasMessages}
+            className="rounded-xl h-7 text-xs ml-auto"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            新场景
+          </Button>
         </div>
 
         {/* Input Row */}

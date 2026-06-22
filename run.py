@@ -39,14 +39,27 @@ class WindowAPI:
 
 
 def start_server():
-    """在后台线程启动 FastAPI 服务"""
+    """在后台线程启动 FastAPI 服务（端口被占用时自动等待重试）"""
     os.chdir(ROOT)
-    uvicorn.run(
-        "backend.main:app",
-        host="127.0.0.1",
-        port=8765,
-        log_level="warning",
-    )
+    max_retries = 10
+    for attempt in range(max_retries):
+        try:
+            uvicorn.run(
+                "backend.main:app",
+                host="127.0.0.1",
+                port=8765,
+                log_level="warning",
+            )
+            return  # 正常退出
+        except SystemExit as e:
+            if e.code == 1 and attempt < max_retries - 1:
+                # exit(1) 通常是端口绑定失败
+                print(f"[AICraft] 端口 8765 被占用，等待清理... ({attempt + 1}/{max_retries})")
+                time.sleep(3)
+            else:
+                return  # exit(0) 正常停止，或重试次数耗尽
+        except KeyboardInterrupt:
+            return
 
 
 def main():

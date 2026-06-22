@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Brain, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Brain, ChevronDown, Copy, Check } from 'lucide-react'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
@@ -26,6 +26,37 @@ export default function ChatMessage({ message }: Props) {
       setThinkingOpen(false)
     }
   }, [thinkingDuration])
+
+  // 一键复制
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(async () => {
+    const text = content || ''
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Fallback for older browsers or insecure contexts
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [content])
+
+  if (role === 'divider') {
+    return (
+      <div className="flex items-center gap-3 py-3 px-1">
+        <div className="flex-1 h-px bg-border/60" />
+        <span className="text-[11px] text-muted-foreground/70 shrink-0 select-none">{content}</span>
+        <div className="flex-1 h-px bg-border/60" />
+      </div>
+    )
+  }
 
   if (role === 'system') {
     return (
@@ -54,16 +85,16 @@ export default function ChatMessage({ message }: Props) {
       {/* Bubble */}
       <div
         className={cn(
-          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed',
+          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text',
           isUser
             ? 'bg-primary/10 text-foreground'
             : 'bg-muted text-foreground'
         )}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap break-words">{content}</p>
+          <p className="whitespace-pre-wrap break-words select-text">{content}</p>
         ) : (
-          <>
+          <div className="select-text">
             {/* Thinking 折叠区域 */}
             {hasThinking ? (
               <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen}>
@@ -80,7 +111,7 @@ export default function ChatMessage({ message }: Props) {
                   )} />
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg mb-2 max-h-64 overflow-auto border border-border/50">
+                  <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg mb-2 max-h-64 overflow-auto border border-border/50 select-text">
                     <MarkdownRenderer content={thinking} />
                   </div>
                 </CollapsibleContent>
@@ -89,9 +120,35 @@ export default function ChatMessage({ message }: Props) {
 
             {/* 正式回复 */}
             {content ? <MarkdownRenderer content={content} /> : null}
-          </>
+          </div>
         )}
       </div>
+
+      {/* Copy Button */}
+      {content ? (
+        <div className={cn('px-1 mt-0.5', isUser ? 'text-right' : 'text-left')}>
+          <button
+            onClick={handleCopy}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs',
+              'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50',
+              'transition-colors'
+            )}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-green-500" />
+                <span className="text-green-500">已复制</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>复制</span>
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

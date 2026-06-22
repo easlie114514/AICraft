@@ -122,7 +122,9 @@ async def get_current_model():
 async def set_current_model(data: dict):
     """设置当前模型"""
     model_id = data.get("model_id", "")
-    set_current_model_id(model_id)
+    # Auto 是运行时路由，不持久化到配置文件
+    if model_id != "auto":
+        set_current_model_id(model_id)
     return {"ok": True}
 
 

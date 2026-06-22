@@ -38,3 +38,15 @@ body {
   color: hsl(234 33% 14%);
   margin: 0;
 }
+
+/* 确保聊天内容区域文本可选（pywebview frameless 窗口兼容） */
+[data-slot="scroll-area-viewport"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 代码块中文本允许选中 */
+pre, code {
+  user-select: text;
+  -webkit-user-select: text;
+}
