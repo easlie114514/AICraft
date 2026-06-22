@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
-import ToolCallCard from '@/components/ToolCallCard'
 import { useChat } from '@/hooks/useChat'
 import { api } from '@/lib/api'
 
@@ -28,7 +27,7 @@ interface RoleOption {
 export default function ChatPage() {
   const { messages, streaming, error, sendMessage, stopStreaming, resetChat } = useChat()
   const [input, setInput] = useState('')
-  const [toggles, setToggles] = useState({ rag: false, memory: true })
+  const [toggles, setToggles] = useState({ rag: false, memory: true, thinking: false })
   const [models, setModels] = useState<ModelOption[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [selectedModel, setSelectedModel] = useState('')
@@ -157,27 +156,11 @@ export default function ChatPage() {
           </div>
         ) : (
           <div className="py-4 space-y-0 relative">
-            {messages.map((msg) => {
-              if (msg.role === 'tool_call') {
-                return (
-                  <ToolCallCard
-                    key={msg.id}
-                    name={msg.toolName || ''}
-                    args={msg.toolArgs}
-                  />
-                )
-              }
-              if (msg.role === 'tool_result') {
-                return (
-                  <ToolCallCard
-                    key={msg.id}
-                    name={msg.toolName || ''}
-                    result={msg.toolResult}
-                  />
-                )
-              }
-              return <ChatMessage key={msg.id} message={msg} />
-            })}
+            {messages
+              .filter((msg) => msg.role !== 'tool_call' && msg.role !== 'tool_result')
+              .map((msg) => (
+                <ChatMessage key={msg.id} message={msg} />
+              ))}
             {error && (
               <div className="flex justify-center py-2">
                 <span className="text-xs text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg">
@@ -227,6 +210,15 @@ export default function ChatPage() {
             />
             <Label htmlFor="toggle-memory" className="text-xs text-muted-foreground cursor-pointer">记忆注入</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="toggle-thinking"
+              className="rounded-xl"
+              checked={toggles.thinking}
+              onCheckedChange={(v) => setToggles({ ...toggles, thinking: v })}
+            />
+            <Label htmlFor="toggle-thinking" className="text-xs text-muted-foreground cursor-pointer">深度思考</Label>
+          </div>
         </div>
 
         {/* Input Row */}
@@ -241,7 +233,7 @@ export default function ChatPage() {
             disabled={streaming}
           />
 
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
+          <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? '')}>
             <SelectTrigger className="w-[140px] h-10 rounded-[10px] text-xs">
               <SelectValue placeholder="模型" />
             </SelectTrigger>
@@ -254,7 +246,7 @@ export default function ChatPage() {
             </SelectContent>
           </Select>
 
-          <Select value={selectedRole} onValueChange={setSelectedRole}>
+          <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v ?? '')}>
             <SelectTrigger className="w-[110px] h-10 rounded-[10px] text-xs">
               <SelectValue placeholder="角色" />
             </SelectTrigger>

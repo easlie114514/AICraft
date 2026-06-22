@@ -11,8 +11,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backend.deps import get_deps
 from src.core.agent_loop import agent_loop
 from src.core.chat_history import save_conversation, get_recent_messages
-from src.core.llm import get_current_model_config, get_model_config
-from src.core.web_search import WEB_SEARCH_TOOL
+from src.core.llm import get_current_model_config, get_model_config, simple_completion
+from src.core.model_selector import select_model_for_task
 from src.utils.config import get_context_config
 
 
@@ -70,6 +70,7 @@ async def chat_websocket(ws: WebSocket):
                 model_id = data.get("model_id", "")
                 role_name = data.get("role", "")
                 toggles = data.get("toggles", {})
+                thinking_enabled = toggles.get("thinking", False)
                 conv_id = data.get("conversation_id", "")
 
                 if not user_text.strip():
@@ -113,18 +114,13 @@ async def chat_websocket(ws: WebSocket):
                                 "用要点形式输出，只写事实，不要任何角色的口吻。\n\n"
                                 f"{conv_text}"
                             )
-                            summary_kwargs: dict = {
-                                "model": model_config.get("model_id", ""),
-                                "messages": [{"role": "user", "content": summary_prompt}],
-                                "max_tokens": 400,
-                            }
-                            for key in ("api_key", "api_base"):
-                                val = model_config.get(key, "")
-                                if val:
-                                    summary_kwargs[key] = val
-                            import litellm as _litellm
-                            response = await _litellm.acompletion(**summary_kwargs)
-                            context_summary = response.choices[0].message.content or ""
+                            # 角色切换摘要 → 使用 Flash 模型（降级）
+                            summary_model = select_model_for_task("role_switch_summary", model_config)
+                            context_summary = await simple_completion(
+                                model_config=summary_model,
+                                messages=[{"role": "user", "content": summary_prompt}],
+                                max_tokens=400,
+                            )
                         except Exception:
                             context_summary = ""
 
@@ -228,6 +224,19 @@ async def chat_websocket(ws: WebSocket):
                     "- 不知道权威源时，优先引用gov.cn/.edu.cn/官方域名的内容"
                 )
 
+                # ── 深度思考引导（thinking 开关开启时注入，与角色解耦）──
+                if thinking_enabled:
+                    system_content += (
+                        "\n\n# 深度思考模式\n"
+                        "请在思考过程中使用中文。思考是内部推理过程，不会展示给用户，用于提升最终回答质量。\n"
+                        "按以下结构组织思考：\n"
+                        "1. 拆解：用户真正想知道什么？识别核心问题。\n"
+                        "2. 盘点：列出你已经掌握的相关知识和事实。\n"
+                        "3. 缺口：标记可能过时、不确定或缺失的信息。\n"
+                        "4. 策略：决定是否需要搜索。如果需要，构建精确的搜索关键词；如果不需要，说明原因。\n"
+                        "注意：思考过程要详细展示分析推理，不要用'我将基于我的知识回答'这样一句话结束。"
+                    )
+
                 if inject_items:
                     await ws.send_json({"type": "inject_info", "items": inject_items})
 
@@ -239,8 +248,7 @@ async def chat_websocket(ws: WebSocket):
 
                 # ── Agent Loop ──
                 tools: list[dict] = list(deps.mcp_manager.get_enabled_tools() or [])
-                # 联网搜索始终作为 function-calling 工具可用，模型自行判断是否需要搜索
-                tools.append(WEB_SEARCH_TOOL)
+                # 快捷数据源和 server-side 搜索工具在 agent_loop 内部根据 provider 自动添加
 
                 # 当没有 MCP 工具可用时注入提示
                 mcp_tools = deps.mcp_manager.get_enabled_tools() or []
@@ -249,7 +257,8 @@ async def chat_websocket(ws: WebSocket):
                         "\n\n# 工具状态\n"
                         "你当前没有 MCP 外部工具可用（读写文件、执行命令等），不要编造工具调用。"
                         "如果需要执行本地操作，请告知用户需要启用对应 MCP 工具。"
-                        "你仍然可以使用联网搜索功能来查找信息。"
+                        "你可以使用快捷数据源工具（天气/金价/汇率/热搜）查询实时信息，"
+                        "也可以使用联网搜索功能查找最新信息。"
                     )
 
                 all_tools = tools if tools else None  # None 表示无工具，减少 litellm 开销
@@ -260,6 +269,7 @@ async def chat_websocket(ws: WebSocket):
                         tools=all_tools,
                         model_config=model_config,
                         mcp_manager=deps.mcp_manager,
+                        thinking_enabled=thinking_enabled,
                     ):
                         await ws.send_json(event)
 
@@ -293,9 +303,11 @@ async def chat_websocket(ws: WebSocket):
 
                             async def _compact():
                                 try:
+                                    # 记忆压缩 → 使用 Flash 模型（降级）
+                                    compact_model = select_model_for_task("memory_compact", model_config)
                                     path = await deps.memory_manager.compact_memory(
                                         list(session_history),
-                                        model_config,
+                                        compact_model,
                                         role_name or str(deps.role_loader.get_default_role()),
                                     )
                                     if path:

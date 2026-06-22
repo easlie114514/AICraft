@@ -1,55 +1,45 @@
-"""联网搜索模块 - 双源自动降级 + 快捷数据源
+"""联网搜索模块 — 模型原生 server-side web_search + 快捷数据源
 
 搜索策略：
-  1. 快捷数据源：天气/金价等高频需求直接请求权威站API，不走搜索引擎
-  2. Bing HTML 搜索（通用搜索主源，国内直连）
-  3. DuckDuckGo（降级源，海外/代理用户）
+  1. Server-side web_search（模型平台执行搜索，DeepSeek/Claude/OpenAI 原生支持）
+  2. 快捷数据源：天气/金价/汇率/热搜 — 客户端 function calling，直接请求权威站API
+
+Bing HTML 爬虫和 DuckDuckGo 已废弃 — server-side 搜索质量远超客户端爬虫。
 """
 
 import logging
 import re
 
 import requests
-from duckduckgo_search import DDGS
 
 logger = logging.getLogger(__name__)
 
 
-# ── 快捷数据源：直接请求权威站，不走搜索引擎 ──────────────
+# ── HTML 辅助 ──────────────────────────────────────────
 
-# 关键词 → 快捷数据源的匹配规则
-_QUICK_SOURCE_PATTERNS = [
-    # (关键词列表, 处理函数)
-    (["天气", "气温", "下雨", "温度", "风力"], "_quick_weather"),
-    (["金价", "黄金价格", "黄金", "足金", "金条", "AU9999"], "_quick_gold_price"),
-    (["汇率", "美元", "欧元", "日元", "英镑", "人民币兑换"], "_quick_exchange_rate"),
-    (["热搜", "新闻排行", "热门新闻", "头条"], "_quick_hot_news"),
-]
-
-
-def _match_quick_source(query: str) -> str | None:
-    """判断query是否匹配某个快捷数据源，返回函数名或None"""
-    for keywords, func_name in _QUICK_SOURCE_PATTERNS:
-        for kw in keywords:
-            if kw in query:
-                return func_name
-    return None
+def _strip_html(text: str) -> str:
+    """移除 HTML 标签并清理多余空白，不依赖第三方解析库"""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&quot;", '"', text)
+    text = re.sub(r"&#\d+;", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
-def _quick_weather(query: str) -> list[dict]:
+# ════════════════════════════════════════════════════════
+# 快捷数据源 — 客户端 function calling 工具
+# ════════════════════════════════════════════════════════
+
+def _quick_weather(city: str) -> str:
     """直接请求 wttr.in 获取天气（全球免费天气API，无需Key，国内可达）"""
-    # 从query中提取城市名
-    city = ""
-    for candidate in re.split(r"[天气气温温度下雨风力预报明天后天]", query):
-        candidate = candidate.strip()
-        if candidate and len(candidate) >= 2:
-            city = candidate
-            break
-    if not city:
+    if not city or not city.strip():
         city = "Beijing"
+    city = city.strip()
 
     try:
-        # wttr.in 支持中文城市名，format=j1 返回JSON
         url = f"https://wttr.in/{city}?format=j1&lang=zh"
         headers = {"User-Agent": "curl/7.68.0"}
         resp = requests.get(url, headers=headers, timeout=10)
@@ -62,8 +52,8 @@ def _quick_weather(query: str) -> list[dict]:
         region = area.get("region", [{}])[0].get("value", "")
         country = area.get("country", [{}])[0].get("value", "")
 
-        # 当前天气
-        cur_desc = current.get("lang_zh", [{}])[0].get("value", current.get("weatherDesc", [{}])[0].get("value", ""))
+        cur_desc = current.get("lang_zh", [{}])[0].get("value",
+                   current.get("weatherDesc", [{}])[0].get("value", ""))
         cur_temp = current.get("temp_C", "?")
         cur_feels = current.get("FeelsLikeC", "?")
         cur_humidity = current.get("humidity", "?")
@@ -78,31 +68,24 @@ def _quick_weather(query: str) -> list[dict]:
             f"🌬 风速: {cur_wind}km/h {cur_wind_dir}\n"
         )
 
-        # 未来3天预报
         forecasts = data.get("weather", [])
         for day in forecasts[:3]:
             date = day.get("date", "")
             max_t = day.get("maxtempC", "?")
             min_t = day.get("mintempC", "?")
             desc = day.get("hourly", [{}])[4].get("lang_zh", [{}])[0].get("value",
-                    day.get("hourly", [{}])[4].get("weatherDesc", [{}])[0].get("value", ""))
+                   day.get("hourly", [{}])[4].get("weatherDesc", [{}])[0].get("value", ""))
             body += f"\n📅 {date}: {desc}, {min_t}°C ~ {max_t}°C"
 
-        return [{
-            "title": f"{city_name}天气实时数据 (wttr.in)",
-            "body": body,
-            "href": f"https://wttr.in/{city}?lang=zh"
-        }]
+        return body
     except Exception as e:
         logger.warning("快捷天气源失败: %s", e)
-        return []  # 降级到通用搜索
+        return f"天气查询失败: {e}"
 
 
-def _quick_gold_price(query: str) -> list[dict]:
+def _quick_gold_price() -> str:
     """直接请求东方财富API获取实时金价（国内可达，无需Key）"""
     try:
-        # 东方财富行情API - 现货黄金(AU)和黄金T+D
-        # AU9999: auci, 黄金T+D: autd, 国际现货: XAU
         urls = [
             ("https://push2.eastmoney.com/api/qt/stock/get?secid=113.auci&fields=f43,f44,f45,f46,f47,f48,f50,f57,f58,f169,f170",
              "AU9999"),
@@ -125,7 +108,6 @@ def _quick_gold_price(query: str) -> list[dict]:
                 low = d.get("f45", "?")
                 open_p = d.get("f46", "?")
                 change_pct = d.get("f170", "?")
-                # 东方财富数据 ÷100 得实际价格（部分品种）
                 if isinstance(price, (int, float)) and price > 100000:
                     price = round(price / 100, 2)
                     high = round(high / 100, 2) if isinstance(high, (int, float)) else high
@@ -139,19 +121,15 @@ def _quick_gold_price(query: str) -> list[dict]:
                 continue
 
         if not body_parts:
-            return []
+            return "金价查询失败：数据源暂不可用"
 
-        return [{
-            "title": "实时黄金价格 (东方财富)",
-            "body": "\n".join(body_parts),
-            "href": "https://quote.eastmoney.com/gjs/qhau.html"
-        }]
+        return "\n".join(body_parts)
     except Exception as e:
         logger.warning("快捷金价源失败: %s", e)
-        return []
+        return f"金价查询失败: {e}"
 
 
-def _quick_exchange_rate(query: str) -> list[dict]:
+def _quick_exchange_rate() -> str:
     """直接请求中国银行外汇牌价（权威数据源，无需Key）"""
     try:
         url = "https://www.boc.cn/sourcedb/whpj/"
@@ -162,7 +140,6 @@ def _quick_exchange_rate(query: str) -> list[dict]:
         resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
 
-        # 解析HTML中的汇率表格
         rows = re.findall(r'<tr>(.*?)</tr>', resp.text, re.DOTALL)
         rates = []
         for row in rows:
@@ -178,19 +155,15 @@ def _quick_exchange_rate(query: str) -> list[dict]:
                     rates.append(f"💱 {currency}: 现汇买入 {buy_rate} | 现汇卖出 {sell_rate} | 中行折算价 {mid_rate}")
 
         if not rates:
-            return []
+            return "汇率查询失败：数据源暂不可用"
 
-        return [{
-            "title": "中国银行外汇牌价",
-            "body": "\n".join(rates[:15]),
-            "href": "https://www.boc.cn/sourcedb/whpj/"
-        }]
+        return "\n".join(rates[:15])
     except Exception as e:
         logger.warning("快捷汇率源失败: %s", e)
-        return []
+        return f"汇率查询失败: {e}"
 
 
-def _quick_hot_news(query: str) -> list[dict]:
+def _quick_hot_news() -> str:
     """直接请求百度热搜API获取热点新闻（无需Key）"""
     try:
         url = "https://top.baidu.com/board?tab=realtime"
@@ -201,201 +174,193 @@ def _quick_hot_news(query: str) -> list[dict]:
         resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
 
-        # 从HTML中提取热搜数据
         items = re.findall(r'"word":"([^"]+)".*?"desc":"([^"]*)".*?"url":"([^"]*)"', resp.text)
         if not items:
-            # 尝试更宽松的匹配
-            items = re.findall(r'"query":"([^"]+)"', resp.text)
-            if items:
-                return [{
-                    "title": "百度热搜榜",
-                    "body": "\n".join(f"🔥 {i+1}. {w}" for i, w in enumerate(items[:20])),
-                    "href": "https://top.baidu.com/board?tab=realtime"
-                }]
-            return []
+            items_simple = re.findall(r'"query":"([^"]+)"', resp.text)
+            if items_simple:
+                return "\n".join(f"🔥 {i+1}. {w}" for i, w in enumerate(items_simple[:20]))
+            return "热搜查询失败：数据源暂不可用"
 
-        return [{
-            "title": "百度热搜榜",
-            "body": "\n".join(f"🔥 {i+1}. {word}\n   {desc}" for i, (word, desc, _) in enumerate(items[:20])),
-            "href": "https://top.baidu.com/board?tab=realtime"
-        }]
+        return "\n".join(f"🔥 {i+1}. {word}\n   {desc}" for i, (word, desc, _) in enumerate(items[:20]))
     except Exception as e:
         logger.warning("快捷热搜源失败: %s", e)
-        return []
+        return f"热搜查询失败: {e}"
 
-# Function-calling 工具定义（OpenAI 兼容格式）
-WEB_SEARCH_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "web_search",
-        "description": (
-            "搜索互联网获取实时信息。当你需要最新新闻、当前事件、实时数据（如金价、股价、天气）、"
-            "事实核验等任何超出你训练数据截止日期或需要实时信息的问题时，必须调用此工具。"
-            "query必须用2-5个关键词组合，禁止自然语言问句。"
-            "正确：'今日金价 黄金价格'，错误：'昨晚金价多少'；"
-            "正确：'百度热搜 今日新闻'，错误：'当前百度新闻TOP3分别是什么'。"
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "2-5个搜索关键词，用空格分隔。"
-                        "只用名词和核心词，去掉'的''了''吗''什么''多少'等口语词。"
-                        "示例：'金价 今日' '世界杯 C罗' '黄金价格 6月'"
-                    ),
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "返回结果数量，默认5条",
-                    "default": 5,
-                },
-            },
-            "required": ["query"],
-        },
-    },
+
+# ── 快捷数据源工具调度 ──────────────────────────────────
+
+_QUICK_SOURCE_EXECUTORS = {
+    "quick_weather": _quick_weather,
+    "quick_gold_price": _quick_gold_price,
+    "quick_exchange_rate": _quick_exchange_rate,
+    "quick_hot_news": _quick_hot_news,
 }
 
 
-def _strip_html(text: str) -> str:
-    """移除 HTML 标签并清理多余空白，不依赖第三方解析库"""
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"&amp;", "&", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
-    text = re.sub(r"&quot;", '"', text)
-    text = re.sub(r"&#\d+;", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+def execute_quick_source(tool_name: str, tool_args: dict) -> str:
+    """执行快捷数据源工具，返回结果文本"""
+    executor = _QUICK_SOURCE_EXECUTORS.get(tool_name)
+    if not executor:
+        return f"未知工具: {tool_name}"
+
+    try:
+        if tool_name == "quick_weather":
+            return executor(tool_args.get("city", "Beijing"))
+        elif tool_name in ("quick_gold_price", "quick_exchange_rate", "quick_hot_news"):
+            return executor()
+        else:
+            return executor(**tool_args) if tool_args else executor()
+    except Exception as e:
+        return f"工具执行失败: {e}"
 
 
-def _search_bing(query: str, max_results: int = 5) -> list[dict]:
+# ════════════════════════════════════════════════════════
+# 工具定义
+# ════════════════════════════════════════════════════════
+
+# Anthropic 格式（用于 DeepSeek Anthropic 端点 / Claude）
+QUICK_SOURCE_TOOLS_ANTHROPIC = [
+    {
+        "name": "quick_weather",
+        "description": "查询指定城市的实时天气和未来预报。当用户询问天气、气温、下雨、温度、风力等天气相关问题时使用此工具。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string",
+                    "description": "城市名称，中文或英文，例如：北京、上海、Tokyo",
+                },
+            },
+            "required": ["city"],
+        },
+    },
+    {
+        "name": "quick_gold_price",
+        "description": "查询实时黄金价格，包括AU9999、黄金T+D、国际现货黄金的当前价、最高最低价和涨跌幅。当用户询问金价、黄金价格、足金、金条等黄金相关问题时使用此工具。",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "quick_exchange_rate",
+        "description": "查询中国银行外汇牌价，获取各主要货币的现汇买入价、卖出价和折算价。当用户询问汇率、美元、欧元、日元等外汇相关问题时使用此工具。",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "quick_hot_news",
+        "description": "查询百度实时热搜榜，获取当前最热门新闻话题。当用户询问热搜、新闻排行、热门新闻、头条等新闻热点问题时使用此工具。",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+]
+
+# OpenAI 格式（用于 litellm 路径，非 DeepSeek 模型）
+QUICK_SOURCE_TOOLS_OPENAI = [
+    {
+        "type": "function",
+        "function": {
+            "name": "quick_weather",
+            "description": "查询指定城市的实时天气和未来预报。当用户询问天气、气温、下雨、温度、风力等天气相关问题时使用此工具。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "城市名称，中文或英文，例如：北京、上海、Tokyo",
+                    },
+                },
+                "required": ["city"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "quick_gold_price",
+            "description": "查询实时黄金价格，包括AU9999、黄金T+D、国际现货黄金的当前价、最高最低价和涨跌幅。当用户询问金价、黄金价格、足金、金条等黄金相关问题时使用此工具。",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "quick_exchange_rate",
+            "description": "查询中国银行外汇牌价，获取各主要货币的现汇买入价、卖出价和折算价。当用户询问汇率、美元、欧元、日元等外汇相关问题时使用此工具。",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "quick_hot_news",
+            "description": "查询百度实时热搜榜，获取当前最热门新闻话题。当用户询问热搜、新闻排行、热门新闻、头条等新闻热点问题时使用此工具。",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+]
+
+
+def get_server_search_tools(provider: str, search_enabled: bool = False) -> list[dict]:
+    """根据模型 provider 返回 server-side web_search 工具声明
+
+    仅在 search_enabled=True 且 provider 支持时返回搜索工具。
+    支持的 provider: deepseek, anthropic, openai
     """
-    通过 Bing HTML 页面搜索（国内直连可用，无需 API Key）。
+    if not search_enabled:
+        return []
 
-    从 cn.bing.com 的搜索结果页 HTML 中正则提取 <li class="b_algo"> 块，
-    解析标题、链接和摘要。
-    """
-    url = "https://cn.bing.com/search"
-    params = {"q": query, "count": str(max_results)}
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/125.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "zh-CN,zh;q=0.9",
-    }
-
-    resp = requests.get(url, params=params, headers=headers, timeout=10)
-    resp.raise_for_status()
-
-    results: list[dict] = []
-
-    # 匹配每个 <li class="b_algo"> 块（每个搜索结果一个）
-    algo_re = re.compile(r'<li class="b_algo"[^>]*>(.*?)</li>', re.DOTALL)
-    for match in algo_re.finditer(resp.text):
-        if len(results) >= max_results:
-            break
-        block = match.group(1)
-
-        # 提取链接和标题（<a> 标签内）
-        link_match = re.search(
-            r'<a[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL
-        )
-        if not link_match:
-            continue
-
-        href = link_match.group(1)
-        title = _strip_html(link_match.group(2))
-
-        # 提取摘要：优先 <div class="b_caption">，其次 <p>
-        caption_match = re.search(
-            r'<(?:p|div)[^>]*class="[^"]*b_caption[^"]*"[^>]*>(.*?)</(?:p|div)>',
-            block,
-            re.DOTALL,
-        )
-        if not caption_match:
-            caption_match = re.search(r"<p[^>]*>(.*?)</p>", block, re.DOTALL)
-
-        body = _strip_html(caption_match.group(1)) if caption_match else ""
-
-        if title:
-            results.append({"title": title, "body": body, "href": href})
-
-    return results
+    if provider == "deepseek":
+        return [{
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5,
+        }]
+    elif provider == "anthropic":
+        return [{
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5,
+            "user_location": {
+                "type": "approximate",
+                "city": "Beijing",
+                "country": "CN",
+                "timezone": "Asia/Shanghai",
+            },
+        }]
+    elif provider == "openai":
+        return [{
+            "type": "web_search",
+            "search_content_types": ["text"],
+        }]
+    else:
+        return []
 
 
-def _search_duckduckgo(query: str, max_results: int = 5) -> list[dict]:
-    """
-    通过 DuckDuckGo 搜索（海外用户或配置了代理时可用，作为降级源）。
-    """
-    results: list[dict] = []
-    with DDGS() as ddgs:
-        for r in ddgs.text(query, max_results=max_results):
-            results.append({
-                "title": r.get("title", ""),
-                "body": r.get("body", ""),
-                "href": r.get("href", ""),
-            })
-    return results
-
+# ════════════════════════════════════════════════════════
+# 向后兼容 - 旧 API 存根（aicraft.py / search.py 仍引用）
+# ════════════════════════════════════════════════════════
 
 def web_search(query: str, max_results: int = 5) -> list[dict]:
+    """[已废弃] 客户端搜索已被 server-side web_search 取代。
+
+    此函数仅作为向后兼容存根。新代码应使用 server-side web_search。
     """
-    智能搜索入口：快捷数据源优先 → Bing → DuckDuckGo 降级
-
-    策略：
-      0. 如果query匹配快捷数据源（天气/金价/汇率/热搜），直接请求权威站API
-      1. 否则走 Bing HTML 搜索（国内直连可用）
-      2. Bing 失败 → 降级到 DuckDuckGo（海外/代理用户）
-      3. 都失败 → 返回友好错误提示
-    """
-    # 0. 快捷数据源优先（直接请求权威站，不走搜索引擎）
-    quick_func_name = _match_quick_source(query)
-    if quick_func_name:
-        quick_func = globals().get(quick_func_name)
-        if quick_func:
-            try:
-                logger.info("快捷数据源=%s, query=%s", quick_func_name, query)
-                results = quick_func(query)
-                if results:
-                    logger.info("快捷数据源成功, 返回%d条结果", len(results))
-                    return results
-                logger.info("快捷数据源返回0条结果，降级到通用搜索")
-            except Exception as e:
-                logger.warning("快捷数据源失败: %s，降级到通用搜索", e)
-
-    # 1. 通用搜索：优先 Bing（国内直连）
-    try:
-        logger.info("搜索源=Bing, query=%s, max_results=%d", query, max_results)
-        results = _search_bing(query, max_results)
-        if results:
-            logger.info("Bing搜索成功, 返回%d条结果", len(results))
-            return results
-        logger.info("Bing搜索返回0条结果，降级到DuckDuckGo")
-    except Exception as e:
-        logger.warning("Bing搜索失败: %s，降级到DuckDuckGo", e)
-
-    # 2. 降级 DuckDuckGo（海外/代理用户）
-    try:
-        logger.info("搜索源=DuckDuckGo(降级), query=%s, max_results=%d", query, max_results)
-        results = _search_duckduckgo(query, max_results)
-        if results:
-            logger.info("DuckDuckGo搜索成功, 返回%d条结果", len(results))
-            return results
-        logger.info("DuckDuckGo搜索返回0条结果")
-    except Exception as e:
-        logger.warning("DuckDuckGo搜索失败: %s", e)
-
-    # 3. 全部失败
-    logger.error("所有搜索源均不可用, query=%s", query)
-    return [{"title": "搜索失败", "body": "搜索服务暂不可用，请检查网络", "href": ""}]
+    logger.warning("web_search() 已废弃 — 联网搜索已升级为模型原生搜索，请使用新版本应用。")
+    return [{
+        "title": "搜索功能已升级",
+        "body": "联网搜索已升级为模型原生 server-side 搜索。请通过 DeepSeek/Claude 模型的原生搜索能力进行联网搜索。",
+        "href": "",
+    }]
 
 
 def format_search_results(results: list[dict]) -> str:
-    """将搜索结果格式化为可注入prompt的文本"""
+    """[已废弃] 格式化搜索结果"""
     if not results:
         return ""
     parts = ["\n\n# 联网搜索结果\n"]

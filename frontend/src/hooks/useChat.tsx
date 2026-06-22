@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useRef, useCallback, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useReducer, useRef, useCallback, useEffect, type ReactNode } from 'react'
 
 // ── Types ──
 
@@ -10,6 +10,8 @@ export interface ChatMessage {
   toolName?: string
   toolArgs?: Record<string, unknown>
   toolResult?: string
+  thinking?: string
+  thinkingDuration?: number
 }
 
 interface ChatState {
@@ -21,6 +23,8 @@ interface ChatState {
 type ChatAction =
   | { type: 'ADD_USER'; content: string }
   | { type: 'APPEND_TEXT'; content: string }
+  | { type: 'APPEND_THINKING'; content: string }
+  | { type: 'END_THINKING'; durationMs: number }
   | { type: 'ADD_TOOL_CALL'; name: string; args: Record<string, unknown> }
   | { type: 'ADD_TOOL_RESULT'; name: string; result: string }
   | { type: 'ADD_INJECT'; items: string[] }
@@ -53,6 +57,38 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         msgs[msgs.length - 1] = { ...last, content: last.content + action.content }
       } else {
         msgs.push({ id: nextId(), role: 'assistant', content: action.content, timestamp: Date.now() })
+      }
+      return { ...state, messages: msgs }
+    }
+    case 'APPEND_THINKING': {
+      const msgs = [...state.messages]
+      const last = msgs[msgs.length - 1]
+      // 如果最后一条是 assistant 消息且正在 thinking（thinkingDuration 未设置），追加到 thinking 字段
+      if (last && last.role === 'assistant' && last.thinking !== undefined && last.thinkingDuration === undefined) {
+        msgs[msgs.length - 1] = {
+          ...last,
+          thinking: (last.thinking || '') + action.content,
+        }
+      } else {
+        // 新建一条 assistant 消息，只有 thinking，content 为空
+        msgs.push({
+          id: nextId(),
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          thinking: action.content,
+        })
+      }
+      return { ...state, messages: msgs, streaming: true }
+    }
+    case 'END_THINKING': {
+      const msgs = [...state.messages]
+      const last = msgs[msgs.length - 1]
+      if (last && last.role === 'assistant' && last.thinking !== undefined) {
+        msgs[msgs.length - 1] = {
+          ...last,
+          thinkingDuration: action.durationMs,
+        }
       }
       return { ...state, messages: msgs }
     }
@@ -109,7 +145,13 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       }
     }
     case 'SET_DONE': {
-      return { ...state, streaming: false }
+      const msgs = [...state.messages]
+      const last = msgs[msgs.length - 1]
+      // 如果正在 thinking 但收到 done（用户停止/异常结束），结束 thinking
+      if (last && last.role === 'assistant' && last.thinking && last.thinkingDuration === undefined) {
+        msgs[msgs.length - 1] = { ...last, thinkingDuration: 0 }
+      }
+      return { ...state, messages: msgs, streaming: false }
     }
     case 'SET_ERROR': {
       return { ...state, streaming: false, error: action.content }
@@ -159,6 +201,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       try {
         const data = JSON.parse(e.data)
         switch (data.type) {
+          case 'thinking':
+            dispatch({ type: 'APPEND_THINKING', content: data.content })
+            break
+          case 'thinking_end':
+            dispatch({ type: 'END_THINKING', durationMs: data.duration_ms })
+            break
+          case 'search_status':
+            if (data.status === 'searching') {
+              dispatch({ type: 'ADD_INJECT', items: ['🔍 正在搜索...'] })
+            } else if (data.status === 'done' && data.sources) {
+              dispatch({ type: 'ADD_INJECT', items: [`✅ 搜索完成，找到 ${data.sources.length} 个来源`] })
+            }
+            break
           case 'text':
             dispatch({ type: 'APPEND_TEXT', content: data.content })
             break

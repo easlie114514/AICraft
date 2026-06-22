@@ -148,7 +148,7 @@ export default function RAGPage() {
             </div>
             <div className="space-y-2">
               <Label>类型</Label>
-              <Select value={form.source_type} onValueChange={(v) => setForm({ ...form, source_type: v })}>
+              <Select value={form.source_type} onValueChange={(v) => setForm({ ...form, source_type: v ?? 'local' })}>
                 <SelectTrigger className="rounded-[10px]">
                   <SelectValue />
                 </SelectTrigger>

@@ -99,7 +99,14 @@ def save_model_config(data: dict[str, Any]) -> None:
 
 
 def delete_model_config(name: str) -> bool:
-    """删除指定模型配置"""
+    """删除指定模型配置（按 name 字段匹配，支持任意文件名）"""
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    for f in MODELS_DIR.glob("*.json"):
+        cfg = load_json(f)
+        if cfg.get("name") == name:
+            f.unlink()
+            return True
+    # 兼容旧行为：按文件名查找
     safe_name = "".join(c for c in name if c.isalnum() or c in "_- ").strip()
     path = MODELS_DIR / f"{safe_name}.json"
     if path.exists():
@@ -110,27 +117,27 @@ def delete_model_config(name: str) -> bool:
 
 def _unset_all_defaults() -> None:
     """取消所有模型的默认标记"""
-    for m in get_all_model_configs():
+    for f in MODELS_DIR.glob("*.json"):
+        m = load_json(f)
         if m.get("is_default"):
-            safe_name = "".join(c for c in m["name"] if c.isalnum() or c in "_- ").strip()
             m["is_default"] = False
-            save_json(MODELS_DIR / f"{safe_name}.json", m)
+            save_json(f, m)
 
 
 def set_default_model(model_id: str) -> None:
     """设置默认模型"""
     # 取消所有默认
-    for m in get_all_model_configs():
-        fn = "".join(c for c in m.get("name", "") if c.isalnum() or c in "_- ").strip()
+    for f in MODELS_DIR.glob("*.json"):
+        m = load_json(f)
         if m.get("is_default"):
             m["is_default"] = False
-            save_json(MODELS_DIR / f"{fn}.json", m)
+            save_json(f, m)
     # 设置新默认
-    for m in get_all_model_configs():
+    for f in MODELS_DIR.glob("*.json"):
+        m = load_json(f)
         if m.get("model_id") == model_id:
-            fn = "".join(c for c in m.get("name", "") if c.isalnum() or c in "_- ").strip()
             m["is_default"] = True
-            save_json(MODELS_DIR / f"{fn}.json", m)
+            save_json(f, m)
             # 同时更新 profile 的 model.json
             profile_config = load_profile_config("model")
             profile_config["model_id"] = model_id

@@ -8,6 +8,9 @@ import os
 import threading
 import time
 
+# 阻止 litellm 在 import 时同步拉取远程模型价格表（国内 GitHub 被墙会导致超时 30-60s）
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 import uvicorn
 import webview
 

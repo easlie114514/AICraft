@@ -160,7 +160,7 @@ export default function MCPPage() {
 
                     {conn.tools.length > 0 && (
                       <Collapsible className="mt-3">
-                        <CollapsibleTrigger asChild>
+                        <CollapsibleTrigger>
                           <Button variant="ghost" size="sm" className="text-xs text-muted-foreground -ml-2">
                             <Badge variant="outline" className="rounded-lg mr-2">{conn.tools.length} 个工具</Badge>
                             <ChevronDown className="h-3 w-3" />
@@ -200,7 +200,7 @@ export default function MCPPage() {
             </div>
             <div className="space-y-2">
               <Label>连接类型</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v ?? 'sse' })}>
                 <SelectTrigger className="rounded-[10px]">
                   <SelectValue />
                 </SelectTrigger>

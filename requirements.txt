@@ -5,7 +5,7 @@ sentence-transformers>=3.0
 langchain-text-splitters
 PyPDF2
 python-docx
-duckduckgo-search
+anthropic>=0.100.0
 watchdog
 pyperclip
 fastapi>=0.115.0

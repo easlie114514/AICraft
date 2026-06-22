@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Cpu, Star, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Cpu, Star, Trash2, RefreshCw, Zap, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -18,17 +18,37 @@ interface ModelConfig {
   model_id: string
   api_key?: string
   api_base?: string
+  protocol?: string
+  tier?: string
+  supports_thinking?: boolean
+  supports_web_search?: boolean
   is_default?: boolean
   is_current?: boolean
+}
+
+interface ChannelInfo {
+  type: string
+  name: string
+  base_url: string
+  protocol: string
+  models: { name: string; model_id: string; tier: string }[]
 }
 
 type TestStatus = { model: string; ok: boolean; message: string } | null
 
 export default function ModelPage() {
   const [models, setModels] = useState<ModelConfig[]>([])
+  const [channels, setChannels] = useState<ChannelInfo[]>([])
   const [showAdd, setShowAdd] = useState(false)
+  const [showChannel, setShowChannel] = useState(false)
   const [testResults, setTestResults] = useState<Record<string, TestStatus>>({})
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
+
+  // 手动添加表单
   const [form, setForm] = useState({ name: '', provider: 'deepseek', model_id: '', api_key: '', api_base: '' })
+
+  // 通道表单
+  const [channelForm, setChannelForm] = useState({ channel_type: 'deepseek', api_key: '' })
 
   const loadModels = useCallback(async () => {
     try {
@@ -37,13 +57,28 @@ export default function ModelPage() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { loadModels() }, [loadModels])
+  const loadChannels = useCallback(async () => {
+    try {
+      const data = await api.get<ChannelInfo[]>('/models/channels')
+      setChannels(data)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { loadModels(); loadChannels() }, [loadModels, loadChannels])
 
   const handleAdd = async () => {
     if (!form.name || !form.model_id) return
     await api.post('/models', form)
     setShowAdd(false)
     setForm({ name: '', provider: 'deepseek', model_id: '', api_key: '', api_base: '' })
+    loadModels()
+  }
+
+  const handleAddChannel = async () => {
+    if (!channelForm.api_key.trim()) return
+    const res = await api.post<{ ok: boolean; created: string[] }>('/models/channel', channelForm)
+    setShowChannel(false)
+    setChannelForm({ channel_type: 'deepseek', api_key: '' })
     loadModels()
   }
 
@@ -66,23 +101,34 @@ export default function ModelPage() {
     setTestResults((prev) => ({ ...prev, [name]: null }))
     try {
       const data = await api.post<{ ok: boolean; message: string }>(`/models/${encodeURIComponent(name)}/test`)
-      setTestResults((prev) => ({ ...prev, [name]: data }))
+      setTestResults((prev) => ({ ...prev, [name]: { model: name, ok: data.ok, message: data.message } }))
     } catch (e: any) {
-      setTestResults((prev) => ({ ...prev, [name]: { model: name, ok: false, message: e.message } }))
+      setTestResults((prev) => ({ ...prev, [name]: { model: name, ok: false, message: e?.message || String(e) } }))
     }
   }
+
+  const toggleKey = (name: string) => {
+    setShowKeys((prev) => ({ ...prev, [name]: !prev[name] }))
+  }
+
+  // 获取当前选中的通道预设详情
+  const selectedChannel = channels.find((c) => c.type === channelForm.channel_type)
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">模型配置</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={loadModels} className="rounded-xl">
+          <Button variant="outline" size="icon" onClick={() => { loadModels(); loadChannels() }} className="rounded-xl">
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="rounded-xl">
+          <Button onClick={() => setShowChannel(true)} className="rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+            <Zap className="h-4 w-4 mr-1" />
+            添加通道
+          </Button>
+          <Button onClick={() => setShowAdd(true)} className="rounded-xl" variant="outline">
             <Plus className="h-4 w-4 mr-1" />
-            添加模型
+            自定义模型
           </Button>
         </div>
       </div>
@@ -92,7 +138,7 @@ export default function ModelPage() {
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Cpu className="h-12 w-12 mb-3 opacity-30" />
             <p className="text-sm">暂无模型配置</p>
-            <p className="text-xs mt-1">点击"添加模型"开始配置 LLM API</p>
+            <p className="text-xs mt-1">点击"添加通道"一键配置 DeepSeek，或"自定义模型"手动填写</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
@@ -102,7 +148,7 @@ export default function ModelPage() {
                 <Card key={m.name} className="rounded-2xl">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+                      <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: m.tier === 'flash' ? 'linear-gradient(135deg, #F0A050, #D07030)' : 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
                         <AvatarFallback className="bg-transparent text-white">
                           <Cpu className="h-5 w-5" />
                         </AvatarFallback>
@@ -110,22 +156,44 @@ export default function ModelPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-foreground">{m.name}</span>
+                          {m.tier && (
+                            <Badge variant={m.tier === 'pro' ? 'default' : 'secondary'} className="rounded-lg text-[10px]">
+                              {m.tier === 'pro' ? 'Pro' : m.tier === 'flash' ? 'Flash' : m.tier}
+                            </Badge>
+                          )}
                           {m.is_default && <Badge className="rounded-lg">默认</Badge>}
                           {m.is_current && <Badge variant="secondary" className="rounded-lg">当前</Badge>}
                         </div>
                         <p className="text-sm text-muted-foreground font-mono mt-0.5 truncate">{m.model_id}</p>
-                        {test && (
-                          <Badge variant={test.ok ? 'default' : 'destructive'} className="rounded-lg mt-1.5">
-                            {test.ok ? '✓ 连接成功' : '✗ 连接失败'}
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {m.protocol && (
+                            <span className="text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded">
+                              {m.protocol}
+                            </span>
+                          )}
+                          {m.supports_thinking && (
+                            <span className="text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded">
+                              思考
+                            </span>
+                          )}
+                          {m.supports_web_search && (
+                            <span className="text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded">
+                              联网搜索
+                            </span>
+                          )}
+                          {test && (
+                            <Badge variant={test.ok ? 'default' : 'destructive'} className="rounded-lg text-[10px]">
+                              {test.ok ? '✓ 连接成功' : '✗ 连接失败'}
+                            </Badge>
+                          )}
+                        </div>
                         {test && !test.ok && (
                           <p className="text-xs text-destructive mt-1 truncate max-w-md">{test.message}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="outline" size="sm" onClick={() => handleTest(m.name)} className="rounded-xl">
-                          测试连接
+                        <Button variant="outline" size="sm" onClick={() => handleTest(m.name)} className="rounded-xl text-xs">
+                          测试
                         </Button>
                         <Button
                           variant="ghost"
@@ -155,12 +223,85 @@ export default function ModelPage() {
         )}
       </ScrollArea>
 
-      {/* Add Model Dialog */}
+      {/* ── 添加通道 Dialog ── */}
+      <Dialog open={showChannel} onOpenChange={setShowChannel}>
+        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+          <DialogHeader>
+            <DialogTitle>添加模型通道</DialogTitle>
+            <DialogDescription>选择通道类型，填入 API Key 即可自动创建模型</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* 通道类型选择 */}
+            <div className="space-y-2">
+              <Label>通道类型</Label>
+              <Select value={channelForm.channel_type} onValueChange={(v) => setChannelForm({ ...channelForm, channel_type: v ?? 'deepseek' })}>
+                <SelectTrigger className="rounded-[10px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deepseek">DeepSeek 定制通道</SelectItem>
+                  <SelectItem value="openai" disabled>OpenAI 标准通道（即将推出）</SelectItem>
+                  <SelectItem value="anthropic" disabled>Anthropic 标准通道（即将推出）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* API Key */}
+            <div className="space-y-2">
+              <Label>API Key</Label>
+              <Input
+                type="password"
+                placeholder="sk-..."
+                value={channelForm.api_key}
+                onChange={(e) => setChannelForm({ ...channelForm, api_key: e.target.value })}
+                className="rounded-[10px]"
+              />
+            </div>
+
+            {/* 只读：端点 & 协议 */}
+            {selectedChannel && (
+              <div className="space-y-2 rounded-xl bg-muted/50 p-3 border border-border/50">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">端点</span>
+                  <span className="font-mono text-foreground">{selectedChannel.base_url}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">协议</span>
+                  <span className="font-mono text-foreground">{selectedChannel.protocol}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">将自动创建</span>
+                  <span className="text-foreground">
+                    {selectedChannel.models.map((m) => (
+                      <Badge key={m.model_id} variant="secondary" className="rounded-lg ml-1 text-[10px]">
+                        {m.name}
+                      </Badge>
+                    ))}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChannel(false)} className="rounded-xl">取消</Button>
+            <Button
+              onClick={handleAddChannel}
+              className="rounded-xl"
+              style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}
+              disabled={!channelForm.api_key.trim()}
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 自定义模型 Dialog（保留原有手动添加功能）── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[520px] rounded-[20px]">
           <DialogHeader>
-            <DialogTitle>添加模型</DialogTitle>
-            <DialogDescription>配置 LLM API 连接信息</DialogDescription>
+            <DialogTitle>自定义模型</DialogTitle>
+            <DialogDescription>手动配置 LLM API 连接信息</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -174,7 +315,7 @@ export default function ModelPage() {
             </div>
             <div className="space-y-2">
               <Label>Provider</Label>
-              <Select value={form.provider} onValueChange={(v) => setForm({ ...form, provider: v })}>
+              <Select value={form.provider} onValueChange={(v) => setForm({ ...form, provider: v ?? 'deepseek' })}>
                 <SelectTrigger className="rounded-[10px]">
                   <SelectValue />
                 </SelectTrigger>

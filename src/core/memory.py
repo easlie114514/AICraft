@@ -134,21 +134,13 @@ class MemoryManager:
         )
 
         try:
-            import litellm
-            api_key = model_config.get("api_key", "")
-            api_base = model_config.get("api_base", "")
-            kwargs: dict = {
-                "model": model_config.get("model_id", ""),
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 500,
-            }
-            if api_key:
-                kwargs["api_key"] = api_key
-            if api_base:
-                kwargs["api_base"] = api_base
+            from src.core.llm import simple_completion
 
-            response = await litellm.acompletion(**kwargs)
-            summary = response.choices[0].message.content or ""
+            summary = await simple_completion(
+                model_config=model_config,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+            )
             if not summary.strip():
                 return None
 

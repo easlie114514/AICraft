@@ -17,7 +17,7 @@ export default function ToolCallCard({ name, args, result }: Props) {
     <div className="flex justify-start py-1.5">
       <Card className="max-w-[85%] rounded-2xl border-muted-foreground/20">
         <Collapsible open={open} onOpenChange={setOpen}>
-          <CollapsibleTrigger asChild>
+          <CollapsibleTrigger>
             <CardContent className="p-3 flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors">
               <Wrench className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium truncate">

@@ -148,19 +148,74 @@ async def chat_completion(
 async def test_connection(model_config: dict) -> tuple[bool, str]:
     """测试模型API连通性"""
     try:
-        api_key = model_config.get("api_key", "")
-        api_base = model_config.get("api_base", "")
-        kwargs: dict = {
-            "model": model_config["model_id"],
-            "messages": [{"role": "user", "content": "Hi"}],
-            "max_tokens": 10,
-        }
-        if api_key:
-            kwargs["api_key"] = api_key
-        if api_base:
-            kwargs["api_base"] = api_base
-
-        response = await litellm.acompletion(**kwargs)
-        return True, f"连接成功，模型响应: {response.choices[0].message.content[:50]}"
+        content = await simple_completion(
+            model_config=model_config,
+            messages=[{"role": "user", "content": "Hi"}],
+            max_tokens=10,
+        )
+        return True, f"连接成功，模型响应: {content[:50]}"
     except Exception as e:
         return False, f"连接失败: {str(e)[:150]}"
+
+
+async def simple_completion(
+    model_config: dict,
+    messages: list[dict],
+    max_tokens: int = 500,
+) -> str:
+    """协议感知的非流式简单完成 — 根据 protocol 自动选择 Anthropic SDK 或 litellm
+
+    Args:
+        model_config: 模型配置 dict
+        messages: 消息列表
+        max_tokens: 最大 token 数
+
+    Returns:
+        模型返回的文本内容
+    """
+    protocol = model_config.get("protocol", "").lower()
+    api_key = model_config.get("api_key", "")
+    api_base = model_config.get("api_base", "")
+    model_id = model_config.get("model_id", "")
+
+    # ── Anthropic 协议（DeepSeek / Claude）──
+    if protocol == "anthropic":
+        from anthropic import AsyncAnthropic
+
+        if api_base:
+            base_url = api_base
+        else:
+            provider = model_config.get("provider", "").lower()
+            if provider == "deepseek":
+                base_url = "https://api.deepseek.com/anthropic"
+            else:
+                base_url = "https://api.anthropic.com"
+
+        actual_model = model_id.split("/", 1)[1] if "/" in model_id else model_id
+
+        client = AsyncAnthropic(api_key=api_key, base_url=base_url)
+        response = await client.messages.create(
+            model=actual_model,
+            max_tokens=max_tokens,
+            messages=messages,
+            thinking={"type": "disabled"},  # 简单调用不需要思考
+        )
+        # 过滤出 TextBlock（跳过 ThinkingBlock 等）
+        for block in response.content:
+            if getattr(block, 'type', None) == "text":
+                return block.text
+        return ""
+
+    # ── litellm 路径（OpenAI 兼容等）──
+    kwargs: dict = {
+        "model": model_id,
+        "messages": messages,
+        "max_tokens": max_tokens,
+    }
+    if api_key:
+        kwargs["api_key"] = api_key
+    if api_base:
+        kwargs["api_base"] = api_base
+
+    response = await litellm.acompletion(**kwargs)
+    return response.choices[0].message.content or ""
