@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.utils.config import load_json, save_json, RAG_DIR
+from src.utils.config import load_json, save_json, RAG_DIR, resolve_path
 
 
 @dataclass
@@ -79,7 +79,7 @@ class MCPManager:
                 port=item.get("port", 0),
                 url=item.get("url", ""),
                 command=item.get("command", ""),
-                args=item.get("args", []),
+                args=self._resolve_mcp_args(item.get("args", [])),
                 env=item.get("env", {}),
                 enabled=item.get("enabled", True),
             )
@@ -109,6 +109,26 @@ class MCPManager:
         }
         save_profile_config("mcp_connections", data)
 
+    @staticmethod
+    def _resolve_mcp_args(args: list[str]) -> list[str]:
+        """将 MCP stdio args 中的文件系统路径解析为绝对路径。
+
+        跳过 flags（-开头）、npm 包名（@开头）、占位符（{开头）、URL（http开头）、
+        纯数字（端口/超时值），其余参数都视为可能的文件系统路径并尝试解析。
+        """
+        result = []
+        for arg in args:
+            if not isinstance(arg, str):
+                result.append(arg)
+                continue
+            # 跳过非路径模式：flags、npm 包、占位符、URL、纯数字
+            if arg.startswith(("-", "@", "{", "http")) or arg.isdigit():
+                result.append(arg)
+            else:
+                resolved = resolve_path(arg)
+                result.append(str(resolved))
+        return result
+
     def add_connection(
         self,
         name: str,
@@ -128,7 +148,7 @@ class MCPManager:
             port=port,
             url=url,
             command=command,
-            args=args or [],
+            args=self._resolve_mcp_args(args or []),
             env=env or {},
         )
         self.connections.append(conn)

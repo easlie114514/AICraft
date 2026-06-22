@@ -10,7 +10,7 @@ AICraft 是一个个人桌面AI能力启动器，用 Python + Flet 构建。
 ## 项目结构
 
 ```
-D:/AICraft/
+./
 ├── aicraft.py              # 主入口
 ├── src/                    # 源码
 │   ├── ui/                 # UI层（Flet页面）

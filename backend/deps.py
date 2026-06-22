@@ -7,7 +7,7 @@ from src.core.rag_engine import RAGEngine
 from src.core.memory import MemoryManager
 from src.core.role_loader import RoleLoader
 from src.core.skill_loader import SkillLoader
-from src.utils.config import get_skills_dir
+from src.utils.config import BASE_DIR, get_skills_dir
 
 
 @dataclass
@@ -27,6 +27,30 @@ def init_deps() -> AppDeps:
     global _deps
     mcp = MCPManager()
     mcp.load_connections()
+
+    # 首次启动自动导入出厂 MCP 配置
+    if not mcp.connections:
+        defaults_file = BASE_DIR / "config" / "defaults" / "default_mcp.json"
+        if defaults_file.exists():
+            import json as _json
+            default_data = _json.loads(defaults_file.read_text(encoding="utf-8"))
+            workspace_path = str(BASE_DIR / "workspace")
+            for item in default_data:
+                substituted_args = [
+                    arg.replace("{workspace_dir}", workspace_path)
+                    for arg in item.get("args", [])
+                ]
+                mcp.add_connection(
+                    name=item["name"],
+                    conn_type=item.get("type", "stdio"),
+                    host=item.get("host", ""),
+                    port=item.get("port", 0),
+                    url=item.get("url", ""),
+                    command=item.get("command", ""),
+                    args=substituted_args,
+                    env=item.get("env", {}),
+                )
+
     rag = RAGEngine()
     rag.load_sources()
     memory = MemoryManager()

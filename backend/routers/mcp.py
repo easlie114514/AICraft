@@ -26,6 +26,13 @@ def _conn_to_dict(conn):
     }
 
 
+@router.get("/mcp/env-check")
+async def check_mcp_env():
+    """检测 MCP 运行环境（Node.js/npx 是否可用）"""
+    from src.utils.env import check_node_env
+    return check_node_env()
+
+
 @router.get("/mcp")
 async def list_connections():
     """列出所有 MCP 连接"""

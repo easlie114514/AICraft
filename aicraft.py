@@ -42,6 +42,7 @@ from src.utils.config import (
     set_current_model_id,
     set_current_role_name,
     set_default_model,
+    resolve_path,
 )
 
 
@@ -976,7 +977,7 @@ def build_mcp_view(page: ft.Page, app_state: dict) -> ft.Column:
     command_field = ft.TextField(label="命令（Stdio模式）", hint_text="例如: py 或 python", text_size=13, value="py")
     args_field = ft.TextField(
         label="参数（Stdio模式，空格分隔）",
-        hint_text="例如: -3.13 D:/sipp_workshop_mcp.py",
+        hint_text="例如: -3.13 scripts/workshop_mcp.py (相对项目根)",
         text_size=13,
     )
 
@@ -1371,7 +1372,7 @@ def _build_rag_card(source, engine: RAGEngine, page: ft.Page, refresh_fn) -> ft.
 def _show_add_rag_dialog(page: ft.Page, engine: RAGEngine, refresh_fn) -> None:
     """显示添加RAG数据源对话框"""
     name_field = ft.TextField(label="数据源名称", hint_text="例如: 项目文档", text_size=13)
-    path_field = ft.TextField(label="目录路径", hint_text="例如: D:/docs/api", text_size=13)
+    path_field = ft.TextField(label="目录路径", hint_text="例如: rag/使用指导 (相对项目根)", text_size=13)
     status_text = ft.Text("", size=12)
 
     def on_save(e):
@@ -1383,7 +1384,7 @@ def _show_add_rag_dialog(page: ft.Page, engine: RAGEngine, refresh_fn) -> None:
         if not path:
             status_text.value = "❌ 路径不能为空"
             status_text.color = ft.Colors.ERROR; status_text.update(); return
-        if not Path(path).exists():
+        if not resolve_path(path).exists():
             status_text.value = "❌ 目录不存在"
             status_text.color = ft.Colors.ERROR; status_text.update(); return
 

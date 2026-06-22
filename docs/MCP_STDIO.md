@@ -31,7 +31,7 @@ class MCPConnection:
     url: str = ""
     # Stdio 模式参数
     command: str = ""           # 启动命令，如 "python" 或 "py"
-    args: list[str] = None      # 命令参数，如 ["D:/sipp_workshop_mcp.py"]
+    args: list[str] = None      # 命令参数，如 ["scripts/workshop_mcp.py"]（相对项目根）
     env: dict[str, str] = None  # 环境变量（可选）
     # 通用
     enabled: bool = True
@@ -59,7 +59,7 @@ class MCPConnection:
       "name": "SIPP积木工坊",
       "type": "stdio",
       "command": "py",
-      "args": ["-3.13", "D:/sipp_workshop_mcp.py"],
+      "args": ["-3.13", "scripts/workshop_mcp.py"],
       "env": {},
       "enabled": true
     }
@@ -83,7 +83,7 @@ async def connect_stdio(self, conn: MCPConnection) -> bool:
     try:
         server_params = StdioServerParameters(
             command=conn.command,       # "py" 或 "python"
-            args=conn.args,             # ["-3.13", "D:/sipp_workshop_mcp.py"]
+            args=conn.args,             # ["-3.13", "scripts/workshop_mcp.py"]
             env=conn.env or None,       # 额外环境变量
         )
 
@@ -231,7 +231,7 @@ async def disconnect_all(self) -> None:
 添加连接时，根据选择的类型显示不同表单：
 
 - **SSE 模式**：输入 host / port / url（现有逻辑不变）
-- **Stdio 模式**：输入 command（如 `py`）、args（如 `-3.13 D:/sipp_workshop_mcp.py`，空格分隔）
+- **Stdio 模式**：输入 command（如 `py`）、args（如 `-3.13 scripts/workshop_mcp.py`，空格分隔，路径相对于项目根）
 
 ### 4.2 连接卡片展示
 

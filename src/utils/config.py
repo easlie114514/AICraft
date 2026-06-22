@@ -8,6 +8,7 @@ from typing import Any
 BASE_DIR = Path(__file__).parent.parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 PROFILES_DIR = CONFIG_DIR / "profiles"
+DEFAULTS_DIR = CONFIG_DIR / "defaults"
 MODELS_DIR = BASE_DIR / "models"
 ROLES_DIR = BASE_DIR / "roles"
 SKILLS_DIR = BASE_DIR / "skills"
@@ -16,6 +17,18 @@ MEMORY_DIR = BASE_DIR / "memory"
 CONVERSATIONS_DIR = MEMORY_DIR / "conversations"
 NOTES_DIR = MEMORY_DIR / "project-notes"
 CHROMA_DIR = BASE_DIR / "chroma_db"
+
+
+def resolve_path(p: str | Path) -> Path:
+    """将路径解析为绝对路径，相对路径以 BASE_DIR 为基准。
+
+    - 绝对路径（如 D:\\data\\docs）保持不变
+    - 相对路径（如 rag/使用指导）解析为 BASE_DIR / p
+    """
+    path = Path(p)
+    if path.is_absolute():
+        return path
+    return (BASE_DIR / path).resolve()
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -176,7 +189,7 @@ def get_skills_dir() -> Path:
     app_config = load_json(CONFIG_DIR / "app.json")
     configured = app_config.get("skills_dir", "")
     if configured:
-        p = Path(configured)
+        p = resolve_path(configured)
         if p.exists():
             return p
     return SKILLS_DIR
@@ -187,7 +200,7 @@ def set_skills_dir(path: str) -> Path:
     app_config = load_json(CONFIG_DIR / "app.json")
     app_config["skills_dir"] = path
     save_json(CONFIG_DIR / "app.json", app_config)
-    return Path(path)
+    return resolve_path(path)
 
 
 def get_context_config() -> dict[str, int | bool | str | float]:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.utils.config import RAG_DIR, load_json, save_json, CHROMA_DIR
+from src.utils.config import RAG_DIR, load_json, save_json, CHROMA_DIR, resolve_path
 
 
 def _safe_collection_name(name: str) -> str:
@@ -99,8 +99,9 @@ class RAGEngine:
         save_json(self.CONFIG_PATH, data)
 
     def add_source(self, name: str, path: str, source_type: str = "local") -> RAGSource:
-        """添加数据源"""
-        source = RAGSource(name=name, path=path, source_type=source_type)
+        """添加数据源（相对路径自动解析为绝对路径）"""
+        resolved_path = str(resolve_path(path))
+        source = RAGSource(name=name, path=resolved_path, source_type=source_type)
         self.sources.append(source)
         self.save_sources()
         return source
@@ -130,7 +131,7 @@ class RAGEngine:
         import chromadb
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        doc_dir = Path(source.path)
+        doc_dir = resolve_path(source.path)
         if not doc_dir.exists():
             return 0
 

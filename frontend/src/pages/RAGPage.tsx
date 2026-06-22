@@ -146,7 +146,7 @@ export default function RAGPage() {
             </div>
             <div className="space-y-2">
               <Label>数据源路径</Label>
-              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} className="rounded-[10px]" placeholder="D:/docs/api" />
+              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} className="rounded-[10px]" placeholder="rag/使用指导 (相对项目根)" />
             </div>
           </div>
           <DialogFooter>

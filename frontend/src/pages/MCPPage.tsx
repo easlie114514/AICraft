@@ -29,6 +29,8 @@ interface MCPConnection {
   display_url: string
 }
 
+const FACTORY_MCP_NAMES = ['文件管理', '代码执行']
+
 const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string }> = {
   connected: { variant: 'default', label: '已连接' },
   disconnected: { variant: 'secondary', label: '未连接' },
@@ -39,6 +41,7 @@ const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructiv
 export default function MCPPage() {
   const [connections, setConnections] = useState<MCPConnection[]>([])
   const [showAdd, setShowAdd] = useState(false)
+  const [envStatus, setEnvStatus] = useState<{ available: boolean; path: string | null; version: string | null } | null>(null)
   const [connecting, setConnecting] = useState<Record<string, boolean>>({})
   const [form, setForm] = useState({
     name: '', type: 'sse', host: '', port: '', url: '', command: '', args: '',
@@ -51,7 +54,14 @@ export default function MCPPage() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { loadConnections() }, [loadConnections])
+  const loadEnvStatus = useCallback(async () => {
+    try {
+      const data = await api.get<{ available: boolean; path: string | null; version: string | null }>('/mcp/env-check')
+      setEnvStatus(data)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { loadConnections(); loadEnvStatus() }, [loadConnections, loadEnvStatus])
 
   const handleAdd = async () => {
     if (!form.name.trim()) return
@@ -135,6 +145,19 @@ export default function MCPPage() {
                           <span className="font-medium">{conn.name}</span>
                           <Badge variant="secondary" className="rounded-lg text-xs">{conn.type.toUpperCase()}</Badge>
                           <Badge variant={status.variant} className="rounded-lg text-xs">{status.label}</Badge>
+                          {envStatus && FACTORY_MCP_NAMES.includes(conn.name) && (
+                            envStatus.available ? (
+                              <Badge className="rounded-lg text-xs bg-green-600/10 text-green-600 border border-green-600/30 hover:bg-green-600/10">
+                                {'✅'} 环境就绪
+                              </Badge>
+                            ) : (
+                              <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">
+                                <Badge className="rounded-lg text-xs bg-red-600/10 text-red-600 border border-red-600/30 hover:bg-red-600/10 cursor-pointer">
+                                  {'⚠️'} 需要Node.js
+                                </Badge>
+                              </a>
+                            )
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground font-mono mt-0.5 truncate">
                           {conn.type === 'sse' ? conn.display_url : conn.command}

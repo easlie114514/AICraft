@@ -1,14 +1,30 @@
 {
   "connections": [
     {
-      "name": "积木工坊",
+      "name": "文件管理",
       "type": "stdio",
       "host": "",
       "port": 0,
       "url": "",
-      "command": "py",
+      "command": "npx",
       "args": [
-        "D:\\Downloads\\sipp_workshop_mcp.py"
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "D:\\AICraft\\workspace"
+      ],
+      "env": {},
+      "enabled": true
+    },
+    {
+      "name": "代码执行",
+      "type": "stdio",
+      "host": "",
+      "port": 0,
+      "url": "",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-python"
       ],
       "env": {},
       "enabled": true

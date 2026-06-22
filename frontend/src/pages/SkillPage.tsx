@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
 import { api } from '@/lib/api'
 
 interface Skill {
@@ -57,6 +57,25 @@ export default function SkillPage() {
     }
   }
 
+  const handleBrowseDir = async () => {
+    try {
+      const res = await api.get<{ ok: boolean; path?: string; detail?: string }>('/skills/browse-dir')
+      if (res.ok && res.path) {
+        setDirInput(res.path)
+        // 自动应用新目录
+        const applyRes = await api.put<{ ok: boolean; path?: string; detail?: string }>('/skills/dir', { path: res.path })
+        if (applyRes.ok) {
+          setSkillDir(applyRes.path || res.path)
+          loadSkills()
+        } else {
+          alert(applyRes.detail || '设置失败')
+        }
+      }
+    } catch (e: any) {
+      alert(e?.message || '打开目录失败')
+    }
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
@@ -68,14 +87,20 @@ export default function SkillPage() {
 
       {/* 根目录设置 */}
       <div className="shrink-0 flex items-center gap-2 mb-4">
-        <Input
-          value={dirInput}
-          onChange={(e) => setDirInput(e.target.value)}
-          placeholder="Skills 根目录路径，例如: D:\AICraft\skills"
-          className="rounded-xl flex-1 font-mono text-sm"
-        />
+        <InputGroup className="flex-1 rounded-xl">
+          <InputGroupInput
+            value={dirInput}
+            onChange={(e) => setDirInput(e.target.value)}
+            placeholder="Skills 根目录路径，例如: skills (相对项目根)"
+            className="font-mono text-sm"
+          />
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton onClick={handleBrowseDir} title="浏览文件夹" size="icon-sm">
+              <FolderOpen className="h-4 w-4" />
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
         <Button onClick={handleSetDir} className="rounded-xl shrink-0" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
-          <FolderOpen className="h-4 w-4 mr-1" />
           设置
         </Button>
       </div>

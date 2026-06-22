@@ -1,0 +1,18 @@
+[
+  {
+    "name": "文件管理",
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "{workspace_dir}"],
+    "env": {},
+    "enabled": true
+  },
+  {
+    "name": "代码执行",
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-python"],
+    "env": {},
+    "enabled": true
+  }
+]

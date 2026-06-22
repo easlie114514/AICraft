@@ -1,7 +1,6 @@
 """FastAPI 应用入口"""
 
 import asyncio
-import atexit
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -22,10 +21,19 @@ async def lifespan(app: FastAPI):
     """应用生命周期"""
     deps = init_deps()
     asyncio.create_task(deps.rag_engine.warmup())
-    asyncio.create_task(deps.mcp_manager.connect_all_enabled())
-    atexit.register(deps.mcp_manager.disconnect_all_sync)
+    connect_task = asyncio.create_task(deps.mcp_manager.connect_all_enabled())
     yield
-    deps.mcp_manager.disconnect_all_sync()
+    # 先取消 connect 任务（避免 anyio cancel scope 跨 task 报错）
+    connect_task.cancel()
+    try:
+        await connect_task
+    except (asyncio.CancelledError, Exception):
+        pass
+    # 然后清理所有 stdio 子进程（在当前 task 中执行 __aexit__）
+    try:
+        await deps.mcp_manager.disconnect_all()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="AICraft API", version="2.0.0", lifespan=lifespan)

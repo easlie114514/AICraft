@@ -1,11 +1,41 @@
 """技能管理 API — /api/skills/*"""
 
+import asyncio
+from pathlib import Path
 from fastapi import APIRouter
 
 from backend.deps import get_deps
 from src.utils.config import get_skills_dir, set_skills_dir
 
 router = APIRouter(tags=["skills"])
+
+
+def _open_folder_dialog(initial_dir: str) -> str | None:
+    """使用 tkinter 打开原生文件夹选择对话框（在 thread pool 中调用）"""
+    try:
+        from tkinter import Tk, filedialog
+        root = Tk()
+        root.withdraw()  # 隐藏主窗口
+        root.attributes("-topmost", True)  # 置顶
+        result = filedialog.askdirectory(
+            initialdir=initial_dir,
+            title="选择 Skills 根目录"
+        )
+        root.destroy()
+        return str(Path(result).resolve()) if result else None
+    except Exception:
+        return None
+
+
+@router.get("/skills/browse-dir")
+async def browse_skills_dir():
+    """打开原生文件夹选择对话框，返回所选路径"""
+    initial_dir = str(get_skills_dir())
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, _open_folder_dialog, initial_dir)
+    if result:
+        return {"ok": True, "path": result}
+    return {"ok": False, "detail": "未选择目录"}
 
 
 @router.get("/skills")
