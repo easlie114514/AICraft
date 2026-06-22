@@ -171,12 +171,32 @@ def set_current_role_name(role_name: str) -> None:
     save_profile_config("model", profile_config)
 
 
-def get_context_config() -> dict[str, int | bool]:
-    """获取上下文管理配置（记忆压缩间隔、聊天历史长度等）"""
+def get_context_config() -> dict[str, int | bool | str]:
+    """获取上下文管理配置（记忆压缩间隔、聊天历史长度等）
+
+    支持热更新：每次调用都重新读取 profile 配置。
+    """
     profile_config = load_profile_config("model")
     ctx = profile_config.get("context", {})
     return {
+        # ── 历史裁剪 ──
         "max_history_chars": int(ctx.get("max_history_chars", 50000)),
-        "memory_compact_interval_chars": int(ctx.get("memory_compact_interval_chars", 5000)),
+
+        # ── 压缩触发 ──
         "memory_compact_enabled": bool(ctx.get("memory_compact_enabled", True)),
+        "memory_compact_trigger": str(ctx.get("memory_compact_trigger", "messages")),
+        "memory_compact_interval_chars": int(ctx.get("memory_compact_interval_chars", 8000)),
+        "memory_compact_interval_msgs": int(ctx.get("memory_compact_interval_msgs", 20)),
+
+        # ── 压缩质量 ──
+        "memory_compact_window": int(ctx.get("memory_compact_window", 40)),
+        "memory_compact_max_tokens": int(ctx.get("memory_compact_max_tokens", 800)),
+
+        # ── 长期合并 ──
+        "memory_merge_threshold": int(ctx.get("memory_merge_threshold", 8)),
+
+        # ── 注入控制 ──
+        "memory_inject_max_chars": int(ctx.get("memory_inject_max_chars", 4000)),
+        "memory_inject_strategy": str(ctx.get("memory_inject_strategy", "latest")),
+        "cross_session_inject_count": int(ctx.get("cross_session_inject_count", 10)),
     }

@@ -8,7 +8,15 @@
   },
   "context": {
     "max_history_chars": 50000,
-    "memory_compact_interval_chars": 5000,
-    "memory_compact_enabled": true
+    "memory_compact_enabled": true,
+    "memory_compact_trigger": "messages",
+    "memory_compact_interval_chars": 8000,
+    "memory_compact_interval_msgs": 20,
+    "memory_compact_window": 40,
+    "memory_compact_max_tokens": 800,
+    "memory_merge_threshold": 8,
+    "memory_inject_max_chars": 4000,
+    "memory_inject_strategy": "latest",
+    "cross_session_inject_count": 10
   }
 }

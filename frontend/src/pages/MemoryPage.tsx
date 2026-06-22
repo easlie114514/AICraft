@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Eye, Trash2, Search, RefreshCw, FileText, MessageSquare } from 'lucide-react'
+import { Eye, Trash2, Search, RefreshCw, FileText, MessageSquare, Settings2, Merge, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -7,6 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { api } from '@/lib/api'
 
 interface Conversation {
@@ -27,12 +31,52 @@ interface SearchResult {
   results: string[]
 }
 
+interface MemoryStats {
+  compact_count: number
+  compact_total_chars: number
+  long_term_size: number
+}
+
+interface MemoryConfig {
+  max_history_chars: number
+  memory_compact_enabled: boolean
+  memory_compact_trigger: string
+  memory_compact_interval_chars: number
+  memory_compact_interval_msgs: number
+  memory_compact_window: number
+  memory_compact_max_tokens: number
+  memory_merge_threshold: number
+  memory_inject_max_chars: number
+  memory_inject_strategy: string
+  cross_session_inject_count: number
+}
+
+const DEFAULT_CONFIG: MemoryConfig = {
+  max_history_chars: 50000,
+  memory_compact_enabled: true,
+  memory_compact_trigger: 'messages',
+  memory_compact_interval_chars: 8000,
+  memory_compact_interval_msgs: 20,
+  memory_compact_window: 40,
+  memory_compact_max_tokens: 800,
+  memory_merge_threshold: 8,
+  memory_inject_max_chars: 4000,
+  memory_inject_strategy: 'latest',
+  cross_session_inject_count: 10,
+}
+
 export default function MemoryPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [viewConv, setViewConv] = useState<Record<string, unknown> | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState('conversations')
+
+  // ── 记忆设置状态 ──
+  const [config, setConfig] = useState<MemoryConfig>(DEFAULT_CONFIG)
+  const [stats, setStats] = useState<MemoryStats>({ compact_count: 0, compact_total_chars: 0, long_term_size: 0 })
+  const [configLoaded, setConfigLoaded] = useState(false)
 
   const loadConversations = useCallback(async () => {
     try {
@@ -48,10 +92,27 @@ export default function MemoryPage() {
     } catch { /* ignore */ }
   }, [])
 
+  const loadConfig = useCallback(async () => {
+    try {
+      const data = await api.get<MemoryConfig>('/memory/config')
+      setConfig(data)
+      setConfigLoaded(true)
+    } catch { /* ignore */ }
+  }, [])
+
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await api.get<MemoryStats>('/memory/stats')
+      setStats(data)
+    } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => {
     loadConversations()
     loadNotes()
-  }, [loadConversations, loadNotes])
+    loadConfig()
+    loadStats()
+  }, [loadConversations, loadNotes, loadConfig, loadStats])
 
   const handleView = async (id: string) => {
     try {
@@ -73,11 +134,39 @@ export default function MemoryPage() {
     } catch { /* ignore */ }
   }
 
+  // ── 设置操作 ──
+
+  const handleSaveConfig = async () => {
+    try {
+      await api.put('/memory/config', config)
+      loadStats()
+    } catch { /* ignore */ }
+  }
+
+  const handleResetConfig = () => {
+    setConfig(DEFAULT_CONFIG)
+  }
+
+  const handleMergeNow = async () => {
+    try {
+      const result = await api.post<{ ok: boolean; message: string }>('/memory/merge', {})
+      if (result.ok) {
+        loadNotes()
+        loadStats()
+      }
+      alert(result.message || (result.ok ? '合并完成' : '合并失败'))
+    } catch { /* ignore */ }
+  }
+
+  const updateConfig = <K extends keyof MemoryConfig>(key: K, value: MemoryConfig[K]) => {
+    setConfig(prev => ({ ...prev, [key]: value }))
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-foreground">记忆</h2>
-        <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes() }} className="rounded-xl">
+        <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes(); loadStats() }} className="rounded-xl">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
@@ -109,7 +198,7 @@ export default function MemoryPage() {
         </div>
       )}
 
-      <Tabs defaultValue="conversations" className="flex-1 flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-fit rounded-xl mb-4">
           <TabsTrigger value="conversations" className="rounded-xl">
             <MessageSquare className="h-4 w-4 mr-1" />
@@ -119,8 +208,13 @@ export default function MemoryPage() {
             <FileText className="h-4 w-4 mr-1" />
             项目笔记
           </TabsTrigger>
+          <TabsTrigger value="settings" className="rounded-xl">
+            <Settings2 className="h-4 w-4 mr-1" />
+            记忆设置
+          </TabsTrigger>
         </TabsList>
 
+        {/* ── 对话历史 Tab ── */}
         <TabsContent value="conversations" className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
             {conversations.length === 0 ? (
@@ -160,6 +254,7 @@ export default function MemoryPage() {
           </div>
         </TabsContent>
 
+        {/* ── 项目笔记 Tab ── */}
         <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
             {notes.length === 0 ? (
@@ -184,6 +279,219 @@ export default function MemoryPage() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        {/* ── 记忆设置 Tab ── */}
+        <TabsContent value="settings" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="space-y-4 pr-1 pb-4">
+              {/* 压缩开关 */}
+              <Card className="rounded-2xl">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="compact-enabled" className="text-sm font-medium">记忆压缩</Label>
+                    <Switch
+                      id="compact-enabled"
+                      checked={config.memory_compact_enabled}
+                      onCheckedChange={(v) => updateConfig('memory_compact_enabled', v)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 触发条件 */}
+              <Card className="rounded-2xl">
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-sm font-medium">触发条件</p>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">触发方式</Label>
+                    <Select
+                      value={config.memory_compact_trigger}
+                      onValueChange={(v) => updateConfig('memory_compact_trigger', v)}
+                    >
+                      <SelectTrigger className="w-36 rounded-xl h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chars">按字符数</SelectItem>
+                        <SelectItem value="messages">按消息条数</SelectItem>
+                        <SelectItem value="both">两者任一</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">字符阈值</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={1000}
+                        value={config.memory_compact_interval_chars}
+                        onChange={(e) => updateConfig('memory_compact_interval_chars', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">字符</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">条数阈值</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={5}
+                        value={config.memory_compact_interval_msgs}
+                        onChange={(e) => updateConfig('memory_compact_interval_msgs', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">条消息</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">压缩窗口</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={10}
+                        max={200}
+                        value={config.memory_compact_window}
+                        onChange={(e) => updateConfig('memory_compact_window', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">条消息</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">压缩输出上限</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={100}
+                        max={4000}
+                        value={config.memory_compact_max_tokens}
+                        onChange={(e) => updateConfig('memory_compact_max_tokens', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">tokens</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 长期记忆 */}
+              <Card className="rounded-2xl">
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-sm font-medium">长期记忆</p>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">自动合并阈值</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={2}
+                        max={50}
+                        value={config.memory_merge_threshold}
+                        onChange={(e) => updateConfig('memory_merge_threshold', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">个片段</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 注入控制 */}
+              <Card className="rounded-2xl">
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-sm font-medium">注入控制</p>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">注入上限</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={500}
+                        max={50000}
+                        value={config.memory_inject_max_chars}
+                        onChange={(e) => updateConfig('memory_inject_max_chars', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">字符</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">注入策略</Label>
+                    <Select
+                      value={config.memory_inject_strategy}
+                      onValueChange={(v) => updateConfig('memory_inject_strategy', v)}
+                    >
+                      <SelectTrigger className="w-36 rounded-xl h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="latest">最近优先</SelectItem>
+                        <SelectItem value="relevant">RAG检索</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">跨会话条数</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={50}
+                        value={config.cross_session_inject_count}
+                        onChange={(e) => updateConfig('cross_session_inject_count', Number(e.target.value))}
+                        className="w-24 h-8 rounded-xl text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">条</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 状态 */}
+              <Card className="rounded-2xl">
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-sm font-medium">状态</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">短期记忆片段</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{stats.compact_count} 个</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleMergeNow}
+                        disabled={stats.compact_count < 2}
+                        className="rounded-xl h-7 text-xs"
+                      >
+                        <Merge className="h-3 w-3 mr-1" />
+                        合并现在
+                      </Button>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">短期记忆总大小</span>
+                    <span className="text-sm font-medium">{formatBytes(stats.compact_total_chars)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">长期记忆大小</span>
+                    <span className="text-sm font-medium">{formatBytes(stats.long_term_size)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 操作按钮 */}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleResetConfig} className="rounded-xl flex-1">
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  恢复默认
+                </Button>
+                <Button onClick={handleSaveConfig} className="rounded-xl flex-1">
+                  保存
+                </Button>
+              </div>
+            </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
 
@@ -210,4 +518,11 @@ export default function MemoryPage() {
       </Dialog>
     </div>
   )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 字节'
+  if (bytes < 1024) return `${bytes} 字节`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

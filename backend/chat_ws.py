@@ -52,7 +52,8 @@ async def chat_websocket(ws: WebSocket):
     current_role: str = ""  # 追踪当前角色，用于检测角色切换
 
     # ── 记忆压缩状态（独立于聊天历史）──
-    memory_char_counter = 0  # 自上次压缩以来的对话增量字符数
+    memory_char_counter = 0   # 自上次压缩以来的对话增量字符数
+    memory_msg_counter = 0    # 自上次压缩以来的对话增量消息数
     ctx_config = get_context_config()
 
     try:
@@ -85,8 +86,15 @@ async def chat_websocket(ws: WebSocket):
                 # ── 刷新上下文配置（支持热更新）──
                 ctx_config = get_context_config()
                 max_history_chars = int(ctx_config["max_history_chars"])
-                memory_compact_interval = int(ctx_config["memory_compact_interval_chars"])
                 memory_compact_enabled = bool(ctx_config["memory_compact_enabled"])
+                memory_compact_trigger = str(ctx_config["memory_compact_trigger"])
+                memory_compact_interval_chars = int(ctx_config["memory_compact_interval_chars"])
+                memory_compact_interval_msgs = int(ctx_config["memory_compact_interval_msgs"])
+                memory_compact_window = int(ctx_config["memory_compact_window"])
+                memory_compact_max_tokens = int(ctx_config["memory_compact_max_tokens"])
+                memory_merge_threshold = int(ctx_config["memory_merge_threshold"])
+                memory_inject_max_chars = int(ctx_config["memory_inject_max_chars"])
+                cross_session_inject_count = int(ctx_config["cross_session_inject_count"])
 
                 # ── 角色切换检测 ──
                 new_role = role_name or str(deps.role_loader.get_default_role())
@@ -172,15 +180,15 @@ async def chat_websocket(ws: WebSocket):
 
                 if toggles.get("memory"):
                     try:
-                        # 跨会话记忆：注入其他会话的最近消息，排除当前session已包含的
-                        cross_memories = await loop.run_in_executor(None, get_recent_messages, 10)
+                        # 跨会话记忆：注入其他会话的最近消息（使用配置的条数）
+                        cross_memories = await loop.run_in_executor(None, get_recent_messages, cross_session_inject_count)
                         # 过滤掉当前session已包含的消息（按内容去重）
                         session_contents = {m.get("content", "") for m in session_history if m.get("role") in ("user", "assistant")}
                         unique_memories = [m for m in cross_memories if m.get("content", "") not in session_contents]
                         if unique_memories:
                             mem_text = "\n".join(
                                 f"[{m['role']}]: {m.get('content', '')[:200]}"
-                                for m in unique_memories[:10]
+                                for m in unique_memories[:cross_session_inject_count]
                             )
                             system_content += (
                                 "\n\n[跨会话记忆 — 之前的对话片段，供参考，"
@@ -189,8 +197,10 @@ async def chat_websocket(ws: WebSocket):
                             )
                             inject_items.append(f"记忆: 已注入 {len(unique_memories)} 条历史")
 
-                        # 项目笔记
-                        notes = await loop.run_in_executor(None, deps.memory_manager.load_all_notes)
+                        # 项目笔记：按预算注入（替代全量注入）
+                        notes = await loop.run_in_executor(
+                            None, deps.memory_manager.load_memory_for_inject, memory_inject_max_chars
+                        )
                         if notes:
                             system_content += (
                                 "\n\n[项目笔记 — 供参考，"
@@ -295,11 +305,18 @@ async def chat_websocket(ws: WebSocket):
                         conv_id=conv_id or datetime.now().strftime("%Y%m%d_%H%M%S"),
                     )
 
-                    # ── 记忆压缩（独立于聊天历史，每 N 字符触发一次）──
+                    # ── 记忆压缩（双计数器 + 三种触发模式）──
                     if memory_compact_enabled:
                         memory_char_counter += new_char_count
-                        if memory_char_counter >= memory_compact_interval:
+                        memory_msg_counter += 1  # 新增：消息数计数
+
+                        # 三种触发模式：chars / messages / both
+                        trigger_chars = memory_compact_trigger in ("chars", "both") and memory_char_counter >= memory_compact_interval_chars
+                        trigger_msgs = memory_compact_trigger in ("messages", "both") and memory_msg_counter >= memory_compact_interval_msgs
+
+                        if trigger_chars or trigger_msgs:
                             memory_char_counter = 0  # 先重置，避免并发触发
+                            memory_msg_counter = 0
 
                             async def _compact():
                                 try:
@@ -309,12 +326,24 @@ async def chat_websocket(ws: WebSocket):
                                         list(session_history),
                                         compact_model,
                                         role_name or str(deps.role_loader.get_default_role()),
+                                        window=memory_compact_window,
+                                        max_tokens=memory_compact_max_tokens,
                                     )
                                     if path:
                                         await ws.send_json({
                                             "type": "inject_info",
                                             "items": [f"记忆: 已压缩到 memory/project-notes/{Path(path).name}"]
                                         })
+
+                                        # ── 检查是否需要自动合并 ──
+                                        compact_count = len(list(deps.memory_manager.notes_dir.glob("auto_compact_*.md")))
+                                        if compact_count >= memory_merge_threshold:
+                                            merge_path = await deps.memory_manager.merge_compacts(compact_model)
+                                            if merge_path:
+                                                await ws.send_json({
+                                                    "type": "inject_info",
+                                                    "items": [f"记忆: 已将 {compact_count} 个片段合并为长期记忆"]
+                                                })
                                 except Exception:
                                     pass
 

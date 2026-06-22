@@ -1,4 +1,4 @@
-"""记忆管理模块 - 对话历史、项目笔记、智能检索"""
+"""记忆管理模块 - 对话历史、项目笔记、智能检索、记忆压缩与合并"""
 
 import json
 from datetime import datetime
@@ -11,7 +11,7 @@ from src.utils.config import (
 
 
 class MemoryManager:
-    """记忆管理器"""
+    """记忆管理器 — 分层记忆架构 (L0实时对话 | L1短期compact | L2长期合并)"""
 
     def __init__(self):
         self.conversations_dir = CONVERSATIONS_DIR
@@ -76,7 +76,7 @@ class MemoryManager:
         return notes
 
     def load_all_notes(self) -> str:
-        """加载所有笔记内容，用于注入prompt"""
+        """加载所有笔记内容，用于注入prompt（旧接口，保留兼容）"""
         notes = self.list_notes()
         if not notes:
             return ""
@@ -86,6 +86,71 @@ class MemoryManager:
             content = path.read_text(encoding="utf-8")
             parts.append(f"\n## {note['name']}\n{content}\n")
         return "\n".join(parts)
+
+    # ── 记忆注入：按预算加载（替代全量注入）──
+
+    def load_memory_for_inject(self, max_chars: int = 4000, strategy: str = "latest") -> str:
+        """按预算加载记忆，不再全量注入。
+
+        优先级：长期记忆 > 最近compact片段。
+        按时间倒序拼接，超出 max_chars 则截断。
+
+        Args:
+            max_chars: 注入的最大字符数
+            strategy: "latest"(最近优先) | "relevant"(RAG检索，待实现)
+
+        Returns:
+            拼接后的记忆文本，供注入 system prompt
+        """
+        if strategy == "relevant":
+            # RAG 检索注入 — 后续迭代实现，当前降级为 latest
+            strategy = "latest"
+
+        parts: list[str] = []
+        total = 0
+
+        # 1. 长期记忆优先（更浓缩，优先注入）
+        long_term_path = MEMORY_DIR / "long_term_memory.md"
+        if long_term_path.exists():
+            content = long_term_path.read_text(encoding="utf-8")
+            if total + len(content) <= max_chars:
+                parts.append(content)
+                total += len(content)
+
+        # 2. 最近的compact补充
+        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"), reverse=True)
+        for f in compacts:
+            content = f.read_text(encoding="utf-8")
+            remaining = max_chars - total
+            if remaining <= 100:
+                # 剩余空间太小，不值得截断
+                break
+            if len(content) <= remaining:
+                parts.append(content)
+                total += len(content)
+            else:
+                # 最后一个片段截断到预算内
+                parts.append(content[:remaining] + "\n...(已截断)")
+                break
+
+        return "\n\n---\n\n".join(parts) if parts else ""
+
+    # ── 记忆统计 ──
+
+    def get_memory_stats(self) -> dict:
+        """获取记忆系统统计信息"""
+        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
+        compact_count = len(compacts)
+        compact_total_chars = sum(f.stat().st_size for f in compacts)
+
+        long_term_path = MEMORY_DIR / "long_term_memory.md"
+        long_term_size = long_term_path.stat().st_size if long_term_path.exists() else 0
+
+        return {
+            "compact_count": compact_count,
+            "compact_total_chars": compact_total_chars,
+            "long_term_size": long_term_size,
+        }
 
     # ── 智能检索（复用RAG） ──
 
@@ -99,7 +164,10 @@ class MemoryManager:
 
     # ── 记忆压缩 ──
 
-    async def compact_memory(self, messages: list[dict], model_config: dict, role: str = "") -> str | None:
+    async def compact_memory(
+        self, messages: list[dict], model_config: dict,
+        role: str = "", window: int = 40, max_tokens: int = 800,
+    ) -> str | None:
         """将对话压缩为结构化记忆条目并写入文件
 
         提取对话中的关键信息（决策、偏好、学到的东西），生成简洁的记忆条目。
@@ -108,6 +176,8 @@ class MemoryManager:
             messages: 需要压缩的对话消息列表（不含 system prompt）
             model_config: 模型配置（用于调用 LLM 做总结）
             role: 当前角色名称
+            window: 压缩时取最近 N 条消息做总结（配置化，替代硬编码20）
+            max_tokens: 压缩输出 max_tokens（配置化，替代硬编码500）
 
         Returns:
             生成的文件路径，失败则返回 None
@@ -120,10 +190,10 @@ class MemoryManager:
         if len(filtered) < 2:
             return None
 
-        # 生成压缩提示
+        # 使用配置的 window 而非硬编码20
         conv_text = "\n".join(
             f"[{m['role']}]: {str(m.get('content', ''))[:300]}"
-            for m in filtered[-20:]  # 只取最近20条做总结
+            for m in filtered[-window:]
         )
         prompt = (
             "你是一个对话记忆压缩器。请从以下对话片段中提取关键信息，"
@@ -139,13 +209,12 @@ class MemoryManager:
             summary = await simple_completion(
                 model_config=model_config,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
+                max_tokens=max_tokens,  # 使用配置的 max_tokens 而非硬编码500
             )
             if not summary.strip():
                 return None
 
             # 写入记忆文件
-            from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.notes_dir.mkdir(parents=True, exist_ok=True)
             filename = f"auto_compact_{timestamp}.md"
@@ -157,5 +226,75 @@ class MemoryManager:
             )
             path.write_text(header + summary, encoding="utf-8")
             return str(path)
+        except Exception:
+            return None
+
+    # ── 记忆合并：碎片整合 ──
+
+    async def merge_compacts(self, model_config: dict) -> str | None:
+        """合并所有短期compact为长期记忆
+
+        读取 project-notes/ 下所有 auto_compact_*.md 文件，
+        用 LLM 合并为一份连贯的长期记忆摘要，写入 long_term_memory.md，
+        然后删除已合并的 compact 文件。
+
+        Args:
+            model_config: 模型配置（用于调用 LLM 做合并）
+
+        Returns:
+            生成的长期记忆文件路径，失败或无可合并内容则返回 None
+        """
+        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
+        if not compacts:
+            return None
+
+        # 读取所有compact内容
+        all_content: list[str] = []
+        for f in compacts:
+            content = f.read_text(encoding="utf-8")
+            if content.strip():
+                all_content.append(content)
+
+        if not all_content:
+            return None
+
+        merged_text = "\n\n---片段分隔---\n\n".join(all_content)
+
+        # 合并 prompt
+        prompt = (
+            "你是一个记忆整合器。以下是多段对话记忆压缩片段，它们来自不同时间的对话。\n\n"
+            "请将所有内容整合为一份连贯的长期记忆摘要：\n"
+            "- 合并重复信息，保留最新版本\n"
+            "- 按主题分类（技术决策/用户偏好/项目进度/其他）\n"
+            "- 删除已过时或自相矛盾的信息\n"
+            "- 每个主题下用要点形式记录\n\n"
+            "格式：\n"
+            "## [主题名]\n"
+            "- 要点1\n"
+            "- 要点2\n\n"
+            f"片段内容：\n{merged_text}"
+        )
+
+        try:
+            from src.core.llm import simple_completion
+
+            summary = await simple_completion(
+                model_config=model_config,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+            )
+            if not summary or not summary.strip():
+                return None
+
+            # 写入长期记忆（覆盖式，每次合并都是全量重写）
+            long_term_path = MEMORY_DIR / "long_term_memory.md"
+            header = "# 长期记忆（自动合并）\n\n"
+            long_term_path.write_text(header + summary, encoding="utf-8")
+
+            # 删除已合并的compact
+            for f in compacts:
+                f.unlink()
+
+            return str(long_term_path)
         except Exception:
             return None
