@@ -171,8 +171,8 @@ def set_current_role_name(role_name: str) -> None:
     save_profile_config("model", profile_config)
 
 
-def get_context_config() -> dict[str, int | bool | str]:
-    """获取上下文管理配置（记忆压缩间隔、聊天历史长度等）
+def get_context_config() -> dict[str, int | bool | str | float]:
+    """获取上下文管理配置（记忆压缩间隔、聊天历史长度、预算控制等）
 
     支持热更新：每次调用都重新读取 profile 配置。
     """
@@ -199,4 +199,10 @@ def get_context_config() -> dict[str, int | bool | str]:
         "memory_inject_max_chars": int(ctx.get("memory_inject_max_chars", 4000)),
         "memory_inject_strategy": str(ctx.get("memory_inject_strategy", "latest")),
         "cross_session_inject_count": int(ctx.get("cross_session_inject_count", 10)),
+
+        # ── 统一预算控制 ──
+        "context_budget_enabled": bool(ctx.get("context_budget_enabled", True)),
+        "context_window_override": int(ctx.get("context_window_override", 0)),
+        "output_reserve_ratio": float(ctx.get("output_reserve_ratio", 0.20)),
+        "budget_alert_threshold": float(ctx.get("budget_alert_threshold", 0.75)),
     }

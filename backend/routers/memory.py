@@ -50,10 +50,20 @@ async def remove_conversation(conv_id: str):
 
 @router.get("/memory/notes")
 async def list_notes():
-    """列出项目笔记"""
+    """列出记忆片段（compact + 长期记忆）"""
     deps = get_deps()
     notes = deps.memory_manager.list_notes()
     return notes
+
+
+@router.delete("/memory/notes/{filename}")
+async def delete_note(filename: str):
+    """删除指定记忆片段"""
+    deps = get_deps()
+    ok = deps.memory_manager.delete_note(filename)
+    if not ok:
+        raise HTTPException(status_code=404, detail="文件不存在或不允许删除")
+    return {"ok": True}
 
 
 @router.post("/memory/search")
@@ -122,6 +132,8 @@ async def update_memory_config(data: dict):
         "memory_compact_window", "memory_compact_max_tokens",
         "memory_merge_threshold", "memory_inject_max_chars",
         "memory_inject_strategy", "cross_session_inject_count",
+        "context_budget_enabled", "context_window_override",
+        "output_reserve_ratio", "budget_alert_threshold",
     }
     for k, v in data.items():
         if k in allowed_keys:

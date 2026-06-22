@@ -8,6 +8,7 @@ from src.utils.config import (
     CONVERSATIONS_DIR, NOTES_DIR, MEMORY_DIR,
     load_json, save_json
 )
+from src.core.context_budget import estimate_tokens
 
 
 class MemoryManager:
@@ -65,15 +66,32 @@ class MemoryManager:
         if not self.notes_dir.exists():
             return []
         notes = []
-        for f in sorted(self.notes_dir.glob("*.md")):
+        for f in sorted(self.notes_dir.glob("*.md"), reverse=True):
             content = f.read_text(encoding="utf-8")
+            # 区分 compact 和长期记忆
+            kind = "long_term" if f.name == "long_term_memory.md" else "compact"
             notes.append({
                 "name": f.stem,
                 "filename": f.name,
                 "preview": content[:100],
                 "path": str(f),
+                "kind": kind,
+                "chars": len(content),
+                "tokens": estimate_tokens(content),
             })
         return notes
+
+    def delete_note(self, filename: str) -> bool:
+        """删除指定的记忆片段文件"""
+        # 安全检查：只允许删除 project-notes 目录下的 .md 文件
+        safe_name = Path(filename).name  # 防止路径穿越
+        if not safe_name.endswith(".md"):
+            return False
+        path = self.notes_dir / safe_name
+        if path.exists():
+            path.unlink()
+            return True
+        return False
 
     def load_all_notes(self) -> str:
         """加载所有笔记内容，用于注入prompt（旧接口，保留兼容）"""
@@ -142,14 +160,22 @@ class MemoryManager:
         compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
         compact_count = len(compacts)
         compact_total_chars = sum(f.stat().st_size for f in compacts)
+        compact_total_tokens = 0
+        for f in compacts:
+            compact_total_tokens += estimate_tokens(f.read_text(encoding="utf-8"))
 
         long_term_path = MEMORY_DIR / "long_term_memory.md"
         long_term_size = long_term_path.stat().st_size if long_term_path.exists() else 0
+        long_term_tokens = 0
+        if long_term_path.exists():
+            long_term_tokens = estimate_tokens(long_term_path.read_text(encoding="utf-8"))
 
         return {
             "compact_count": compact_count,
             "compact_total_chars": compact_total_chars,
+            "compact_total_tokens": compact_total_tokens,
             "long_term_size": long_term_size,
+            "long_term_tokens": long_term_tokens,
         }
 
     # ── 智能检索（复用RAG） ──

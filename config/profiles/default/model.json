@@ -1,6 +1,6 @@
 {
-  "model_id": "",
-  "role": "混的入",
+  "model_id": "deepseek-v4-pro",
+  "role": "猫",
   "toggles": {
     "web_search": false,
     "rag": false,
@@ -17,6 +17,10 @@
     "memory_merge_threshold": 8,
     "memory_inject_max_chars": 4000,
     "memory_inject_strategy": "latest",
-    "cross_session_inject_count": 10
+    "cross_session_inject_count": 10,
+    "context_budget_enabled": true,
+    "context_window_override": 0,
+    "output_reserve_ratio": 0.2,
+    "budget_alert_threshold": 0.75
   }
 }

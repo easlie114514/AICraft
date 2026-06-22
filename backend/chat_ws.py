@@ -12,7 +12,8 @@ from backend.deps import get_deps
 from src.core.agent_loop import agent_loop
 from src.core.chat_history import save_conversation, get_recent_messages
 from src.core.llm import get_current_model_config, get_model_config, simple_completion
-from src.core.model_selector import select_model_for_task
+from src.core.model_selector import select_model_for_task, select_model_auto
+from src.core.context_budget import ContextBudget
 from src.utils.config import get_context_config
 
 
@@ -79,6 +80,26 @@ async def chat_websocket(ws: WebSocket):
 
                 # ── 获取模型配置 ──
                 model_config = get_model_config(model_id) if model_id else get_current_model_config()
+
+                # ── Auto路由 ──
+                if model_id == "auto":
+                    has_mcp_tools = bool(deps.mcp_manager.get_enabled_tools())
+                    model_config, auto_reason = select_model_auto(
+                        user_message=user_text,
+                        toggles=toggles,
+                        has_mcp_tools=has_mcp_tools,
+                        user_model_config=model_config or get_current_model_config(),
+                    )
+                    tier_name = (
+                        "Pro" if model_config.get("tier") == "pro"
+                        else "Flash" if model_config.get("tier") == "flash"
+                        else ""
+                    )
+                    await ws.send_json({
+                        "type": "inject_info",
+                        "items": [f"⚡ Auto路由 → {model_config.get('name', tier_name)}（{auto_reason}）"]
+                    })
+
                 if not model_config or not model_config.get("model_id"):
                     await ws.send_json({"type": "error", "content": "未配置模型，请先在模型页添加API配置"})
                     continue
@@ -95,6 +116,10 @@ async def chat_websocket(ws: WebSocket):
                 memory_merge_threshold = int(ctx_config["memory_merge_threshold"])
                 memory_inject_max_chars = int(ctx_config["memory_inject_max_chars"])
                 cross_session_inject_count = int(ctx_config["cross_session_inject_count"])
+                context_budget_enabled = bool(ctx_config["context_budget_enabled"])
+                context_window_override = int(ctx_config["context_window_override"])
+                output_reserve_ratio = float(ctx_config["output_reserve_ratio"])
+                budget_alert_threshold = float(ctx_config["budget_alert_threshold"])
 
                 # ── 角色切换检测 ──
                 new_role = role_name or str(deps.role_loader.get_default_role())
@@ -104,64 +129,95 @@ async def chat_websocket(ws: WebSocket):
                         "items": [f"角色切换: {current_role} → {new_role}（正在提取对话记忆...）"]
                     })
 
-                    # 用 LLM 提取对话中的事实信息（去掉语气/风格/角色口癖）
+                    # 用 LLM 提取对话中的事实信息（彻底去掉语气/风格/方言/角色口癖）
                     context_summary = ""
                     if session_history:
                         try:
                             conv_text = "\n".join(
-                                f"[{m.get('role', '?')}]: {str(m.get('content', ''))[:500]}"
+                                f"[{'用户' if m.get('role') == 'user' else '上一角色'}]: {str(m.get('content', ''))[:500]}"
                                 for m in session_history[-30:]
                                 if m.get("role") in ("user", "assistant")
                             )
                             summary_prompt = (
-                                "从以下对话中提取纯事实信息（不要任何风格/语气/角色特征）：\n"
+                                "从以下对话中提取纯事实信息。\n\n"
+                                "【必须保留的内容】\n"
                                 "- 用户在说什么话题/问题/任务\n"
                                 "- 已经做了哪些操作、有什么结果\n"
                                 "- 用户表达了什么偏好/需求\n"
-                                "- 任何需要记住的上下文信息\n"
-                                "用要点形式输出，只写事实，不要任何角色的口吻。\n\n"
+                                "- 任何需要跨角色记住的上下文信息\n\n"
+                                "【严格禁止保留的内容】\n"
+                                "- 任何角色的说话风格、方言（如粤语、东北话）\n"
+                                "- 语气词和口头禅（如喵喵、呜哇、哈哈哈）\n"
+                                "- 角色的性格特征和情绪表达方式\n"
+                                "- 上一角色的任何形式特征、口癖、习惯用语\n"
+                                "- 禁止使用任何非标准普通话的表述\n\n"
+                                "用要点形式输出，只写纯事实。如果对话中没有值得跨角色记住的内容，"
+                                "只输出「无重要信息」。\n\n"
                                 f"{conv_text}"
                             )
-                            # 角色切换摘要 → 使用 Flash 模型（降级）
-                            summary_model = select_model_for_task("role_switch_summary", model_config)
+                            # 角色切换摘要 → 使用用户当前模型（不用 Flash，确保去风格彻底）
                             context_summary = await simple_completion(
-                                model_config=summary_model,
+                                model_config=model_config,
                                 messages=[{"role": "user", "content": summary_prompt}],
                                 max_tokens=400,
                             )
+                            # 如果 LLM 返回 "无重要信息"，直接丢弃摘要
+                            if context_summary and "无重要信息" in context_summary:
+                                context_summary = ""
                         except Exception:
                             context_summary = ""
 
                     # 清空旧历史（丢掉旧角色语气）
                     session_history.clear()
 
-                    # 重建 system prompt：角色事实摘要 + 新角色设定
-                    system_content = (
-                        f"【角色切换】你现在是 '{new_role}'，100% 按此角色行事。\n"
-                        f"忘记之前的所有角色设定和说话方式。\n"
-                    )
+                    # 重建 system prompt：角色事实摘要 + 新角色设定 + 风格防火墙
+                    system_pieces: list[tuple[str, str, int]] = []
+                    system_pieces.append((
+                        "role_switch_notice",
+                        f"【角色切换】你现在的身份是 '{new_role}'，必须 100% 按此角色行事。\n"
+                        f"完全丢弃上一角色的说话方式、方言、口头禅、语气词、性格特征。\n"
+                        f"不要模仿、继承、混合任何旧角色的风格。你只拥有新角色的设定。",
+                        1
+                    ))
                     if context_summary:
-                        system_content += (
-                            f"\n[之前的对话内容摘要（纯事实，不含角色风格）]\n"
-                            f"{context_summary}\n"
-                            f"---\n\n"
-                        )
-                    system_content += deps.role_loader.build_system_prompt(role_name or None)
-                    system_content += f"\n\n当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}"
+                        system_pieces.append((
+                            "role_summary",
+                            f"[之前的对话内容摘要（纯事实，不含角色风格）]\n{context_summary}\n---",
+                            1
+                        ))
+                    system_pieces.append((
+                        "role_prompt",
+                        deps.role_loader.build_system_prompt(role_name or None),
+                        1
+                    ))
+                    system_pieces.append((
+                        "date_info",
+                        f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
+                        1
+                    ))
 
                     await ws.send_json({
                         "type": "inject_info",
                         "items": [f"角色切换完成: {current_role} → {new_role}（记忆已保留，风格已重置）"]
                     })
                 else:
-                    system_content = deps.role_loader.build_system_prompt(role_name or None)
-                    system_content += f"\n\n当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}"
+                    system_pieces: list[tuple[str, str, int]] = []
+                    system_pieces.append((
+                        "role_prompt",
+                        deps.role_loader.build_system_prompt(role_name or None),
+                        1
+                    ))
+                    system_pieces.append((
+                        "date_info",
+                        f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
+                        1
+                    ))
                 current_role = new_role
 
                 # 注入技能 prompt
                 skill_prompt = deps.skill_loader.build_skill_prompt()
                 if skill_prompt:
-                    system_content += "\n" + skill_prompt
+                    system_pieces.append(("skill_prompt", skill_prompt, 2))
                 inject_items = []
 
                 if toggles.get("rag"):
@@ -169,11 +225,13 @@ async def chat_websocket(ws: WebSocket):
                         rag_results = await loop.run_in_executor(None, deps.rag_engine.search, user_text, 5)
                         if rag_results:
                             rag_text = "\n\n".join(rag_results)
-                            system_content += (
-                                "\n\n[知识库检索结果 — 供参考，基于这些信息回答。"
+                            system_pieces.append((
+                                "rag_results",
+                                "[知识库检索结果 — 供参考，基于这些信息回答。"
                                 "如果片段中没有相关信息请如实说明，不要编造。]\n"
-                                + rag_text
-                            )
+                                + rag_text,
+                                3
+                            ))
                             inject_items.append(f"RAG检索: {len(rag_results)} 条片段")
                     except Exception as e:
                         inject_items.append(f"RAG检索失败: {e}")
@@ -190,11 +248,13 @@ async def chat_websocket(ws: WebSocket):
                                 f"[{m['role']}]: {m.get('content', '')[:200]}"
                                 for m in unique_memories[:cross_session_inject_count]
                             )
-                            system_content += (
-                                "\n\n[跨会话记忆 — 之前的对话片段，供参考，"
+                            system_pieces.append((
+                                "cross_session_memory",
+                                "[跨会话记忆 — 之前的对话片段，供参考，"
                                 "不要在回复中提及你看到了这些内容，自然运用即可。]\n"
-                                + mem_text
-                            )
+                                + mem_text,
+                                5
+                            ))
                             inject_items.append(f"记忆: 已注入 {len(unique_memories)} 条历史")
 
                         # 项目笔记：按预算注入（替代全量注入）
@@ -202,18 +262,21 @@ async def chat_websocket(ws: WebSocket):
                             None, deps.memory_manager.load_memory_for_inject, memory_inject_max_chars
                         )
                         if notes:
-                            system_content += (
-                                "\n\n[项目笔记 — 供参考，"
+                            system_pieces.append((
+                                "memory_notes",
+                                "[项目笔记 — 供参考，"
                                 "不要在回复中提及你看到了笔记，自然运用相关信息即可。]\n"
-                                + notes
-                            )
+                                + notes,
+                                4
+                            ))
                             inject_items.append("记忆: 已注入项目笔记")
                     except Exception as e:
                         inject_items.append(f"记忆注入失败: {e}")
 
                 # ── 行为约束（固定尾部约束，防止幻觉和失控）──
-                system_content += (
-                    "\n\n# 行为约束\n"
+                system_pieces.append((
+                    "behavior_constraints",
+                    "# 行为约束\n"
                     "- 不要编造你不知道的信息，不知道就说不知道\n"
                     "- 不要编造工具调用结果，只有真正执行了工具才能报告结果\n"
                     "- 如果工具调用失败，如实告知用户失败原因\n"
@@ -231,21 +294,92 @@ async def chat_websocket(ws: WebSocket):
                     "- 百科/科普：关键词加'维基百科'或'百度百科'\n"
                     "- 学术论文：关键词加'中国知网'或'Google Scholar'\n"
                     "- 政策法规：关键词加'中国政府网'或'国务院'\n"
-                    "- 不知道权威源时，优先引用gov.cn/.edu.cn/官方域名的内容"
-                )
+                    "- 不知道权威源时，优先引用gov.cn/.edu.cn/官方域名的内容",
+                    1
+                ))
 
                 # ── 深度思考引导（thinking 开关开启时注入，与角色解耦）──
                 if thinking_enabled:
-                    system_content += (
-                        "\n\n# 深度思考模式\n"
+                    system_pieces.append((
+                        "thinking_guidance",
+                        "# 深度思考模式\n"
                         "请在思考过程中使用中文。思考是内部推理过程，不会展示给用户，用于提升最终回答质量。\n"
                         "按以下结构组织思考：\n"
                         "1. 拆解：用户真正想知道什么？识别核心问题。\n"
                         "2. 盘点：列出你已经掌握的相关知识和事实。\n"
                         "3. 缺口：标记可能过时、不确定或缺失的信息。\n"
                         "4. 策略：决定是否需要搜索。如果需要，构建精确的搜索关键词；如果不需要，说明原因。\n"
-                        "注意：思考过程要详细展示分析推理，不要用'我将基于我的知识回答'这样一句话结束。"
+                        "注意：思考过程要详细展示分析推理，不要用'我将基于我的知识回答'这样一句话结束。",
+                        1
+                    ))
+
+                # 当没有 MCP 工具可用时注入提示
+                mcp_tools = deps.mcp_manager.get_enabled_tools() or []
+                if not mcp_tools:
+                    system_pieces.append((
+                        "tool_status",
+                        "# 工具状态\n"
+                        "你当前没有 MCP 外部工具可用（读写文件、执行命令等），不要编造工具调用。"
+                        "如果需要执行本地操作，请告知用户需要启用对应 MCP 工具。"
+                        "你可以使用快捷数据源工具（天气/金价/汇率/热搜）查询实时信息，"
+                        "也可以使用联网搜索功能查找最新信息。",
+                        1
+                    ))
+
+                # ── 组装 system_content（ContextBudget 统筹）──
+                if context_budget_enabled:
+                    # 用户手动覆盖 context window
+                    if context_window_override > 0:
+                        model_config["context_window"] = context_window_override
+
+                    budget = ContextBudget(
+                        model_config=model_config,
+                        output_reserve_ratio=output_reserve_ratio,
                     )
+
+                    # 添加所有 system pieces（P1-P5）
+                    for name, content, priority in system_pieces:
+                        budget.add_slice(name, content, priority)
+
+                    # 添加会话历史作为 P6（最低优先级）
+                    history_text = ""
+                    if session_history:
+                        history_text = "\n".join(
+                            f"[{m.get('role', '?')}]: {str(m.get('content', ''))[:300]}"
+                            for m in session_history
+                        )
+                        budget.add_slice("session_history", history_text, priority=6)
+
+                    # ── 执行预算约束 ──
+                    trimmed_items = budget.enforce_budget()
+
+                    # 如果 P6 被裁剪，同步裁剪实际的 session_history
+                    if history_text:
+                        history_slice = next((s for s in budget.slices if s.name == "session_history"), None)
+                        if history_slice and history_slice.trimmed:
+                            # 按比例裁剪 session_history（保留最近的消息）
+                            keep_ratio = max(len(history_slice.content) / max(len(history_text), 1), 0.25)
+                            keep_count = max(int(len(session_history) * keep_ratio), 1)
+                            session_history = session_history[-keep_count:]
+
+                    # 用裁剪后的内容重新组装 system_content
+                    system_content = "\n\n".join(
+                        s.content for s in budget.slices if s.content and s.name != "session_history"
+                    )
+
+                    if trimmed_items:
+                        inject_items.append(f"⚠ 上下文预算裁剪: {', '.join(trimmed_items)}")
+
+                    # 预算使用报告（超过告警阈值时显示）
+                    report = budget.get_budget_report()
+                    if report["usage_ratio"] >= budget_alert_threshold:
+                        pct = int(report["usage_ratio"] * 100)
+                        inject_items.append(
+                            f"📊 上下文: {pct}% ({report['total_tokens']:,}/{report['input_budget']:,} tokens)"
+                        )
+                else:
+                    # 未启用预算管理时，直接拼接
+                    system_content = "\n\n".join(content for _, content, _ in system_pieces)
 
                 if inject_items:
                     await ws.send_json({"type": "inject_info", "items": inject_items})
@@ -259,17 +393,6 @@ async def chat_websocket(ws: WebSocket):
                 # ── Agent Loop ──
                 tools: list[dict] = list(deps.mcp_manager.get_enabled_tools() or [])
                 # 快捷数据源和 server-side 搜索工具在 agent_loop 内部根据 provider 自动添加
-
-                # 当没有 MCP 工具可用时注入提示
-                mcp_tools = deps.mcp_manager.get_enabled_tools() or []
-                if not mcp_tools:
-                    system_content += (
-                        "\n\n# 工具状态\n"
-                        "你当前没有 MCP 外部工具可用（读写文件、执行命令等），不要编造工具调用。"
-                        "如果需要执行本地操作，请告知用户需要启用对应 MCP 工具。"
-                        "你可以使用快捷数据源工具（天气/金价/汇率/热搜）查询实时信息，"
-                        "也可以使用联网搜索功能查找最新信息。"
-                    )
 
                 all_tools = tools if tools else None  # None 表示无工具，减少 litellm 开销
 

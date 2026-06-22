@@ -23,8 +23,12 @@ interface Conversation {
 
 interface Note {
   name: string
+  filename: string
   preview: string
   path: string
+  kind: 'compact' | 'long_term'
+  chars: number
+  tokens: number
 }
 
 interface SearchResult {
@@ -34,7 +38,9 @@ interface SearchResult {
 interface MemoryStats {
   compact_count: number
   compact_total_chars: number
+  compact_total_tokens: number
   long_term_size: number
+  long_term_tokens: number
 }
 
 interface MemoryConfig {
@@ -49,6 +55,10 @@ interface MemoryConfig {
   memory_inject_max_chars: number
   memory_inject_strategy: string
   cross_session_inject_count: number
+  context_budget_enabled: boolean
+  context_window_override: number
+  output_reserve_ratio: number
+  budget_alert_threshold: number
 }
 
 const DEFAULT_CONFIG: MemoryConfig = {
@@ -63,6 +73,10 @@ const DEFAULT_CONFIG: MemoryConfig = {
   memory_inject_max_chars: 4000,
   memory_inject_strategy: 'latest',
   cross_session_inject_count: 10,
+  context_budget_enabled: true,
+  context_window_override: 0,
+  output_reserve_ratio: 0.20,
+  budget_alert_threshold: 0.75,
 }
 
 export default function MemoryPage() {
@@ -124,6 +138,12 @@ export default function MemoryPage() {
   const handleDeleteConv = async (id: string) => {
     await api.delete(`/memory/conversations/${encodeURIComponent(id)}`)
     loadConversations()
+  }
+
+  const handleDeleteNote = async (filename: string) => {
+    await api.delete(`/memory/notes/${encodeURIComponent(filename)}`)
+    loadNotes()
+    loadStats()
   }
 
   const handleSearch = async () => {
@@ -206,7 +226,7 @@ export default function MemoryPage() {
           </TabsTrigger>
           <TabsTrigger value="notes" className="rounded-xl">
             <FileText className="h-4 w-4 mr-1" />
-            项目笔记
+            记忆片段
           </TabsTrigger>
           <TabsTrigger value="settings" className="rounded-xl">
             <Settings2 className="h-4 w-4 mr-1" />
@@ -254,23 +274,39 @@ export default function MemoryPage() {
           </div>
         </TabsContent>
 
-        {/* ── 项目笔记 Tab ── */}
+        {/* ── 记忆片段 Tab ── */}
         <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
             {notes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <FileText className="h-10 w-10 mb-2 opacity-30" />
-                <p className="text-sm">暂无项目笔记</p>
-                <p className="text-xs mt-1">在 memory/project-notes/ 下创建 .md 文件</p>
+                <p className="text-sm">暂无记忆片段</p>
+                <p className="text-xs mt-1">对话过程中会自动压缩生成</p>
               </div>
             ) : (
               <div className="grid gap-3 pr-1">
                 {notes.map((n) => (
                   <Card key={n.name} className="rounded-2xl">
                     <CardContent className="p-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="rounded-lg text-xs">笔记</Badge>
-                        <span className="text-sm font-medium">{n.name}</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge
+                            variant={n.kind === 'long_term' ? 'default' : 'outline'}
+                            className="rounded-lg text-xs shrink-0"
+                          >
+                            {n.kind === 'long_term' ? '长期记忆' : '短期'}
+                          </Badge>
+                          <span className="text-sm font-medium truncate">{n.name}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{formatTokens(n.tokens)}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteNote(n.filename)}
+                          className="rounded-xl text-muted-foreground hover:text-destructive shrink-0 ml-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 truncate">{n.preview}</p>
                     </CardContent>
@@ -307,7 +343,7 @@ export default function MemoryPage() {
                     <Label className="text-xs text-muted-foreground">触发方式</Label>
                     <Select
                       value={config.memory_compact_trigger}
-                      onValueChange={(v) => updateConfig('memory_compact_trigger', v)}
+                      onValueChange={(v) => updateConfig('memory_compact_trigger', v ?? 'chars')}
                     >
                       <SelectTrigger className="w-36 rounded-xl h-8 text-xs">
                         <SelectValue />
@@ -419,7 +455,7 @@ export default function MemoryPage() {
                     <Label className="text-xs text-muted-foreground">注入策略</Label>
                     <Select
                       value={config.memory_inject_strategy}
-                      onValueChange={(v) => updateConfig('memory_inject_strategy', v)}
+                      onValueChange={(v) => updateConfig('memory_inject_strategy', v ?? 'latest')}
                     >
                       <SelectTrigger className="w-36 rounded-xl h-8 text-xs">
                         <SelectValue />
@@ -447,6 +483,73 @@ export default function MemoryPage() {
                 </CardContent>
               </Card>
 
+              {/* 上下文预算 */}
+              <Card className="rounded-2xl">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">上下文预算</p>
+                      <p className="text-xs text-muted-foreground">统筹所有注入内容，防止超出模型窗口</p>
+                    </div>
+                    <Switch
+                      id="budget-enabled"
+                      checked={config.context_budget_enabled}
+                      onCheckedChange={(v) => updateConfig('context_budget_enabled', v)}
+                    />
+                  </div>
+                  {config.context_budget_enabled && (
+                    <>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">窗口覆盖 (0=自动)</Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1000000}
+                            step={1000}
+                            value={config.context_window_override}
+                            onChange={(e) => updateConfig('context_window_override', Number(e.target.value))}
+                            className="w-24 h-8 rounded-xl text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">tokens</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">输出预留比例</Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min={0.05}
+                            max={0.50}
+                            step={0.05}
+                            value={config.output_reserve_ratio}
+                            onChange={(e) => updateConfig('output_reserve_ratio', Number(e.target.value))}
+                            className="w-24 h-8 rounded-xl text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">{(config.output_reserve_ratio * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">告警阈值</Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min={0.25}
+                            max={1.0}
+                            step={0.05}
+                            value={config.budget_alert_threshold}
+                            onChange={(e) => updateConfig('budget_alert_threshold', Number(e.target.value))}
+                            className="w-24 h-8 rounded-xl text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">{(config.budget_alert_threshold * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* 状态 */}
               <Card className="rounded-2xl">
                 <CardContent className="p-4 space-y-3">
@@ -469,13 +572,13 @@ export default function MemoryPage() {
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">短期记忆总大小</span>
-                    <span className="text-sm font-medium">{formatBytes(stats.compact_total_chars)}</span>
+                    <span className="text-xs text-muted-foreground">短期记忆总量</span>
+                    <span className="text-sm font-medium">{formatTokens(stats.compact_total_tokens)}</span>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">长期记忆大小</span>
-                    <span className="text-sm font-medium">{formatBytes(stats.long_term_size)}</span>
+                    <span className="text-xs text-muted-foreground">长期记忆总量</span>
+                    <span className="text-sm font-medium">{formatTokens(stats.long_term_tokens)}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -520,9 +623,8 @@ export default function MemoryPage() {
   )
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 字节'
-  if (bytes < 1024) return `${bytes} 字节`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function formatTokens(n: number): string {
+  if (n === 0) return '0 tokens'
+  if (n < 1000) return `${n} tokens`
+  return `${(n / 1000).toFixed(1)}K tokens`
 }

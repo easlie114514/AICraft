@@ -14,10 +14,18 @@ export interface ChatMessage {
   thinkingDuration?: number
 }
 
+export interface ContextBudgetInfo {
+  pct: number
+  totalTokens: number
+  inputBudget: number
+  model: string
+}
+
 interface ChatState {
   messages: ChatMessage[]
   streaming: boolean
   error: string | null
+  contextInfo: ContextBudgetInfo | null
 }
 
 type ChatAction =
@@ -125,8 +133,22 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       }
     }
     case 'ADD_INJECT': {
+      // 解析上下文预算信息
+      let contextInfo = state.contextInfo
+      for (const item of action.items) {
+        const match = item.match(/📊 上下文: (\d+)% \(([\d,]+)\/([\d,]+) tokens\)/)
+        if (match) {
+          contextInfo = {
+            pct: parseInt(match[1]),
+            totalTokens: parseInt(match[2].replace(/,/g, '')),
+            inputBudget: parseInt(match[3].replace(/,/g, '')),
+            model: '',
+          }
+        }
+      }
       return {
         ...state,
+        contextInfo,
         messages: [
           ...state.messages,
           {
@@ -157,7 +179,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, streaming: false, error: action.content }
     }
     case 'RESET': {
-      return { messages: [], streaming: false, error: null }
+      return { messages: [], streaming: false, error: null, contextInfo: null }
     }
     default:
       return state
@@ -178,7 +200,7 @@ const ChatContext = createContext<ChatContextValue | null>(null)
 // ── Provider ──
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null })
+  const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null, contextInfo: null })
   const wsRef = useRef<WebSocket | null>(null)
   const convIdRef = useRef<string>('')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -333,6 +355,7 @@ export function useChat() {
     messages: ctx.state.messages,
     streaming: ctx.state.streaming,
     error: ctx.state.error,
+    contextInfo: ctx.state.contextInfo,
     sendMessage: ctx.sendMessage,
     stopStreaming: ctx.stopStreaming,
     resetChat: ctx.resetChat,

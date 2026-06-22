@@ -25,7 +25,7 @@ interface RoleOption {
 }
 
 export default function ChatPage() {
-  const { messages, streaming, error, sendMessage, stopStreaming, resetChat } = useChat()
+  const { messages, streaming, error, contextInfo, sendMessage, stopStreaming, resetChat } = useChat()
   const [input, setInput] = useState('')
   const [toggles, setToggles] = useState({ rag: false, memory: true, thinking: false })
   const [models, setModels] = useState<ModelOption[]>([])
@@ -51,17 +51,18 @@ export default function ChatPage() {
     }
   }, [streaming])
 
-  // Load models and roles
+  // Load models and roles (prepend Auto option)
   useEffect(() => {
-    api.get<ModelOption[]>('/models').then(setModels).catch(() => {})
+    api.get<ModelOption[]>('/models').then((data) => {
+      setModels([{ name: '⚡ Auto（智能路由）', model_id: 'auto', is_current: false }, ...data])
+    }).catch(() => {})
     api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
   }, [])
 
-  // Set defaults
+  // Set defaults (Auto is default when no model selected)
   useEffect(() => {
     if (models.length && !selectedModel) {
-      const cur = models.find((m) => m.is_current) || models[0]
-      setSelectedModel(cur.model_id)
+      setSelectedModel('auto')
     }
   }, [models, selectedModel])
 
@@ -219,6 +220,24 @@ export default function ChatPage() {
             />
             <Label htmlFor="toggle-thinking" className="text-xs text-muted-foreground cursor-pointer">深度思考</Label>
           </div>
+
+          {/* Context Budget Indicator */}
+          {contextInfo && (
+            <div className="ml-auto flex items-center gap-1.5">
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  contextInfo.pct >= 90
+                    ? 'bg-destructive/10 text-destructive'
+                    : contextInfo.pct >= 75
+                    ? 'bg-yellow-500/10 text-yellow-600'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+                title={`已用 ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.inputBudget.toLocaleString()} tokens`}
+              >
+                📊 {contextInfo.pct}%
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Input Row */}
