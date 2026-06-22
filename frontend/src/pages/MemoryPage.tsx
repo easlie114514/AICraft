@@ -89,7 +89,7 @@ export default function MemoryPage() {
 
   // ── 记忆设置状态 ──
   const [config, setConfig] = useState<MemoryConfig>(DEFAULT_CONFIG)
-  const [stats, setStats] = useState<MemoryStats>({ compact_count: 0, compact_total_chars: 0, long_term_size: 0 })
+  const [stats, setStats] = useState<MemoryStats>({ compact_count: 0, compact_total_chars: 0, compact_total_tokens: 0, long_term_size: 0, long_term_tokens: 0 })
   const [configLoaded, setConfigLoaded] = useState(false)
 
   const loadConversations = useCallback(async () => {
@@ -226,7 +226,7 @@ export default function MemoryPage() {
           </TabsTrigger>
           <TabsTrigger value="notes" className="rounded-xl">
             <FileText className="h-4 w-4 mr-1" />
-            记忆片段
+            记忆巩固
           </TabsTrigger>
           <TabsTrigger value="settings" className="rounded-xl">
             <Settings2 className="h-4 w-4 mr-1" />
@@ -274,13 +274,13 @@ export default function MemoryPage() {
           </div>
         </TabsContent>
 
-        {/* ── 记忆片段 Tab ── */}
+        {/* ── 长期碎片记忆 Tab ── */}
         <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
             {notes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <FileText className="h-10 w-10 mb-2 opacity-30" />
-                <p className="text-sm">暂无记忆片段</p>
+                <p className="text-sm">暂无记忆巩固记录</p>
                 <p className="text-xs mt-1">对话过程中会自动压缩生成</p>
               </div>
             ) : (
@@ -555,7 +555,7 @@ export default function MemoryPage() {
                 <CardContent className="p-4 space-y-3">
                   <p className="text-sm font-medium">状态</p>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">短期记忆片段</span>
+                    <span className="text-xs text-muted-foreground">短期记忆</span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{stats.compact_count} 个</span>
                       <Button

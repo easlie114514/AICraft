@@ -171,6 +171,25 @@ def set_current_role_name(role_name: str) -> None:
     save_profile_config("model", profile_config)
 
 
+def get_skills_dir() -> Path:
+    """获取配置的SKILLS目录（从app.json读取，未配置则默认 SKILLS_DIR）"""
+    app_config = load_json(CONFIG_DIR / "app.json")
+    configured = app_config.get("skills_dir", "")
+    if configured:
+        p = Path(configured)
+        if p.exists():
+            return p
+    return SKILLS_DIR
+
+
+def set_skills_dir(path: str) -> Path:
+    """设置SKILLS目录并持久化到app.json"""
+    app_config = load_json(CONFIG_DIR / "app.json")
+    app_config["skills_dir"] = path
+    save_json(CONFIG_DIR / "app.json", app_config)
+    return Path(path)
+
+
 def get_context_config() -> dict[str, int | bool | str | float]:
     """获取上下文管理配置（记忆压缩间隔、聊天历史长度、预算控制等）
 

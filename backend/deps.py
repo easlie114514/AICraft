@@ -7,6 +7,7 @@ from src.core.rag_engine import RAGEngine
 from src.core.memory import MemoryManager
 from src.core.role_loader import RoleLoader
 from src.core.skill_loader import SkillLoader
+from src.utils.config import get_skills_dir
 
 
 @dataclass
@@ -31,7 +32,7 @@ def init_deps() -> AppDeps:
     memory = MemoryManager()
     role = RoleLoader()
     role.scan()
-    skill = SkillLoader()
+    skill = SkillLoader(skill_dir=get_skills_dir())
     skill.scan()
     _deps = AppDeps(
         mcp_manager=mcp,

@@ -1,11 +1,9 @@
 """技能管理 API — /api/skills/*"""
 
-import os
-import subprocess
-import sys
 from fastapi import APIRouter
 
 from backend.deps import get_deps
+from src.utils.config import get_skills_dir, set_skills_dir
 
 router = APIRouter(tags=["skills"])
 
@@ -26,6 +24,29 @@ async def list_skills():
     ]
 
 
+@router.get("/skills/dir")
+async def get_dir():
+    """获取当前技能根目录"""
+    return {"path": str(get_skills_dir())}
+
+
+@router.put("/skills/dir")
+async def set_dir(data: dict):
+    """设置技能根目录并重新扫描"""
+    path = data.get("path", "").strip()
+    if not path:
+        return {"ok": False, "detail": "路径不能为空"}
+    p = set_skills_dir(path)
+    if not p.exists():
+        return {"ok": False, "detail": "路径不存在"}
+    # 重建 skill_loader 并重新扫描
+    deps = get_deps()
+    from src.core.skill_loader import SkillLoader
+    deps.skill_loader = SkillLoader(skill_dir=p)
+    deps.skill_loader.scan()
+    return {"ok": True, "path": str(p)}
+
+
 @router.put("/skills/{name}/toggle")
 async def toggle_skill(name: str, data: dict):
     """启用/禁用技能"""
@@ -33,20 +54,3 @@ async def toggle_skill(name: str, data: dict):
     deps = get_deps()
     deps.skill_loader.toggle(name, enabled)
     return {"ok": True}
-
-
-@router.post("/skills/{name}/open")
-async def open_skill_dir(name: str):
-    """在文件管理器中打开技能目录"""
-    deps = get_deps()
-    for s in deps.skill_loader.skills:
-        if s.name == name:
-            path = str(s.path)
-            if sys.platform == "win32":
-                os.startfile(path)
-            elif sys.platform == "darwin":
-                subprocess.run(["open", path])
-            else:
-                subprocess.run(["xdg-open", path])
-            return {"ok": True}
-    return {"ok": False, "detail": "技能不存在"}

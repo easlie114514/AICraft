@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -26,7 +25,7 @@ export default function RAGPage() {
   const [sources, setSources] = useState<RAGSource[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [indexing, setIndexing] = useState<Record<string, boolean>>({})
-  const [form, setForm] = useState({ name: '', path: '', source_type: 'local' })
+  const [form, setForm] = useState({ name: '', path: '' })
 
   const loadSources = useCallback(async () => {
     try {
@@ -39,9 +38,9 @@ export default function RAGPage() {
 
   const handleAdd = async () => {
     if (!form.name.trim() || !form.path.trim()) return
-    await api.post('/rag', form)
+    await api.post('/rag', { ...form, source_type: 'local' })
     setShowAdd(false)
-    setForm({ name: '', path: '', source_type: 'local' })
+    setForm({ name: '', path: '' })
     loadSources()
   }
 
@@ -85,7 +84,7 @@ export default function RAGPage() {
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Database className="h-12 w-12 mb-3 opacity-30" />
             <p className="text-sm">暂无 RAG 数据源</p>
-            <p className="text-xs mt-1">添加本地目录或远程数据源</p>
+            <p className="text-xs mt-1">添加本地文档目录作为知识库数据源</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
@@ -101,7 +100,6 @@ export default function RAGPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{s.name}</span>
-                        <Badge variant="secondary" className="rounded-lg text-xs">{s.source_type}</Badge>
                         {s.indexed && <Badge className="rounded-lg text-xs">已索引</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground font-mono truncate mt-0.5">{s.path}</p>
@@ -139,7 +137,7 @@ export default function RAGPage() {
         <DialogContent className="sm:max-w-[520px] rounded-[20px]">
           <DialogHeader>
             <DialogTitle>添加数据源</DialogTitle>
-            <DialogDescription>添加本地或远程文档目录</DialogDescription>
+            <DialogDescription>添加本地文档目录，系统将自动索引文档内容</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -147,20 +145,8 @@ export default function RAGPage() {
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-[10px]" placeholder="例如: 项目文档" />
             </div>
             <div className="space-y-2">
-              <Label>类型</Label>
-              <Select value={form.source_type} onValueChange={(v) => setForm({ ...form, source_type: v ?? 'local' })}>
-                <SelectTrigger className="rounded-[10px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="local">本地目录</SelectItem>
-                  <SelectItem value="remote">远程</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>路径</Label>
-              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} className="rounded-[10px]" placeholder={form.source_type === 'local' ? 'D:/docs/api' : 'http://...'} />
+              <Label>数据源路径</Label>
+              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} className="rounded-[10px]" placeholder="D:/docs/api" />
             </div>
           </div>
           <DialogFooter>

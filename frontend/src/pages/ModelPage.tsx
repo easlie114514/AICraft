@@ -47,8 +47,8 @@ export default function ModelPage() {
   // 手动添加表单
   const [form, setForm] = useState({ name: '', provider: 'deepseek', model_id: '', api_key: '', api_base: '' })
 
-  // 通道表单
-  const [channelForm, setChannelForm] = useState({ channel_type: 'deepseek', api_key: '' })
+  // 通道表单（仅 DeepSeek）
+  const [channelApiKey, setChannelApiKey] = useState('')
 
   const loadModels = useCallback(async () => {
     try {
@@ -75,10 +75,10 @@ export default function ModelPage() {
   }
 
   const handleAddChannel = async () => {
-    if (!channelForm.api_key.trim()) return
-    const res = await api.post<{ ok: boolean; created: string[] }>('/models/channel', channelForm)
+    if (!channelApiKey.trim()) return
+    await api.post('/models/channel', { channel_type: 'deepseek', api_key: channelApiKey.trim() })
     setShowChannel(false)
-    setChannelForm({ channel_type: 'deepseek', api_key: '' })
+    setChannelApiKey('')
     loadModels()
   }
 
@@ -111,8 +111,8 @@ export default function ModelPage() {
     setShowKeys((prev) => ({ ...prev, [name]: !prev[name] }))
   }
 
-  // 获取当前选中的通道预设详情
-  const selectedChannel = channels.find((c) => c.type === channelForm.channel_type)
+  // 获取 DeepSeek 通道预设详情用于展示
+  const deepseekChannel = channels.find((c) => c.type === 'deepseek')
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
@@ -124,7 +124,7 @@ export default function ModelPage() {
           </Button>
           <Button onClick={() => setShowChannel(true)} className="rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
             <Zap className="h-4 w-4 mr-1" />
-            添加通道
+            DeepSeek一键接入
           </Button>
           <Button onClick={() => setShowAdd(true)} className="rounded-xl" variant="outline">
             <Plus className="h-4 w-4 mr-1" />
@@ -138,7 +138,7 @@ export default function ModelPage() {
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Cpu className="h-12 w-12 mb-3 opacity-30" />
             <p className="text-sm">暂无模型配置</p>
-            <p className="text-xs mt-1">点击"添加通道"一键配置 DeepSeek，或"自定义模型"手动填写</p>
+            <p className="text-xs mt-1">点击"DeepSeek一键接入"快速配置，或"自定义模型"手动填写</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
@@ -223,56 +223,41 @@ export default function ModelPage() {
         )}
       </ScrollArea>
 
-      {/* ── 添加通道 Dialog ── */}
+      {/* ── DeepSeek一键接入 Dialog ── */}
       <Dialog open={showChannel} onOpenChange={setShowChannel}>
         <DialogContent className="sm:max-w-[520px] rounded-[20px]">
           <DialogHeader>
-            <DialogTitle>添加模型通道</DialogTitle>
-            <DialogDescription>选择通道类型，填入 API Key 即可自动创建模型</DialogDescription>
+            <DialogTitle>DeepSeek一键接入</DialogTitle>
+            <DialogDescription>填入 API Key 即可自动创建 DeepSeek V4 Pro + Flash 模型配置</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* 通道类型选择 */}
-            <div className="space-y-2">
-              <Label>通道类型</Label>
-              <Select value={channelForm.channel_type} onValueChange={(v) => setChannelForm({ ...channelForm, channel_type: v ?? 'deepseek' })}>
-                <SelectTrigger className="rounded-[10px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="deepseek">DeepSeek 定制通道</SelectItem>
-                  <SelectItem value="openai" disabled>OpenAI 标准通道（即将推出）</SelectItem>
-                  <SelectItem value="anthropic" disabled>Anthropic 标准通道（即将推出）</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* API Key */}
             <div className="space-y-2">
               <Label>API Key</Label>
               <Input
                 type="password"
                 placeholder="sk-..."
-                value={channelForm.api_key}
-                onChange={(e) => setChannelForm({ ...channelForm, api_key: e.target.value })}
+                value={channelApiKey}
+                onChange={(e) => setChannelApiKey(e.target.value)}
                 className="rounded-[10px]"
               />
             </div>
 
-            {/* 只读：端点 & 协议 */}
-            {selectedChannel && (
+            {/* 只读：端点 & 将自动创建的模型 */}
+            {deepseekChannel && (
               <div className="space-y-2 rounded-xl bg-muted/50 p-3 border border-border/50">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">端点</span>
-                  <span className="font-mono text-foreground">{selectedChannel.base_url}</span>
+                  <span className="font-mono text-foreground">{deepseekChannel.base_url}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">协议</span>
-                  <span className="font-mono text-foreground">{selectedChannel.protocol}</span>
+                  <span className="font-mono text-foreground">{deepseekChannel.protocol}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">将自动创建</span>
                   <span className="text-foreground">
-                    {selectedChannel.models.map((m) => (
+                    {deepseekChannel.models.map((m) => (
                       <Badge key={m.model_id} variant="secondary" className="rounded-lg ml-1 text-[10px]">
                         {m.name}
                       </Badge>
@@ -288,7 +273,7 @@ export default function ModelPage() {
               onClick={handleAddChannel}
               className="rounded-xl"
               style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}
-              disabled={!channelForm.api_key.trim()}
+              disabled={!channelApiKey.trim()}
             >
               保存
             </Button>
