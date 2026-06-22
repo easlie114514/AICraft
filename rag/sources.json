@@ -5,8 +5,8 @@
       "path": "E:\\AICraft\\rag\\使用指导",
       "type": "local",
       "enabled": true,
-      "file_count": 0,
-      "indexed": false
+      "file_count": 3,
+      "indexed": true
     }
   ]
 }

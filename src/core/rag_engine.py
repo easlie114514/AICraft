@@ -216,17 +216,23 @@ class RAGEngine:
                     continue
                 try:
                     collection = client.get_collection(f"rag_{_safe_collection_name(source.name)}")
+                    print(f"[RAG] 检索 '{source.name}': collection 存在, 文档数={collection.count()}")
                     result = collection.query(
                         query_texts=[query],
                         n_results=top_k,
                     )
-                    if result["documents"]:
-                        results.extend(result["documents"][0])
-                except Exception:
-                    continue
+                    if result.get("documents") and result["documents"]:
+                        docs = result["documents"][0]
+                        results.extend(docs)
+                        print(f"[RAG] 检索 '{source.name}': 命中 {len(docs)} 条")
+                    else:
+                        print(f"[RAG] 检索 '{source.name}': 无结果 (collection 有 {collection.count()} 条文档)")
+                except Exception as e:
+                    print(f"[RAG] 检索 '{source.name}' 失败: {type(e).__name__}: {e}")
 
             return results[:top_k]
-        except Exception:
+        except Exception as e:
+            print(f"[RAG] search 异常: {type(e).__name__}: {e}")
             return []
 
     def get_chroma_stats(self) -> dict[str, int]:
