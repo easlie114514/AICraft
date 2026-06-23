@@ -129,6 +129,9 @@ class MCPManager:
         跳过 flags（-开头）、npm 包名（@开头或无作用域包名）、
         占位符（{开头）、URL（http开头）、纯数字（端口/超时值）。
         其余参数若在 BASE_DIR 下存在、或以 . / \\ 开头，视为相对路径并解析。
+
+        自愈机制：已经过时的绝对路径（如 E:\\AICraft\\workspace 在 D: 盘机器上不存在）
+        会尝试在当前 BASE_DIR 下查找同名路径。
         """
         from pathlib import Path
         from src.utils.config import BASE_DIR
@@ -141,9 +144,14 @@ class MCPManager:
             if arg.startswith(("-", "@", "{", "http")) or arg.isdigit():
                 result.append(arg)
                 continue
-            # 如果已经是绝对路径，保持
             p = Path(arg)
             if p.is_absolute():
+                # 自愈：绝对路径不存在时，尝试在当前 BASE_DIR 下查找同名相对路径
+                if not p.exists():
+                    healed = MCPManager._heal_path(arg, BASE_DIR)
+                    if healed is not None:
+                        result.append(healed)
+                        continue
                 result.append(arg)
                 continue
             # 相对路径：以 BASE_DIR 为基准解析
@@ -159,6 +167,25 @@ class MCPManager:
             else:
                 result.append(arg)
         return result
+
+    @staticmethod
+    def _heal_path(abs_path: str, base_dir) -> str | None:
+        """自愈过时的绝对路径：尝试在 base_dir 下查找同名文件/目录。
+
+        例如 E:\\AICraft\\workspace 在 D: 盘机器上不存在，
+        但 D:\\AICraft\\workspace 存在 → 返回后者。
+
+        从路径最右端逐层向左尝试，匹配第一个在 base_dir 下存在的路径。
+        """
+        from pathlib import Path
+        p = Path(abs_path)
+        parts = p.parts  # ('E:\\', 'AICraft', 'workspace')
+        # 从倒数第1层到第2层（跳过盘符），尝试在 base_dir 下拼接
+        for i in range(1, len(parts)):
+            candidate = Path(base_dir, *parts[i:])
+            if candidate.exists():
+                return str(candidate)
+        return None
 
     @staticmethod
     def _relativize_mcp_args(args: list[str]) -> list[str]:
