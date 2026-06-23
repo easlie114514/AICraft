@@ -27,6 +27,17 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
         self.api_base = api_base.rstrip("/")
         self._client = httpx.Client(timeout=60.0)
 
+    def __del__(self):
+        """析构时关闭 HTTP 客户端，释放连接池"""
+        try:
+            self._client.close()
+        except Exception:
+            pass
+
+    def close(self):
+        """显式关闭 HTTP 客户端"""
+        self._client.close()
+
     def __call__(self, input: list[str]) -> list[list[float]]:
         batch_size = 64
         all_embeddings: list[list[float]] = []
