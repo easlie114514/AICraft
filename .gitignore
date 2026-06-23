@@ -15,7 +15,7 @@ env/
 chroma_db/
 memory/
 workspace/
-models/*.json
+models/
 config/profiles/
 config/app.json
 config/permissions.json
