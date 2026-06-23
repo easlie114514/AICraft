@@ -2,6 +2,7 @@
 
 import asyncio
 from fastapi import APIRouter, HTTPException
+from src.utils.config import load_json, save_json, CONFIG_DIR
 
 from backend.deps import get_deps
 
@@ -80,3 +81,60 @@ def index_source(name: str):
     # 在线程内创建独立 event loop 运行异步的 index_source
     count = asyncio.run(deps.rag_engine.index_source(source))
     return {"ok": True, "file_count": count}
+
+
+# ═══════════════════════════════════════════════════════════
+# RAG Embedding 配置 API
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/rag/config")
+async def get_rag_config():
+    """获取 RAG Embedding 配置"""
+    config = load_json(CONFIG_DIR / "rag_config.json")
+    masked_key = ""
+    if config.get("embedding_api_key"):
+        key = config["embedding_api_key"]
+        masked_key = key[:6] + "***" + key[-4:] if len(key) > 10 else "***"
+    return {
+        "embedding_mode": config.get("embedding_mode", "auto"),
+        "embedding_api_key_masked": masked_key,
+        "has_api_key": bool(config.get("embedding_api_key")),
+        "embedding_model": config.get("embedding_model", "BAAI/bge-large-zh-v1.5"),
+        "embedding_api_base": config.get("embedding_api_base", "https://api.siliconflow.cn/v1"),
+    }
+
+
+@router.post("/rag/config")
+async def update_rag_config(data: dict):
+    """更新 RAG Embedding 配置"""
+    config = load_json(CONFIG_DIR / "rag_config.json")
+    if "embedding_mode" in data:
+        if data["embedding_mode"] not in ("auto", "api", "local"):
+            return {"success": False, "error": "无效的 embedding_mode"}
+        config["embedding_mode"] = data["embedding_mode"]
+    if "embedding_api_key" in data and data["embedding_api_key"]:
+        config["embedding_api_key"] = data["embedding_api_key"]
+    if "embedding_model" in data:
+        config["embedding_model"] = data["embedding_model"]
+    if "embedding_api_base" in data:
+        config["embedding_api_base"] = data["embedding_api_base"]
+    save_json(CONFIG_DIR / "rag_config.json", config)
+    return {"success": True}
+
+
+@router.post("/rag/test-embedding")
+async def test_embedding(data: dict):
+    """测试 Embedding API 连通性"""
+    try:
+        from src.core.embedding import SiliconFlowEmbeddingFunction
+        api_key = data.get("api_key", "")
+        model = data.get("model", "BAAI/bge-large-zh-v1.5")
+        api_base = data.get("api_base", "https://api.siliconflow.cn/v1")
+        if not api_key:
+            return {"success": False, "error": "未提供 API Key"}
+        embed_fn = SiliconFlowEmbeddingFunction(api_key=api_key, model=model, api_base=api_base)
+        result = embed_fn(["AICraft Embedding 连通性测试"])
+        dim = len(result[0]) if result else 0
+        return {"success": True, "dimension": dim}
+    except Exception as e:
+        return {"success": False, "error": f"{type(e).__name__}: {str(e)[:200]}"}

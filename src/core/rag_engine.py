@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.utils.config import RAG_DIR, load_json, save_json, CHROMA_DIR, resolve_path
+from src.utils.config import RAG_DIR, load_json, save_json, CHROMA_DIR, resolve_path, CONFIG_DIR
+from src.core.embedding import get_embedding_function
 
 
 def _safe_collection_name(name: str) -> str:
@@ -110,6 +111,19 @@ class RAGEngine:
                 pass
         return path
 
+    # ── Embedding 配置 ──
+
+    def _get_rag_config(self) -> dict:
+        """读取 RAG 配置"""
+        return load_json(CONFIG_DIR / "rag_config.json")
+
+    def _get_embed_fn(self):
+        """根据配置获取 embedding 函数"""
+        config = self._get_rag_config()
+        mode = config.get("embedding_mode", "auto")
+        api_key = config.get("embedding_api_key", "")
+        return get_embedding_function(mode=mode, api_key=api_key)
+
     # ── 配置持久化 ──
 
     def load_sources(self) -> list[RAGSource]:
@@ -141,10 +155,19 @@ class RAGEngine:
                 try:
                     import chromadb
                     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+                    embed_fn = self._get_embed_fn()
+                    get_kwargs = {}
+                    if embed_fn is not None:
+                        get_kwargs["embedding_function"] = embed_fn
                     col = client.get_collection(
-                        f"rag_{_safe_collection_name(item.get('name', ''))}"
+                        f"rag_{_safe_collection_name(item.get('name', ''))}",
+                        **get_kwargs,
                     )
                     if col.count() == 0:
+                        indexed = False
+                        file_count = 0
+                except ValueError as e:
+                    if "Embedding function conflict" in str(e):
                         indexed = False
                         file_count = 0
                 except Exception:
@@ -218,10 +241,26 @@ class RAGEngine:
 
         # 初始化ChromaDB
         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-        collection = client.get_or_create_collection(
-            name=f"rag_{_safe_collection_name(source.name)}",
-            metadata={"hnsw:space": "cosine"}
-        )
+        embed_fn = self._get_embed_fn()
+        col_name = f"rag_{_safe_collection_name(source.name)}"
+        try:
+            collection = client.get_or_create_collection(
+                name=col_name,
+                metadata={"hnsw:space": "cosine"},
+                embedding_function=embed_fn,
+            )
+        except ValueError as e:
+            # embedding 函数不兼容（如从 local 切换到 api），删除旧集合重建
+            if "Embedding function conflict" in str(e):
+                print(f"[RAG] Embedding 函数变更，删除旧集合并重建: {col_name}")
+                client.delete_collection(col_name)
+                collection = client.get_or_create_collection(
+                    name=col_name,
+                    metadata={"hnsw:space": "cosine"},
+                    embedding_function=embed_fn,
+                )
+            else:
+                raise
 
         # 初始化切分器
         splitter = RecursiveCharacterTextSplitter(
@@ -261,27 +300,27 @@ class RAGEngine:
         return 0
 
     async def warmup(self) -> bool:
-        """预热：提前下载 Embedding 模型，避免首次索引时长时间无响应
+        """预热：提前下载 Embedding 模型 / 验证 API 连通性
 
-        返回 True 表示模型已就绪，False 表示失败。
+        返回 True 表示 embedding 就绪，False 表示失败。
         """
         try:
-            import chromadb
-            client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-            # 创建临时 collection 触发模型下载
-            collection = client.get_or_create_collection(
-                name="_warmup_test",
-                metadata={"hnsw:space": "cosine"},
-            )
-            # 试索引一条数据确认 embedding 函数正常
-            collection.upsert(
-                documents=["warmup"],
-                ids=["warmup_1"],
-            )
-            # 清理
-            client.delete_collection("_warmup_test")
-            return True
-        except Exception:
+            embed_fn = self._get_embed_fn()
+            if embed_fn is not None:
+                result = embed_fn(["warmup"])
+                return len(result) > 0 and len(result[0]) > 0
+            else:
+                import chromadb
+                client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+                collection = client.get_or_create_collection(
+                    name="warmup_test",
+                    metadata={"hnsw:space": "cosine"},
+                )
+                collection.upsert(documents=["warmup"], ids=["warmup_1"])
+                client.delete_collection("warmup_test")
+                return True
+        except Exception as e:
+            print(f"[RAG] warmup 失败: {type(e).__name__}: {e}")
             return False
 
     def search(self, query: str, top_k: int = 5) -> list[str]:
@@ -296,7 +335,11 @@ class RAGEngine:
                 if not source.enabled or not source.indexed:
                     continue
                 try:
-                    collection = client.get_collection(f"rag_{_safe_collection_name(source.name)}")
+                    embed_fn = self._get_embed_fn()
+                    collection = client.get_collection(
+                        f"rag_{_safe_collection_name(source.name)}",
+                        embedding_function=embed_fn,
+                    )
                     print(f"[RAG] 检索 '{source.name}': collection 存在, 文档数={collection.count()}")
                     result = collection.query(
                         query_texts=[query],
@@ -308,6 +351,11 @@ class RAGEngine:
                         print(f"[RAG] 检索 '{source.name}': 命中 {len(docs)} 条")
                     else:
                         print(f"[RAG] 检索 '{source.name}': 无结果 (collection 有 {collection.count()} 条文档)")
+                except ValueError as e:
+                    if "Embedding function conflict" in str(e):
+                        print(f"[RAG] 检索 '{source.name}': embedding 函数不兼容，跳过 (需重新索引)")
+                        continue
+                    raise
                 except Exception as e:
                     print(f"[RAG] 检索 '{source.name}' 失败: {type(e).__name__}: {e}")
 
@@ -322,10 +370,22 @@ class RAGEngine:
             import chromadb
             client = chromadb.PersistentClient(path=str(CHROMA_DIR))
             stats = {}
+            embed_fn = self._get_embed_fn()
+            get_kwargs = {}
+            if embed_fn is not None:
+                get_kwargs["embedding_function"] = embed_fn
             for source in self.sources:
                 try:
-                    collection = client.get_collection(f"rag_{_safe_collection_name(source.name)}")
+                    collection = client.get_collection(
+                        f"rag_{_safe_collection_name(source.name)}",
+                        **get_kwargs,
+                    )
                     stats[source.name] = collection.count()
+                except ValueError as e:
+                    if "Embedding function conflict" in str(e):
+                        stats[source.name] = 0
+                    else:
+                        stats[source.name] = 0
                 except Exception:
                     stats[source.name] = 0
             return stats
