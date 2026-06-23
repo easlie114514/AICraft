@@ -147,12 +147,12 @@ export default function ChatPage() {
         onScroll={checkNearBottom}
       >
         {!hasMessages ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Send className="h-7 w-7 text-primary/50" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-20">
+            <div className="h-16 w-16 rounded-full bg-primary-light flex items-center justify-center mb-4">
+              <Send className="h-7 w-7 text-primary/40" />
             </div>
-            <p className="text-sm font-medium">AICraft</p>
-            <p className="text-xs mt-1">选择模型和角色，开始对话</p>
+            <p className="text-lg text-text-secondary">开始新对话</p>
+            <p className="text-sm text-text-tertiary mt-1">输入消息，AI 将为你解答</p>
           </div>
         ) : (
           <div className="py-4 space-y-0 relative">
@@ -163,7 +163,7 @@ export default function ChatPage() {
               ))}
             {error && (
               <div className="flex justify-center py-2">
-                <span className="text-xs text-destructive bg-destructive/10 px-3 py-1.5 rounded-lg">
+                <span className="text-xs text-destructive bg-danger-light/60 px-3 py-1.5 rounded-lg">
                   {error}
                 </span>
               </div>
@@ -179,7 +179,7 @@ export default function ChatPage() {
             variant="secondary"
             size="sm"
             onClick={() => { userPausedScrollRef.current = false; scrollToBottom(); setIsNearBottom(true) }}
-            className="rounded-full shadow-lg h-8 w-8 p-0"
+            className="rounded-lg shadow-lg h-8 w-8 p-0"
           >
             <ArrowDown className="h-4 w-4" />
           </Button>
@@ -189,35 +189,33 @@ export default function ChatPage() {
       <Separator />
 
       {/* Input Area */}
-      <div className="shrink-0 p-4 space-y-3">
+      <div className="shrink-0 p-4">
+        <div className="bg-white border border-border rounded-xl shadow-card p-3 space-y-3">
         {/* Toggles */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <Switch
               id="toggle-rag"
-              className="rounded-xl"
               checked={toggles.rag}
               onCheckedChange={(v) => setToggles({ ...toggles, rag: v })}
             />
-            <Label htmlFor="toggle-rag" className="text-xs text-muted-foreground cursor-pointer">RAG检索</Label>
+            <Label htmlFor="toggle-rag" className="text-xs text-text-secondary cursor-pointer">RAG检索</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch
               id="toggle-memory"
-              className="rounded-xl"
               checked={toggles.memory}
               onCheckedChange={(v) => setToggles({ ...toggles, memory: v })}
             />
-            <Label htmlFor="toggle-memory" className="text-xs text-muted-foreground cursor-pointer">记忆注入</Label>
+            <Label htmlFor="toggle-memory" className="text-xs text-text-secondary cursor-pointer">记忆注入</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch
               id="toggle-thinking"
-              className="rounded-xl"
               checked={toggles.thinking}
               onCheckedChange={(v) => setToggles({ ...toggles, thinking: v })}
             />
-            <Label htmlFor="toggle-thinking" className="text-xs text-muted-foreground cursor-pointer">深度思考</Label>
+            <Label htmlFor="toggle-thinking" className="text-xs text-text-secondary cursor-pointer">深度思考</Label>
           </div>
 
           {/* Context Budget Indicator */}
@@ -225,10 +223,10 @@ export default function ChatPage() {
             <span
               className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
                 contextInfo.pct >= 90
-                  ? 'bg-destructive/10 text-destructive'
+                  ? 'bg-danger-light text-danger'
                   : contextInfo.pct >= 75
-                  ? 'bg-yellow-500/10 text-yellow-600'
-                  : 'bg-muted text-muted-foreground'
+                  ? 'bg-warning-light text-warning'
+                  : 'bg-muted text-text-secondary'
               }`}
               title={`已用 ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.inputBudget.toLocaleString()} tokens`}
             >
@@ -242,7 +240,7 @@ export default function ChatPage() {
             size="sm"
             onClick={newScene}
             disabled={streaming || !hasMessages}
-            className="rounded-xl h-7 text-xs ml-auto"
+            className="rounded-lg h-7 text-xs ml-auto"
           >
             <Plus className="h-3 w-3 mr-1" />
             新场景
@@ -256,16 +254,16 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 min-h-[40px] max-h-[120px] rounded-[10px] resize-none"
+            className="flex-1 min-h-[40px] max-h-[120px] resize-none"
             rows={1}
             disabled={streaming}
           />
 
           <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? '')}>
-            <SelectTrigger className="w-[140px] h-10 rounded-[10px] text-xs">
+            <SelectTrigger className="w-[150px] !h-auto self-stretch text-xs">
               <SelectValue placeholder="模型" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent sideOffset={6}>
               {models.map((m) => (
                 <SelectItem key={m.model_id} value={m.model_id} className="text-xs">
                   {m.name}
@@ -275,10 +273,10 @@ export default function ChatPage() {
           </Select>
 
           <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v ?? '')}>
-            <SelectTrigger className="w-[110px] h-10 rounded-[10px] text-xs">
+            <SelectTrigger className="w-[120px] !h-auto self-stretch text-xs">
               <SelectValue placeholder="角色" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent sideOffset={6}>
               {roles.map((r) => (
                 <SelectItem key={r.name} value={r.name} className="text-xs">
                   {r.name}
@@ -288,14 +286,15 @@ export default function ChatPage() {
           </Select>
 
           {streaming ? (
-            <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-10 w-10 rounded-xl shrink-0">
+            <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
               <Square className="h-4 w-4" />
             </Button>
           ) : (
-            <Button size="icon" onClick={handleSend} disabled={!input.trim()} className="h-10 w-10 rounded-xl shrink-0">
+            <Button size="icon" onClick={handleSend} disabled={!input.trim()} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           )}
+        </div>
         </div>
       </div>
     </div>

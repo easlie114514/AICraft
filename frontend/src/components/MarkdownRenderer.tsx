@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 interface Props {
   content: string
@@ -22,7 +22,7 @@ export default function MarkdownRenderer({ content }: Props) {
                   {match[1]}
                 </div>
                 <SyntaxHighlighter
-                  style={oneLight}
+                  style={vscDarkPlus}
                   language={match[1]}
                   PreTag="div"
                   customStyle={{
@@ -57,7 +57,7 @@ export default function MarkdownRenderer({ content }: Props) {
         },
         blockquote({ children }) {
           return (
-            <blockquote className="border-l-3 border-primary/30 pl-3 my-1.5 text-muted-foreground">
+            <blockquote className="border-l-3 border-primary/20 pl-3 my-1.5 text-text-secondary">
               {children}
             </blockquote>
           )

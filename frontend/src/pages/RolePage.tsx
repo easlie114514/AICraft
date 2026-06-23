@@ -53,12 +53,12 @@ export default function RolePage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">角色管理</h2>
+        <h2 className="text-xl font-semibold text-text-primary">角色管理</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={loadRoles} className="rounded-xl">
+          <Button variant="outline" size="icon" onClick={loadRoles}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="rounded-xl">
+          <Button onClick={() => setShowAdd(true)}>
             <Plus className="h-4 w-4 mr-1" />
             创建角色
           </Button>
@@ -68,17 +68,17 @@ export default function RolePage() {
       <ScrollArea className="flex-1 min-h-0">
         {roles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <User className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无角色</p>
+            <User className="w-16 h-16 text-text-disabled mb-4" />
+            <p className="text-sm text-text-secondary">暂无角色</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
             {roles.map((r) => (
-              <Card key={r.name} className="rounded-2xl">
+              <Card key={r.name} className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
-                    <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
-                      <AvatarFallback className="bg-transparent text-white text-sm font-medium">
+                    <Avatar className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5">
+                      <AvatarFallback className="bg-transparent text-primary text-sm font-medium">
                         {r.name[0]}
                       </AvatarFallback>
                     </Avatar>
@@ -87,20 +87,20 @@ export default function RolePage() {
                         <span className="font-medium">{r.name}</span>
                         {r.is_current && <Badge className="rounded-lg">当前</Badge>}
                       </div>
-                      <p className="text-sm text-muted-foreground truncate mt-0.5">
+                      <p className="text-sm text-text-secondary truncate mt-0.5">
                         {r.content.slice(0, 80)}{r.content.length > 80 ? '...' : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="outline" size="sm" onClick={() => setShowView(r)} className="rounded-xl">
+                      <Button variant="outline" size="sm" onClick={() => setShowView(r)} >
                         <Eye className="h-4 w-4 mr-1" />
                         查看
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleSetCurrent(r.name)} className="rounded-xl">
+                      <Button variant="outline" size="sm" onClick={() => handleSetCurrent(r.name)} >
                         <Star className="h-4 w-4 mr-1" />
                         设为当前
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(r.name)} className="rounded-xl text-muted-foreground hover:text-destructive">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(r.name)} className="text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -114,7 +114,7 @@ export default function RolePage() {
 
       {/* Add Role Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>创建角色</DialogTitle>
             <DialogDescription>定义 AI 的角色和行为</DialogDescription>
@@ -122,23 +122,23 @@ export default function RolePage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>角色名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-[10px]" placeholder="例如: 代码助手" />
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  placeholder="例如: 代码助手" />
             </div>
             <div className="space-y-2">
               <Label>角色内容 (System Prompt)</Label>
-              <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={8} className="rounded-[10px]" placeholder="描述 AI 的角色和行为..." />
+              <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={8}  placeholder="描述 AI 的角色和行为..." />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} className="rounded-xl">取消</Button>
-            <Button onClick={handleAdd} className="rounded-xl">创建</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)} >取消</Button>
+            <Button onClick={handleAdd} >创建</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* View Role Dialog */}
       <Dialog open={!!showView} onOpenChange={() => setShowView(null)}>
-        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>{showView?.name}</DialogTitle>
             <DialogDescription>角色 System Prompt 内容</DialogDescription>
@@ -147,7 +147,7 @@ export default function RolePage() {
             <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-lg">{showView?.content}</pre>
           </ScrollArea>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowView(null)} className="rounded-xl">关闭</Button>
+            <Button variant="outline" onClick={() => setShowView(null)} >关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

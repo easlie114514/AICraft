@@ -61,7 +61,7 @@ export default function ChatMessage({ message }: Props) {
   if (role === 'system') {
     return (
       <div className="flex justify-center py-1.5">
-        <span className="text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-lg">
+        <span className="text-xs text-text-secondary bg-muted/50 px-3 py-1 rounded-lg">
           {content}
         </span>
       </div>
@@ -78,17 +78,17 @@ export default function ChatMessage({ message }: Props) {
     <div className={cn('flex flex-col py-1.5', isUser ? 'items-end' : 'items-start')}>
       {/* Timestamp */}
       <div className={cn('px-1 mb-0.5', isUser ? 'text-right' : 'text-left')}>
-        <span className="text-[10px] text-muted-foreground/60">
+        <span className="text-[10px] text-text-tertiary/60">
           {formatTime(timestamp)}
         </span>
       </div>
       {/* Bubble */}
       <div
         className={cn(
-          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text',
+          'max-w-[85%] px-4 py-2.5 rounded-xl text-sm leading-relaxed select-text',
           isUser
-            ? 'bg-primary/10 text-foreground'
-            : 'bg-muted text-foreground'
+            ? 'bg-primary-light text-text-primary rounded-tr-sm'
+            : 'bg-white border border-border-light rounded-tl-sm shadow-card'
         )}
       >
         {isUser ? (
@@ -131,7 +131,7 @@ export default function ChatMessage({ message }: Props) {
             onClick={handleCopy}
             className={cn(
               'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs',
-              'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50',
+              'text-text-tertiary/50 hover:text-text-secondary hover:bg-muted/50',
               'transition-colors'
             )}
           >

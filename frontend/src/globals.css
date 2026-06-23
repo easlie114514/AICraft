@@ -1,30 +1,71 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: hsl(215 48% 60%);
+  /* 主色：字节蓝 #165DFF */
+  --color-primary: hsl(219 100% 55%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-background: hsl(210 20% 96%);
-  --color-foreground: hsl(234 33% 14%);
+  --color-primary-hover: #0E42D2;
+  --color-primary-light: #E8F3FF;
+  --color-primary-lighter: #F2F7FF;
+
+  /* 背景/前景 */
+  --color-background: #F7F8FA;
+  --color-foreground: #1D2129;
+
+  /* 卡片 */
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(234 33% 14%);
-  --color-muted: hsl(210 20% 93%);
-  --color-muted-foreground: hsl(220 9% 46%);
-  --color-border: hsl(220 13% 91%);
-  --color-input: hsl(220 13% 91%);
-  --color-ring: hsl(215 48% 60%);
+  --color-card-foreground: #1D2129;
+
+  /* 柔和底色 */
+  --color-muted: #ECEEF2;
+  --color-muted-foreground: #4E5969;
+
+  /* 边框 */
+  --color-border: #E5E6EB;
+  --color-border-light: #F2F3F5;
+  --color-input: #E5E6EB;
+  --color-ring: hsl(219 100% 55%);
+
+  /* 语义色 */
   --color-destructive: hsl(0 84% 60%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-accent: hsl(210 20% 93%);
-  --color-accent-foreground: hsl(234 33% 14%);
+  --color-success: #00B42A;
+  --color-success-light: #E8FFEA;
+  --color-warning: #FF7D00;
+  --color-warning-light: #FFF7E8;
+  --color-danger: #F53F3F;
+  --color-danger-light: #FFECE8;
+
+  /* 文本层级 */
+  --color-text-primary: #1D2129;
+  --color-text-secondary: #4E5969;
+  --color-text-tertiary: #86909C;
+  --color-text-disabled: #C9CDD4;
+
+  /* 导航 */
+  --color-nav-bg: #0D47D7;
+  --color-nav-text: #FFFFFF;
+
+  /* accent / secondary / popover */
+  --color-accent: #ECEEF2;
+  --color-accent-foreground: #1D2129;
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(234 33% 14%);
-  --color-secondary: hsl(210 20% 93%);
-  --color-secondary-foreground: hsl(234 33% 14%);
-  --radius: 0.75rem;
+  --color-popover-foreground: #1D2129;
+  --color-secondary: #ECEEF2;
+  --color-secondary-foreground: #1D2129;
+
+  /* 圆角：ArcoDesign 克制风格 8px */
+  --radius: 0.5rem;
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 0.25rem);
   --radius-xl: calc(var(--radius) + 0.5rem);
+
+  /* 阴影层级 */
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-dropdown: 0 8px 24px rgba(0,0,0,0.12);
+  --shadow-modal: 0 16px 48px rgba(0,0,0,0.16);
 }
 
 html, body, #root {
@@ -34,8 +75,8 @@ html, body, #root {
 
 body {
   font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  background-color: hsl(210 20% 96%);
-  color: hsl(234 33% 14%);
+  background-color: #F7F8FA;
+  color: #1D2129;
   margin: 0;
 }
 
@@ -50,3 +91,26 @@ pre, code {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* === ArcoDesign 风格滚动条 === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #F7F8FA; }
+::-webkit-scrollbar-thumb { background: #C9CDD4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #86909C; }
+
+/* === 全局选中态 === */
+::selection { background: #E8F3FF; color: #0E42D2; }
+
+/* === 代码块 === */
+.prose pre {
+  background: #1D2129;
+  color: #E8E8E8;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.prose pre .token.keyword { color: #C678DD; }
+.prose pre .token.string { color: #98C379; }
+.prose pre .token.comment { color: #5C6370; font-style: italic; }
+.prose pre .token.number { color: #D19A66; }

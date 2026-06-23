@@ -19,7 +19,7 @@ export default function WindowControls() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-nav-text hover:bg-white/20 rounded-lg"
+        className="h-8 w-8 text-nav-text hover:bg-white/10"
         onClick={handleMinimize}
       >
         <Minus className="h-4 w-4" />
@@ -27,7 +27,7 @@ export default function WindowControls() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-nav-text hover:bg-white/20 rounded-lg"
+        className="h-8 w-8 text-nav-text hover:bg-white/10"
         onClick={handleMaximize}
       >
         <Square className="h-3.5 w-3.5" />
@@ -35,7 +35,7 @@ export default function WindowControls() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-nav-text hover:bg-red-500 hover:text-white rounded-lg"
+        className="h-8 w-8 text-nav-text hover:bg-danger hover:text-white"
         onClick={handleClose}
       >
         <X className="h-4 w-4" />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Puzzle, FolderOpen } from 'lucide-react'
+import { RefreshCw, Puzzle, FolderOpen, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -42,21 +42,6 @@ export default function SkillPage() {
     loadSkills()
   }
 
-  const handleSetDir = async () => {
-    if (!dirInput.trim()) return
-    try {
-      const res = await api.put<{ ok: boolean; path?: string; detail?: string }>('/skills/dir', { path: dirInput.trim() })
-      if (res.ok) {
-        setSkillDir(res.path || dirInput.trim())
-        loadSkills()
-      } else {
-        alert(res.detail || '设置失败')
-      }
-    } catch (e: any) {
-      alert(e?.message || '设置失败')
-    }
-  }
-
   const handleBrowseDir = async () => {
     try {
       const res = await api.get<{ ok: boolean; path?: string; detail?: string }>('/skills/browse-dir')
@@ -79,15 +64,15 @@ export default function SkillPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">Skill 管理</h2>
-        <Button variant="outline" size="icon" onClick={() => { loadSkills(); loadDir() }} className="rounded-xl">
+        <h2 className="text-xl font-semibold text-text-primary">Skill 管理</h2>
+        <Button variant="outline" size="icon" onClick={() => { loadSkills(); loadDir() }}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
       {/* 根目录设置 */}
       <div className="shrink-0 flex items-center gap-2 mb-4">
-        <InputGroup className="flex-1 rounded-xl">
+        <InputGroup className="flex-1 rounded-lg">
           <InputGroupInput
             value={dirInput}
             onChange={(e) => setDirInput(e.target.value)}
@@ -100,35 +85,32 @@ export default function SkillPage() {
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-        <Button onClick={handleSetDir} className="rounded-xl shrink-0" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
-          设置
-        </Button>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
         {skills.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Puzzle className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无 Skill</p>
-            <p className="text-xs mt-1">设置根目录后，每个一级子目录（含 SKILL.md）即为一个技能</p>
+            <Zap className="w-16 h-16 text-text-disabled mb-4" />
+            <p className="text-sm text-text-secondary">暂无 Skill</p>
+            <p className="text-xs text-text-tertiary mt-1">设置根目录后，每个一级子目录（含 SKILL.md）即为一个技能</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
             {skills.map((s) => (
-              <Card key={s.name} className="rounded-2xl">
+              <Card key={s.name} className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
-                    <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+                    <Avatar className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-[#4080FF]">
                       <AvatarFallback className="bg-transparent text-white">
                         <Puzzle className="h-5 w-5" />
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium">{s.name}</p>
-                      <p className="text-sm text-muted-foreground truncate">{s.description || '无描述'}</p>
+                      <p className="text-sm text-text-secondary truncate">{s.description || '无描述'}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} className="rounded-xl" />
+                      <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} />
                     </div>
                   </div>
                 </CardContent>

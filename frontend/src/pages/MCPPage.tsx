@@ -108,12 +108,12 @@ export default function MCPPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">MCP 连接</h2>
+        <h2 className="text-xl font-semibold text-text-primary">MCP 连接</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={loadConnections} className="rounded-xl">
+          <Button variant="outline" size="icon" onClick={loadConnections}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="rounded-xl">
+          <Button onClick={() => setShowAdd(true)}>
             <Plus className="h-4 w-4 mr-1" />
             添加连接
           </Button>
@@ -123,19 +123,19 @@ export default function MCPPage() {
       <ScrollArea className="flex-1 min-h-0">
         {connections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Zap className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无 MCP 连接</p>
-            <p className="text-xs mt-1">添加 MCP 服务器以扩展 AI 能力</p>
+            <Zap className="w-16 h-16 text-text-disabled mb-4" />
+            <p className="text-sm text-text-secondary">暂无 MCP 连接</p>
+            <p className="text-xs text-text-tertiary mt-1">添加 MCP 服务器以扩展 AI 能力</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
             {connections.map((conn) => {
               const status = statusMap[conn.status] || statusMap.disconnected
               return (
-                <Card key={conn.name} className="rounded-2xl">
+                <Card key={conn.name} className="hover:shadow-card-hover transition-shadow duration-200">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+                      <Avatar className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-[#4080FF]">
                         <AvatarFallback className="bg-transparent text-white">
                           <Zap className="h-5 w-5" />
                         </AvatarFallback>
@@ -147,12 +147,12 @@ export default function MCPPage() {
                           <Badge variant={status.variant} className="rounded-lg text-xs">{status.label}</Badge>
                           {envStatus && FACTORY_MCP_NAMES.includes(conn.name) && (
                             envStatus.available ? (
-                              <Badge className="rounded-lg text-xs bg-green-600/10 text-green-600 border border-green-600/30 hover:bg-green-600/10">
+                              <Badge className="rounded-lg text-xs bg-success-light text-success border border-success/30 hover:bg-success-light">
                                 {'✅'} 环境就绪
                               </Badge>
                             ) : (
                               <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">
-                                <Badge className="rounded-lg text-xs bg-red-600/10 text-red-600 border border-red-600/30 hover:bg-red-600/10 cursor-pointer">
+                                <Badge className="rounded-lg text-xs bg-danger-light text-danger border border-danger/30 hover:bg-danger-light cursor-pointer">
                                   {'⚠️'} 需要Node.js
                                 </Badge>
                               </a>
@@ -167,15 +167,15 @@ export default function MCPPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Switch checked={conn.enabled} onCheckedChange={(v) => handleToggle(conn.name, v)} className="rounded-xl" />
+                        <Switch checked={conn.enabled} onCheckedChange={(v) => handleToggle(conn.name, v)} />
                         {conn.status === 'connected' ? (
-                          <Button variant="outline" size="sm" onClick={() => handleDisconnect(conn.name)} className="rounded-xl">断开</Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDisconnect(conn.name)}>断开</Button>
                         ) : (
-                          <Button size="sm" onClick={() => handleConnect(conn.name)} disabled={connecting[conn.name]} className="rounded-xl">
+                          <Button size="sm" onClick={() => handleConnect(conn.name)} disabled={connecting[conn.name]}>
                             {connecting[conn.name] ? '连接中...' : '连接'}
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(conn.name)} className="rounded-xl text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(conn.name)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -211,7 +211,7 @@ export default function MCPPage() {
 
       {/* Add MCP Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>添加 MCP 连接</DialogTitle>
             <DialogDescription>配置 MCP 服务器连接信息</DialogDescription>
@@ -219,12 +219,12 @@ export default function MCPPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>连接名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-[10px]" placeholder="例如: Jira MCP" />
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: Jira MCP" />
             </div>
             <div className="space-y-2">
               <Label>连接类型</Label>
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v ?? 'sse' })}>
-                <SelectTrigger className="rounded-[10px]">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -236,24 +236,24 @@ export default function MCPPage() {
             {form.type === 'sse' ? (
               <div className="space-y-2">
                 <Label>URL</Label>
-                <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} className="rounded-[10px]" placeholder="http://localhost:8080/sse" />
+                <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="http://localhost:8080/sse" />
               </div>
             ) : (
               <>
                 <div className="space-y-2">
                   <Label>命令</Label>
-                  <Input value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} className="rounded-[10px]" placeholder="例如: npx" />
+                  <Input value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} placeholder="例如: npx" />
                 </div>
                 <div className="space-y-2">
                   <Label>参数（空格分隔）</Label>
-                  <Input value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} className="rounded-[10px]" placeholder="例如: -y @modelcontextprotocol/server-filesystem" />
+                  <Input value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} placeholder="例如: -y @modelcontextprotocol/server-filesystem" />
                 </div>
               </>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} className="rounded-xl">取消</Button>
-            <Button onClick={handleAdd} className="rounded-xl">添加</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+            <Button onClick={handleAdd}>添加</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

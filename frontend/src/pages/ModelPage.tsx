@@ -117,16 +117,16 @@ export default function ModelPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">模型配置</h2>
+        <h2 className="text-xl font-semibold text-text-primary">模型配置</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => { loadModels(); loadChannels() }} className="rounded-xl">
+          <Button variant="outline" size="icon" onClick={() => { loadModels(); loadChannels() }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setShowChannel(true)} className="rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+          <Button onClick={() => setShowChannel(true)} className="bg-gradient-to-br from-primary to-[#4080FF] text-white">
             <Zap className="h-4 w-4 mr-1" />
             DeepSeek一键接入
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="rounded-xl" variant="outline">
+          <Button onClick={() => setShowAdd(true)} variant="outline">
             <Plus className="h-4 w-4 mr-1" />
             自定义模型
           </Button>
@@ -136,19 +136,19 @@ export default function ModelPage() {
       <ScrollArea className="flex-1 min-h-0">
         {models.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Cpu className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无模型配置</p>
-            <p className="text-xs mt-1">点击"DeepSeek一键接入"快速配置，或"自定义模型"手动填写</p>
+            <Cpu className="w-16 h-16 text-text-disabled mb-4" />
+            <p className="text-sm text-text-secondary">暂无模型配置</p>
+            <p className="text-xs text-text-tertiary mt-1">点击"DeepSeek一键接入"快速配置，或"自定义模型"手动填写</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">
             {models.map((m) => {
               const test = testResults[m.name]
               return (
-                <Card key={m.name} className="rounded-2xl">
+                <Card key={m.name} className="hover:shadow-card-hover transition-shadow duration-200">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: m.tier === 'flash' ? 'linear-gradient(135deg, #F0A050, #D07030)' : 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+                      <Avatar className={`h-10 w-10 shrink-0 rounded-lg ${m.tier === 'flash' ? 'bg-gradient-to-br from-warning to-[#D07030]' : 'bg-gradient-to-br from-primary to-[#4080FF]'}`}>
                         <AvatarFallback className="bg-transparent text-white">
                           <Cpu className="h-5 w-5" />
                         </AvatarFallback>
@@ -167,17 +167,17 @@ export default function ModelPage() {
                         <p className="text-sm text-muted-foreground font-mono mt-0.5 truncate">{m.model_id}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {m.protocol && (
-                            <span className="text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-text-tertiary bg-muted px-1.5 py-0.5 rounded">
                               {m.protocol}
                             </span>
                           )}
                           {m.supports_thinking && (
-                            <span className="text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-text-tertiary bg-muted px-1.5 py-0.5 rounded">
                               思考
                             </span>
                           )}
                           {m.supports_web_search && (
-                            <span className="text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-text-tertiary bg-muted px-1.5 py-0.5 rounded">
                               联网搜索
                             </span>
                           )}
@@ -192,14 +192,14 @@ export default function ModelPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="outline" size="sm" onClick={() => handleTest(m.name)} className="rounded-xl text-xs">
+                        <Button variant="outline" size="sm" onClick={() => handleTest(m.name)} className="text-xs">
                           测试
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleSetDefault(m.name)}
-                          className={cn('rounded-xl', m.is_default && 'text-yellow-500')}
+                          className={cn(m.is_default && 'text-yellow-500')}
                           title="设为默认"
                         >
                           <Star className="h-4 w-4" />
@@ -208,7 +208,7 @@ export default function ModelPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(m.name)}
-                          className="rounded-xl text-muted-foreground hover:text-destructive"
+                          className="text-muted-foreground hover:text-destructive"
                           title="删除"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -225,7 +225,7 @@ export default function ModelPage() {
 
       {/* ── DeepSeek一键接入 Dialog ── */}
       <Dialog open={showChannel} onOpenChange={setShowChannel}>
-        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>DeepSeek一键接入</DialogTitle>
             <DialogDescription>填入 API Key 即可自动创建 DeepSeek V4 Pro + Flash 模型配置</DialogDescription>
@@ -239,7 +239,7 @@ export default function ModelPage() {
                 placeholder="sk-..."
                 value={channelApiKey}
                 onChange={(e) => setChannelApiKey(e.target.value)}
-                className="rounded-[10px]"
+                
               />
             </div>
 
@@ -268,11 +268,10 @@ export default function ModelPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowChannel(false)} className="rounded-xl">取消</Button>
+            <Button variant="outline" onClick={() => setShowChannel(false)} >取消</Button>
             <Button
               onClick={handleAddChannel}
-              className="rounded-xl"
-              style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}
+              className="bg-gradient-to-br from-primary to-[#4080FF] text-white"
               disabled={!channelApiKey.trim()}
             >
               保存
@@ -283,7 +282,7 @@ export default function ModelPage() {
 
       {/* ── 自定义模型 Dialog（保留原有手动添加功能）── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>自定义模型</DialogTitle>
             <DialogDescription>手动配置 LLM API 连接信息</DialogDescription>
@@ -295,13 +294,13 @@ export default function ModelPage() {
                 placeholder="例如: DeepSeek-V4"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="rounded-[10px]"
+                
               />
             </div>
             <div className="space-y-2">
               <Label>Provider</Label>
               <Select value={form.provider} onValueChange={(v) => setForm({ ...form, provider: v ?? 'deepseek' })}>
-                <SelectTrigger className="rounded-[10px]">
+                <SelectTrigger >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -318,7 +317,7 @@ export default function ModelPage() {
                 placeholder="例如: deepseek/deepseek-chat"
                 value={form.model_id}
                 onChange={(e) => setForm({ ...form, model_id: e.target.value })}
-                className="rounded-[10px]"
+                
               />
             </div>
             <div className="space-y-2">
@@ -328,7 +327,7 @@ export default function ModelPage() {
                 placeholder="sk-..."
                 value={form.api_key}
                 onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-                className="rounded-[10px]"
+                
               />
             </div>
             <div className="space-y-2">
@@ -337,13 +336,13 @@ export default function ModelPage() {
                 placeholder="https://api.example.com/v1"
                 value={form.api_base}
                 onChange={(e) => setForm({ ...form, api_base: e.target.value })}
-                className="rounded-[10px]"
+                
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} className="rounded-xl">取消</Button>
-            <Button onClick={handleAdd} className="rounded-xl">添加</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)} >取消</Button>
+            <Button onClick={handleAdd} >添加</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -185,8 +185,8 @@ export default function MemoryPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">记忆</h2>
-        <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes(); loadStats() }} className="rounded-xl">
+        <h2 className="text-xl font-semibold text-text-primary">记忆</h2>
+        <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes(); loadStats() }}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
@@ -198,9 +198,9 @@ export default function MemoryPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 rounded-[10px]"
+          className="flex-1 rounded-lg"
         />
-        <Button variant="outline" size="icon" onClick={handleSearch} className="rounded-xl shrink-0">
+        <Button variant="outline" size="icon" onClick={handleSearch} className="shrink-0">
           <Search className="h-4 w-4" />
         </Button>
       </div>
@@ -219,16 +219,16 @@ export default function MemoryPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <TabsList className="w-fit rounded-xl mb-4">
-          <TabsTrigger value="conversations" className="rounded-xl">
+        <TabsList className="w-fit mb-4" variant="line">
+          <TabsTrigger value="conversations">
             <MessageSquare className="h-4 w-4 mr-1" />
             对话历史
           </TabsTrigger>
-          <TabsTrigger value="notes" className="rounded-xl">
+          <TabsTrigger value="notes">
             <FileText className="h-4 w-4 mr-1" />
             记忆巩固
           </TabsTrigger>
-          <TabsTrigger value="settings" className="rounded-xl">
+          <TabsTrigger value="settings">
             <Settings2 className="h-4 w-4 mr-1" />
             记忆设置
           </TabsTrigger>
@@ -239,13 +239,13 @@ export default function MemoryPage() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                <MessageSquare className="h-10 w-10 mb-2 opacity-30" />
-                <p className="text-sm">暂无对话历史</p>
+                <MessageSquare className="h-10 w-10 mb-2 text-text-disabled" />
+                <p className="text-sm text-text-secondary">暂无对话历史</p>
               </div>
             ) : (
               <div className="grid gap-3 pr-1">
                 {conversations.map((c) => (
-                  <Card key={c.id} className="rounded-2xl">
+                  <Card key={c.id} className="hover:shadow-card-hover transition-shadow duration-200">
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
@@ -258,10 +258,10 @@ export default function MemoryPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <Button variant="ghost" size="sm" onClick={() => handleView(c.id)} className="rounded-xl">
+                          <Button variant="ghost" size="sm" onClick={() => handleView(c.id)} >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteConv(c.id)} className="rounded-xl text-muted-foreground hover:text-destructive">
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteConv(c.id)} className="text-muted-foreground hover:text-destructive">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -279,14 +279,14 @@ export default function MemoryPage() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             {notes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                <FileText className="h-10 w-10 mb-2 opacity-30" />
-                <p className="text-sm">暂无记忆巩固记录</p>
-                <p className="text-xs mt-1">对话过程中会自动压缩生成</p>
+                <FileText className="h-10 w-10 mb-2 text-text-disabled" />
+                <p className="text-sm text-text-secondary">暂无记忆巩固记录</p>
+                <p className="text-xs text-text-tertiary mt-1">对话过程中会自动压缩生成</p>
               </div>
             ) : (
               <div className="grid gap-3 pr-1">
                 {notes.map((n) => (
-                  <Card key={n.name} className="rounded-2xl">
+                  <Card key={n.name} className="hover:shadow-card-hover transition-shadow duration-200">
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
@@ -303,7 +303,7 @@ export default function MemoryPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteNote(n.filename)}
-                          className="rounded-xl text-muted-foreground hover:text-destructive shrink-0 ml-2"
+                          className="text-muted-foreground hover:text-destructive shrink-0 ml-2"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -322,7 +322,7 @@ export default function MemoryPage() {
           <ScrollArea className="flex-1 min-h-0">
             <div className="space-y-4 pr-1 pb-4">
               {/* 压缩开关 */}
-              <Card className="rounded-2xl">
+              <Card className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="compact-enabled" className="text-sm font-medium">记忆压缩</Label>
@@ -336,7 +336,7 @@ export default function MemoryPage() {
               </Card>
 
               {/* 触发条件 */}
-              <Card className="rounded-2xl">
+              <Card className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4 space-y-3">
                   <p className="text-sm font-medium">触发条件</p>
                   <div className="flex items-center justify-between">
@@ -345,7 +345,7 @@ export default function MemoryPage() {
                       value={config.memory_compact_trigger}
                       onValueChange={(v) => updateConfig('memory_compact_trigger', v ?? 'chars')}
                     >
-                      <SelectTrigger className="w-36 rounded-xl h-8 text-xs">
+                      <SelectTrigger className="w-36 rounded-lg h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -363,7 +363,7 @@ export default function MemoryPage() {
                         min={1000}
                         value={config.memory_compact_interval_chars}
                         onChange={(e) => updateConfig('memory_compact_interval_chars', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">字符</span>
                     </div>
@@ -376,7 +376,7 @@ export default function MemoryPage() {
                         min={5}
                         value={config.memory_compact_interval_msgs}
                         onChange={(e) => updateConfig('memory_compact_interval_msgs', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">条消息</span>
                     </div>
@@ -390,7 +390,7 @@ export default function MemoryPage() {
                         max={200}
                         value={config.memory_compact_window}
                         onChange={(e) => updateConfig('memory_compact_window', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">条消息</span>
                     </div>
@@ -404,7 +404,7 @@ export default function MemoryPage() {
                         max={4000}
                         value={config.memory_compact_max_tokens}
                         onChange={(e) => updateConfig('memory_compact_max_tokens', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">tokens</span>
                     </div>
@@ -413,7 +413,7 @@ export default function MemoryPage() {
               </Card>
 
               {/* 长期记忆 */}
-              <Card className="rounded-2xl">
+              <Card className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4 space-y-3">
                   <p className="text-sm font-medium">长期记忆</p>
                   <div className="flex items-center justify-between">
@@ -425,7 +425,7 @@ export default function MemoryPage() {
                         max={50}
                         value={config.memory_merge_threshold}
                         onChange={(e) => updateConfig('memory_merge_threshold', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">个片段</span>
                     </div>
@@ -434,7 +434,7 @@ export default function MemoryPage() {
               </Card>
 
               {/* 注入控制 */}
-              <Card className="rounded-2xl">
+              <Card className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4 space-y-3">
                   <p className="text-sm font-medium">注入控制</p>
                   <div className="flex items-center justify-between">
@@ -446,7 +446,7 @@ export default function MemoryPage() {
                         max={50000}
                         value={config.memory_inject_max_chars}
                         onChange={(e) => updateConfig('memory_inject_max_chars', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">字符</span>
                     </div>
@@ -457,7 +457,7 @@ export default function MemoryPage() {
                       value={config.memory_inject_strategy}
                       onValueChange={(v) => updateConfig('memory_inject_strategy', v ?? 'latest')}
                     >
-                      <SelectTrigger className="w-36 rounded-xl h-8 text-xs">
+                      <SelectTrigger className="w-36 rounded-lg h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -475,7 +475,7 @@ export default function MemoryPage() {
                         max={50}
                         value={config.cross_session_inject_count}
                         onChange={(e) => updateConfig('cross_session_inject_count', Number(e.target.value))}
-                        className="w-24 h-8 rounded-xl text-xs"
+                        className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">条</span>
                     </div>
@@ -484,7 +484,7 @@ export default function MemoryPage() {
               </Card>
 
               {/* 上下文预算 */}
-              <Card className="rounded-2xl">
+              <Card className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -510,7 +510,7 @@ export default function MemoryPage() {
                             step={1000}
                             value={config.context_window_override}
                             onChange={(e) => updateConfig('context_window_override', Number(e.target.value))}
-                            className="w-24 h-8 rounded-xl text-xs"
+                            className="w-24 h-8 rounded-lg text-xs"
                           />
                           <span className="text-xs text-muted-foreground">tokens</span>
                         </div>
@@ -525,7 +525,7 @@ export default function MemoryPage() {
                             step={0.05}
                             value={config.output_reserve_ratio}
                             onChange={(e) => updateConfig('output_reserve_ratio', Number(e.target.value))}
-                            className="w-24 h-8 rounded-xl text-xs"
+                            className="w-24 h-8 rounded-lg text-xs"
                           />
                           <span className="text-xs text-muted-foreground">{(config.output_reserve_ratio * 100).toFixed(0)}%</span>
                         </div>
@@ -540,7 +540,7 @@ export default function MemoryPage() {
                             step={0.05}
                             value={config.budget_alert_threshold}
                             onChange={(e) => updateConfig('budget_alert_threshold', Number(e.target.value))}
-                            className="w-24 h-8 rounded-xl text-xs"
+                            className="w-24 h-8 rounded-lg text-xs"
                           />
                           <span className="text-xs text-muted-foreground">{(config.budget_alert_threshold * 100).toFixed(0)}%</span>
                         </div>
@@ -551,7 +551,7 @@ export default function MemoryPage() {
               </Card>
 
               {/* 状态 */}
-              <Card className="rounded-2xl">
+              <Card className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4 space-y-3">
                   <p className="text-sm font-medium">状态</p>
                   <div className="flex items-center justify-between">
@@ -600,7 +600,7 @@ export default function MemoryPage() {
 
       {/* View Conversation Dialog */}
       <Dialog open={!!viewConv} onOpenChange={() => setViewConv(null)}>
-        <DialogContent className="sm:max-w-[600px] rounded-[20px] max-h-[80vh]">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="text-sm font-mono">对话 {viewConv?.id as string || ''}</DialogTitle>
           </DialogHeader>
@@ -615,7 +615,7 @@ export default function MemoryPage() {
             </div>
           </ScrollArea>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewConv(null)} className="rounded-xl">关闭</Button>
+            <Button variant="outline" onClick={() => setViewConv(null)} >关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

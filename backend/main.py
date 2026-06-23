@@ -79,6 +79,20 @@ async def root():
     return {"message": "AICraft API - 开发模式请使用 Vite dev server (localhost:5173)"}
 
 
+# 生产模式：兜底服务 dist/ 根目录下的静态文件（如 logo.png / favicon 等）
+@app.get("/{filename:path}")
+async def static_root(filename: str):
+    file_path = FRONTEND_DIST / filename
+    # 仅服务 dist/ 根目录的直接文件，子目录走 /assets /fonts 挂载
+    if file_path.exists() and file_path.is_file() and file_path.parent == FRONTEND_DIST:
+        return FileResponse(file_path)
+    # 未匹配的文件返回 index.html（SPA fallback）
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"message": "Not found", "path": filename}
+
+
 @app.get("/api/health")
 async def health():
     deps = get_deps()

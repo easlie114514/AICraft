@@ -183,12 +183,12 @@ export default function RAGPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">RAG 数据源</h2>
+        <h2 className="text-xl font-semibold text-text-primary">RAG 数据源</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => { loadSources(); loadRagConfig() }} className="rounded-xl">
+          <Button variant="outline" size="icon" onClick={() => { loadSources(); loadRagConfig() }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setShowAdd(true)} className="rounded-xl">
+          <Button onClick={() => setShowAdd(true)}>
             <Plus className="h-4 w-4 mr-1" />
             添加数据源
           </Button>
@@ -197,7 +197,7 @@ export default function RAGPage() {
 
       <ScrollArea className="flex-1 min-h-0">
         {/* ── Embedding 配置卡片 ── */}
-        <Card className="rounded-2xl mb-4">
+        <Card className="mb-4">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Settings2 className="h-4 w-4 text-muted-foreground" />
@@ -212,10 +212,10 @@ export default function RAGPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Embedding 模式</Label>
                 <Select value={embedMode} onValueChange={handleModeChange}>
-                  <SelectTrigger className="w-full rounded-[10px] h-8 text-sm">
+                  <SelectTrigger className="w-full h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
                     <SelectItem value="auto">auto — 有 Key 用 API，否则本地</SelectItem>
                     <SelectItem value="api">api — 强制硅基流动 API</SelectItem>
                     <SelectItem value="local">local — 本地 ONNX 模型</SelectItem>
@@ -227,10 +227,10 @@ export default function RAGPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Embedding 模型</Label>
                 <Select value={embedModel} onValueChange={handleModelChange} disabled={isLocalMode}>
-                  <SelectTrigger className="w-full rounded-[10px] h-8 text-sm">
+                  <SelectTrigger className="w-full h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
                     {EMBEDDING_MODELS.map((m) => (
                       <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                     ))}
@@ -246,7 +246,7 @@ export default function RAGPage() {
                   onChange={(e) => handleApiBaseChange(e.target.value)}
                   onBlur={handleApiBaseBlur}
                   disabled={isLocalMode}
-                  className="rounded-[10px] h-8 text-sm font-mono"
+                  className="h-8 text-sm font-mono"
                   placeholder="https://api.siliconflow.cn/v1"
                 />
               </div>
@@ -266,7 +266,7 @@ export default function RAGPage() {
                         type={showKey ? 'text' : 'password'}
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
-                        className="rounded-[10px] h-8 text-sm pr-8"
+                        className="h-8 text-sm pr-8"
                         placeholder={ragConfig?.has_api_key ? '输入新 Key 覆盖旧值' : 'sk-...'}
                       />
                       <button
@@ -282,7 +282,7 @@ export default function RAGPage() {
                       size="sm"
                       onClick={handleSaveKey}
                       disabled={!apiKey.trim() || configSaving}
-                      className="rounded-[10px] h-8 text-xs shrink-0"
+                      className="h-8 text-xs shrink-0"
                     >
                       {configSaving ? '保存中...' : '保存'}
                     </Button>
@@ -291,7 +291,7 @@ export default function RAGPage() {
                       size="sm"
                       onClick={handleTestConnection}
                       disabled={testing}
-                      className="rounded-[10px] h-8 text-xs shrink-0"
+                      className="h-8 text-xs shrink-0"
                     >
                       <FlaskConical className={`h-3.5 w-3.5 mr-1 ${testing ? 'animate-spin' : ''}`} />
                       测试
@@ -311,8 +311,8 @@ export default function RAGPage() {
 
             {/* 模式切换提示 */}
             {ragConfig && embedMode !== ragConfig.embedding_mode && (
-              <div className="mt-3 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                <p className="text-xs text-amber-700 dark:text-amber-300">
+              <div className="mt-3 p-2 rounded-lg bg-warning-light/50 border border-warning/30">
+                <p className="text-xs text-warning">
                   ⚠️ Embedding 模式已更改。API(1024维) 和本地 ONNX(384维) 向量不兼容，切换后需重新索引全部数据源。
                 </p>
               </div>
@@ -329,14 +329,14 @@ export default function RAGPage() {
         {/* ── 数据源列表 ── */}
         {sources.length === 0 && !configLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
-            <Database className="h-12 w-12 mb-4 opacity-30" />
-            <p className="text-base font-medium text-foreground mb-1">📚 RAG 知识库</p>
-            <p className="text-sm mb-4">给 AI 喂资料，让它从你的文档中找到答案。</p>
-            <Button onClick={() => setShowAdd(true)} className="rounded-xl mb-4">
+            <Database className="w-16 h-16 text-text-disabled mb-4" />
+            <p className="text-base font-medium text-text-primary mb-1">RAG 知识库</p>
+            <p className="text-sm text-text-secondary mb-4">给 AI 喂资料，让它从你的文档中找到答案。</p>
+            <Button onClick={() => setShowAdd(true)} className="mb-4">
               <Plus className="h-4 w-4 mr-1" />
               添加数据源
             </Button>
-            <div className="text-xs space-y-1 text-center text-muted-foreground/70">
+            <div className="text-xs space-y-1 text-center text-text-tertiary">
               <p>💡 支持 txt/md/py/json/csv/html/xml/docx/pdf 格式</p>
               <p>💡 推荐先用硅基流动免费 API 做 Embedding（设置页配置）</p>
             </div>
@@ -344,10 +344,10 @@ export default function RAGPage() {
         ) : (
           <div className="grid gap-4 pr-1">
             {sources.map((s) => (
-              <Card key={s.name} className="rounded-2xl">
+              <Card key={s.name} className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
-                    <Avatar className="h-10 w-10 shrink-0 rounded-xl" style={{ background: 'linear-gradient(135deg, #5B9BD5, #2B4C7E)' }}>
+                    <Avatar className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-[#4080FF]">
                       <AvatarFallback className="bg-transparent text-white">
                         <Folder className="h-5 w-5" />
                       </AvatarFallback>
@@ -364,18 +364,18 @@ export default function RAGPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} className="rounded-xl" />
+                      <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} />
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleIndex(s.name)}
                         disabled={indexing[s.name]}
-                        className="rounded-xl"
+                        
                       >
                         <RefreshCw className={`h-4 w-4 mr-1 ${indexing[s.name] ? 'animate-spin' : ''}`} />
                         {indexing[s.name] ? '索引中...' : '索引'}
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.name)} className="rounded-xl text-muted-foreground hover:text-destructive">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.name)} className="text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -389,7 +389,7 @@ export default function RAGPage() {
 
       {/* Add RAG Source Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-[520px] rounded-[20px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>添加数据源</DialogTitle>
             <DialogDescription>添加本地文档目录，系统将自动索引文档内容</DialogDescription>
@@ -397,16 +397,16 @@ export default function RAGPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>数据源名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-[10px]" placeholder="例如: 项目文档" />
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  placeholder="例如: 项目文档" />
             </div>
             <div className="space-y-2">
               <Label>数据源路径</Label>
-              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} className="rounded-[10px]" placeholder="rag/使用指导 (相对项目根)" />
+              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })}  placeholder="rag/使用指导 (相对项目根)" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} className="rounded-xl">取消</Button>
-            <Button onClick={handleAdd} className="rounded-xl">添加</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)} >取消</Button>
+            <Button onClick={handleAdd} >添加</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
