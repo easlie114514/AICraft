@@ -12,8 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.deps import init_deps, get_deps
 from backend.routers import models, roles, skills, mcp, rag, memory, search
 from backend.chat_ws import router as chat_ws_router
-
-FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+from src.utils.config import FRONTEND_DIST
 
 
 @asynccontextmanager

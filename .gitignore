@@ -7,6 +7,7 @@ __pycache__/
 dist/
 build/
 *.spec
+!AICraft.spec
 *.exe
 
 # Virtual environments

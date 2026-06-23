@@ -2,9 +2,11 @@
 
 开发模式: 需要同时运行 Vite dev server (npm run dev)
 生产模式: python run.py (FastAPI 托管前端 dist/)
+打包模式: AICraft.exe (PyInstaller onedir)
 """
 
 import os
+import sys
 import threading
 import time
 
@@ -14,8 +16,16 @@ os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 import uvicorn
 import webview
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIST = os.path.join(ROOT, "frontend", "dist")
+# 确定运行根目录和前端路径
+if getattr(sys, 'frozen', False):
+    # PyInstaller 打包模式
+    ROOT = os.path.dirname(os.path.abspath(sys.executable))
+    from src.utils.config import FRONTEND_DIST as _frontend_dist
+    FRONTEND_DIST = str(_frontend_dist)
+else:
+    ROOT = os.path.dirname(os.path.abspath(__file__))
+    FRONTEND_DIST = os.path.join(ROOT, "frontend", "dist")
+
 FRONTEND_INDEX = os.path.join(FRONTEND_DIST, "index.html")
 
 

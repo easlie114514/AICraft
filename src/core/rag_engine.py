@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.utils.config import RAG_DIR, load_json, save_json, CHROMA_DIR, resolve_path, CONFIG_DIR
+from src.utils.config import RAG_STATE_DIR, load_json, save_json, CHROMA_DIR, resolve_path, CONFIG_DIR
 from src.core.embedding import get_embedding_function
 
 
@@ -59,7 +59,7 @@ class RAGSource:
 class RAGEngine:
     """RAG检索增强引擎"""
 
-    CONFIG_PATH = RAG_DIR / "sources.json"
+    CONFIG_PATH = RAG_STATE_DIR / "sources.json"
 
     def __init__(self):
         self.sources: list[RAGSource] = []
@@ -142,7 +142,7 @@ class RAGEngine:
         from pathlib import Path
         config = load_json(self.CONFIG_PATH)
         sources = []
-        for item in config.get("sources", []):
+        for item in config.get("sources", config if isinstance(config, list) else []):
             raw_path = item.get("path", "")
             resolved = self._resolve_source_path(raw_path)
 
@@ -244,6 +244,7 @@ class RAGEngine:
 
         doc_dir = resolve_path(source.path)
         if not doc_dir.exists():
+            print(f"[RAG] 目录不存在，无法索引: {doc_dir}")
             return 0
 
         # 初始化ChromaDB
@@ -293,7 +294,8 @@ class RAGEngine:
                         metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
                     )
                     count += 1
-            except Exception:
+            except Exception as e:
+                print(f"[RAG] 索引文件失败 {f}: {type(e).__name__}: {e}")
                 continue
 
         source.file_count = count

@@ -1,18 +1,20 @@
-[
-  {
-    "name": "文件管理",
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-filesystem", "{workspace_dir}"],
-    "env": {},
-    "enabled": true
-  },
-  {
-    "name": "代码执行",
-    "type": "stdio",
-    "command": "python",
-    "args": ["src/mcp_servers/code_executor.py"],
-    "env": {},
-    "enabled": true
-  }
-]
+{
+  "connections": [
+    {
+      "name": "文件管理",
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "{workspace_dir}"],
+      "env": {},
+      "enabled": true
+    },
+    {
+      "name": "代码执行",
+      "type": "stdio",
+      "command": "python",
+      "args": ["src/mcp_servers/code_executor.py"],
+      "env": {},
+      "enabled": true
+    }
+  ]
+}

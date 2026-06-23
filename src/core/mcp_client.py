@@ -84,7 +84,7 @@ class MCPManager:
         config = load_profile_config("mcp_connections")
         connections = []
 
-        for item in config.get("connections", []):
+        for item in config.get("connections", config if isinstance(config, list) else []):
             conn = MCPConnection(
                 name=item.get("name", ""),
                 type=item.get("type", "sse"),        # 旧配置没有 type → 默认 sse

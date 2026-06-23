@@ -1,22 +1,54 @@
-"""配置管理模块 - 读写JSON配置文件"""
+"""配置管理模块 - 读写JSON配置文件
+
+支持两种运行模式：
+- 开发模式 (python run.py): 所有数据在项目根目录
+- 打包模式 (PyInstaller): 出厂数据只读，用户数据在 %APPDATA%/AICraft/
+"""
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
-# 项目根目录
-BASE_DIR = Path(__file__).parent.parent.parent
-CONFIG_DIR = BASE_DIR / "config"
+# ── 打包模式检测 ──
+_FROZEN = getattr(sys, 'frozen', False)
+
+if _FROZEN:
+    # 打包模式：出厂只读数据在 exe 内部，用户数据在 AppData
+    APP_DIR = Path(sys._MEIPASS) / "data"
+    USER_DIR = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')) / 'AICraft'
+else:
+    # 开发模式：所有数据在项目根目录
+    APP_DIR = Path(__file__).parent.parent.parent
+    USER_DIR = APP_DIR
+
+# 向后兼容：BASE_DIR 指向 APP_DIR
+BASE_DIR = APP_DIR
+
+# ── 只读目录（出厂数据，打包后不可写） ──
+SKILLS_DIR = APP_DIR / "skills"
+ROLES_DIR = APP_DIR / "roles"
+RAG_DIR = APP_DIR / "rag"                     # RAG 文档存放目录
+DEFAULTS_DIR = APP_DIR / "config" / "defaults"
+FRONTEND_DIST = APP_DIR / "frontend" / "dist"
+ONNX_MODEL_DIR = APP_DIR / "models" / "onnx" / "all-MiniLM-L6-v2"
+
+# ── 用户可写数据目录 ──
+CONFIG_DIR = USER_DIR / "config"
 PROFILES_DIR = CONFIG_DIR / "profiles"
-DEFAULTS_DIR = CONFIG_DIR / "defaults"
-MODELS_DIR = BASE_DIR / "models"
-ROLES_DIR = BASE_DIR / "roles"
-SKILLS_DIR = BASE_DIR / "skills"
-RAG_DIR = BASE_DIR / "rag"
-MEMORY_DIR = BASE_DIR / "memory"
+MODELS_DIR = USER_DIR / "models"
+MEMORY_DIR = USER_DIR / "memory"
+CHROMA_DIR = USER_DIR / "chroma_db"
+WORKSPACE_DIR = USER_DIR / "workspace"
+RAG_STATE_DIR = USER_DIR / "rag"              # RAG 数据源配置（sources.json）
+
 CONVERSATIONS_DIR = MEMORY_DIR / "conversations"
 NOTES_DIR = MEMORY_DIR / "project-notes"
-CHROMA_DIR = BASE_DIR / "chroma_db"
+
+# ── 版本号（用于首次启动/升级检测） ──
+VERSION_FILE = USER_DIR / ".version"
+CURRENT_VERSION = "1.0.0"
 
 
 def resolve_path(p: str | Path) -> Path:
@@ -45,7 +77,10 @@ def save_json(path: Path, data: dict[str, Any]) -> None:
 
 
 def ensure_rag_config():
-    """确保 rag_config.json 存在，不存在则从默认模板复制"""
+    """确保 rag_config.json 存在，不存在则从默认模板复制
+
+    不会覆盖已有配置（用户可能已修改）。
+    """
     target = CONFIG_DIR / "rag_config.json"
     if not target.exists():
         import shutil
@@ -60,6 +95,75 @@ def ensure_rag_config():
                 "embedding_model": "BAAI/bge-large-zh-v1.5",
                 "embedding_api_base": "https://api.siliconflow.cn/v1",
             })
+
+
+def ensure_user_dirs():
+    """首次启动：创建用户数据目录结构，从出厂配置复制初始文件
+
+    只补缺失文件，不覆盖已有文件。
+    """
+    # 确保所有用户目录存在
+    for d in [CONFIG_DIR, PROFILES_DIR, MODELS_DIR, MEMORY_DIR,
+              CONVERSATIONS_DIR, NOTES_DIR, CHROMA_DIR, WORKSPACE_DIR,
+              RAG_STATE_DIR]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    # 检查是否需要初始化（.version 文件不存在表示首次启动）
+    is_first_run = not VERSION_FILE.exists()
+
+    # MCP / RAG 默认文件不在此复制——由 init_deps() 统一处理首次初始化，
+    # 以便正确替换 {workspace_dir} 等占位符后再持久化。
+
+    # model.json 特殊处理：不存在时从模板复制
+    profile_model = PROFILES_DIR / "default" / "model.json"
+    if not profile_model.exists():
+        profile_model.parent.mkdir(parents=True, exist_ok=True)
+        save_json(profile_model, {
+            "model_id": "",
+            "role": "通用助手",
+            "web_search": False,
+            "rag": False,
+            "memory": True,
+            "context": {
+                "max_history_chars": 50000,
+                "memory_compact_enabled": True,
+                "memory_compact_trigger": "messages",
+                "memory_compact_interval_chars": 8000,
+                "memory_compact_interval_msgs": 20,
+                "memory_compact_window": 40,
+                "memory_compact_max_tokens": 800,
+                "memory_merge_threshold": 8,
+                "memory_inject_max_chars": 4000,
+                "memory_inject_strategy": "latest",
+                "cross_session_inject_count": 10,
+                "context_budget_enabled": True,
+                "context_window_override": 0,
+                "output_reserve_ratio": 0.20,
+                "budget_alert_threshold": 0.75,
+            },
+        })
+
+    # 复制 app.json（不存在时）
+    app_json = CONFIG_DIR / "app.json"
+    if not app_json.exists():
+        save_json(app_json, {
+            "current_profile": "default",
+            "theme": "system",
+            "language": "zh-CN",
+            "skills_dir": "",
+        })
+
+    # 标记版本
+    if is_first_run:
+        save_json(VERSION_FILE, {"version": CURRENT_VERSION})
+
+
+def _copy_if_missing(src: Path, dst: Path):
+    """如果目标文件不存在，从源复制"""
+    import shutil
+    if src.exists() and not dst.exists():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
 
 
 def get_current_profile() -> str:

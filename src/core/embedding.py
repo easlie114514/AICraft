@@ -11,12 +11,17 @@ from typing import Any
 import httpx
 from chromadb.api.types import EmbeddingFunction
 
-BASE_DIR = Path(__file__).parent.parent.parent
-BUNDLED_MODEL_DIR = BASE_DIR / "models" / "onnx" / "all-MiniLM-L6-v2"
+from src.utils.config import ONNX_MODEL_DIR
+
+BUNDLED_MODEL_DIR = ONNX_MODEL_DIR
 
 # ── 引导 ChromaDB 默认 ONNX 模型指向项目内置目录 ──
 # ChromaDB 的 ONNXMiniLM_L6_V2 默认从 ~/.cache/chroma/onnx_models/ 下载模型。
 # 这里把路径指向项目内置的 models/onnx/，用户无需联网即可使用本地 Embedding。
+#
+# 注：import onnx_mini_lm_l6_v2 会触发父包 __init__.py 导入全部 embedding function，
+# 其中 sentence_transformer 仅在 __init__ 方法内懒加载 torch，运行时不会实际 import
+# torch。PyInstaller 通过 excludes 跳过 torch 即可（see AICraft.spec）。
 try:
     import chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 as _onnx_module
     _onnx_module.ONNXMiniLM_L6_V2.DOWNLOAD_PATH = BUNDLED_MODEL_DIR
