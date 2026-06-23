@@ -1,32 +1,3 @@
 {
-  "connections": [
-    {
-      "name": "文件管理",
-      "type": "stdio",
-      "host": "",
-      "port": 0,
-      "url": "",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "workspace"
-      ],
-      "env": {},
-      "enabled": true
-    },
-    {
-      "name": "代码执行",
-      "type": "stdio",
-      "host": "",
-      "port": 0,
-      "url": "",
-      "command": "python",
-      "args": [
-        "src/mcp_servers/code_executor.py"
-      ],
-      "env": {},
-      "enabled": true
-    }
-  ]
+  "connections": []
 }

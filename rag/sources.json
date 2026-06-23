@@ -1,12 +1,3 @@
 {
-  "sources": [
-    {
-      "name": "使用指导",
-      "path": "rag/使用指导",
-      "type": "local",
-      "enabled": true,
-      "file_count": 3,
-      "indexed": true
-    }
-  ]
+  "sources": []
 }
