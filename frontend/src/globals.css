@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   多主题色系 — 通过切换 <html> 上的 .theme-{name} 类实现
+   新增主题只需加一套 :root 变量即可
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 字节蓝（默认）── */
+:root,
+.theme-blue {
+  --theme-primary: #165DFF;
+  --theme-primary-hover: #0E42D2;
+  --theme-primary-light: #E8F3FF;
+  --theme-primary-lighter: #F2F7FF;
+  --theme-ring: #165DFF;
+  --theme-nav-bg: #0F1E4A;
+  --theme-input: #E4E8F0;
+}
+
+/* ── 竹叶绿 ── */
+.theme-green {
+  --theme-primary: #16A34A;
+  --theme-primary-hover: #15803D;
+  --theme-primary-light: #F0FDF4;
+  --theme-primary-lighter: #F7FEF9;
+  --theme-ring: #16A34A;
+  --theme-nav-bg: #0A1F12;
+  --theme-input: #E2EBE5;
+}
+
+/* ── 暮光紫 ── */
+.theme-purple {
+  --theme-primary: #7C3AED;
+  --theme-primary-hover: #6D28D9;
+  --theme-primary-light: #F5F3FF;
+  --theme-primary-lighter: #FAF9FF;
+  --theme-ring: #7C3AED;
+  --theme-nav-bg: #1A0F2E;
+  --theme-input: #E9E5F0;
+}
+
+/* ── 日落橙 ── */
+.theme-orange {
+  --theme-primary: #EA580C;
+  --theme-primary-hover: #C2410C;
+  --theme-primary-light: #FFF7ED;
+  --theme-primary-lighter: #FFFBEB;
+  --theme-ring: #EA580C;
+  --theme-nav-bg: #1F1005;
+  --theme-input: #EDE7E1;
+}
+
+@theme {
+  /* ── 主色：引用主题 CSS 变量，切换 .theme-* 类即可全局变色 ── */
+  --color-primary: var(--theme-primary);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-hover: var(--theme-primary-hover);
+  --color-primary-light: var(--theme-primary-light);
+  --color-primary-lighter: var(--theme-primary-lighter);
+
+  /* 背景/前景 */
+  --color-background: #F7F8FA;
+  --color-foreground: #1D2129;
+
+  /* 卡片 */
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: #1D2129;
+
+  /* 柔和底色 */
+  --color-muted: #ECEEF2;
+  --color-muted-foreground: #4E5969;
+
+  /* 边框 / 输入框 — 跟随主题色系微调 */
+  --color-border: var(--theme-input);
+  --color-border-light: #F2F3F5;
+  --color-input: var(--theme-input);
+  --color-ring: var(--theme-ring);
+
+  /* 语义色 */
+  --color-destructive: hsl(0 84% 60%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-success: #00B42A;
+  --color-success-light: #E8FFEA;
+  --color-warning: #FF7D00;
+  --color-warning-light: #FFF7E8;
+  --color-danger: #F53F3F;
+  --color-danger-light: #FFECE8;
+
+  /* 文本层级 */
+  --color-text-primary: #1D2129;
+  --color-text-secondary: #4E5969;
+  --color-text-tertiary: #86909C;
+  --color-text-disabled: #C9CDD4;
+
+  /* 导航 — 跟随主题色系 */
+  --color-nav-bg: var(--theme-nav-bg);
+  --color-nav-text: #FFFFFF;
+
+  /* accent / secondary / popover */
+  --color-accent: #ECEEF2;
+  --color-accent-foreground: #1D2129;
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: #1D2129;
+  --color-secondary: #ECEEF2;
+  --color-secondary-foreground: #1D2129;
+
+  /* 圆角：ArcoDesign 克制风格 8px */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 0.25rem);
+  --radius-xl: calc(var(--radius) + 0.5rem);
+
+  /* 阴影层级 */
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-dropdown: 0 8px 24px rgba(0,0,0,0.12);
+  --shadow-modal: 0 16px 48px rgba(0,0,0,0.16);
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background-color: #F7F8FA;
+  color: #1D2129;
+  margin: 0;
+}
+
+/* 确保聊天内容区域文本可选（pywebview frameless 窗口兼容） */
+[data-slot="scroll-area-viewport"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 代码块中文本允许选中 */
+pre, code {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* === ArcoDesign 风格滚动条 === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #F7F8FA; }
+::-webkit-scrollbar-thumb { background: #C9CDD4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #86909C; }
+
+/* === 全局选中态 === */
+::selection { background: #E8F3FF; color: #0E42D2; }
+
+/* === 代码块 === */
+.prose pre {
+  background: #1D2129;
+  color: #E8E8E8;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.prose pre .token.keyword { color: #C678DD; }
+.prose pre .token.string { color: #98C379; }
+.prose pre .token.comment { color: #5C6370; font-style: italic; }
+.prose pre .token.number { color: #D19A66; }

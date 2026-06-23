@@ -1,0 +1,6 @@
+{
+  "embedding_mode": "auto",
+  "embedding_api_key": "",
+  "embedding_model": "BAAI/bge-large-zh-v1.5",
+  "embedding_api_base": "https://api.siliconflow.cn/v1"
+}

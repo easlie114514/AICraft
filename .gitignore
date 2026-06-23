@@ -1,0 +1,43 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+
+# ── 虚拟环境 ──
+venv/
+.venv/
+env/
+
+# ── 运行时数据（用户生成，首次启动自动创建） ──
+.version
+chroma_db/
+memory/
+workspace/
+models/
+config/profiles/
+config/app.json
+config/permissions.json
+config/rag_config.json
+rag/sources.json
+
+# ── 前端 ──
+frontend/dist/
+frontend/node_modules/
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── 打包产物 ──
+dist/
+build/
+*.spec
+
+# ── 系统文件 ──
+.DS_Store
+Thumbs.db
+desktop.ini
