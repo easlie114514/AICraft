@@ -304,10 +304,13 @@ class RAGEngine:
 
         返回 True 表示 embedding 就绪，False 表示失败。
         """
+        import asyncio
+
         try:
             embed_fn = self._get_embed_fn()
             if embed_fn is not None:
-                result = embed_fn(["warmup"])
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(None, embed_fn, ["warmup"])
                 return len(result) > 0 and len(result[0]) > 0
             else:
                 import chromadb
