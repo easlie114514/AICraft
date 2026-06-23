@@ -9,6 +9,7 @@ build/
 *.spec
 !AICraft.spec
 *.exe
+release/
 
 # Virtual environments
 venv/
@@ -39,7 +40,22 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Runtime data
 /memory/conversations/
 /skills/toggles.json
 /models/*.json
 !/models/onnx/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Temp scripts
+diag_rag.py
+fix_import.py
+fix_search.py
+fix_stats.py
+
+# ONNX models (downloaded at runtime)
+models/onnx/
