@@ -15,15 +15,14 @@ env/
 chroma_db/
 memory/
 workspace/
-models/
+models/*.json
 config/profiles/
 config/app.json
 config/permissions.json
 config/rag_config.json
 rag/sources.json
 
-# ── 前端 ──
-frontend/dist/
+# ── 前端（dist 纳入版本管理，用户无需 Node.js）──
 frontend/node_modules/
 
 # ── IDE ──

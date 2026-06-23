@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo_craft.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AICraft</title>
+    <!-- 在 React 渲染前同步恢复主题，避免默认蓝色闪烁 -->
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('aicraft_theme');
+          if (t && /^(blue|green|purple|orange)$/.test(t)) {
+            document.documentElement.classList.add('theme-' + t);
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-E6NVxpG6.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CU57QGNn.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

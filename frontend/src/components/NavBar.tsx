@@ -18,8 +18,7 @@ export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
     <div className="flex items-center justify-between h-14 select-none shrink-0 bg-nav-bg border-b border-white/5 pl-3 pr-1">
       {/* 左侧：Logo + 品牌名 */}
       <div className="flex items-center gap-2 mr-4">
-        <img src="/logo.png" alt="AICraft" className="h-7 w-7 rounded-md" />
-        <span className="text-white font-medium text-sm">AICraft</span>
+        <img src="/logo_craft.png" alt="AICraft" className="h-9 w-auto" />
       </div>
 
       {/* 中间：Tab 列表 + 主题切换 */}
