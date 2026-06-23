@@ -14,6 +14,8 @@ from src.core.chat_history import save_conversation, load_conversation, get_rece
 from src.core.llm import get_current_model_config, get_model_config, simple_completion
 from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
+from src.core.permission_guard import PermissionGuard
+from src.core.token_tracker import token_tracker
 from src.utils.config import get_context_config, NOTES_DIR
 
 
@@ -101,6 +103,10 @@ async def chat_websocket(ws: WebSocket):
     await ws.accept()
     deps = get_deps()
     loop = asyncio.get_event_loop()
+
+    # ── 权限守卫 ──
+    permission_guard = PermissionGuard()
+    permission_guard.set_ws_send_fn(lambda data: ws.send_json(data))
     # 同一个 WS 会话内的对话历史（保持连续对话上下文）
     session_history: list[dict] = []
     current_role: str = ""  # 追踪当前角色，用于检测角色切换
@@ -111,11 +117,47 @@ async def chat_websocket(ws: WebSocket):
     memory_msg_counter = 0    # 自上次压缩以来的对话增量消息数
     ctx_config = get_context_config()
 
+    # ── 消息队列：后台 Reader 持续读取 WS 消息，权限响应即时处理 ──
+    # 关键设计：permission_response 必须在后台即时处理，因为主循环
+    # 可能在 agent_loop 中阻塞等待权限 future，无法回到 while 顶部接收消息。
+    message_queue: asyncio.Queue = asyncio.Queue()
+    _stop_event = asyncio.Event()
+
+    async def ws_reader():
+        """后台任务：持续读取 WebSocket 消息"""
+        try:
+            while not _stop_event.is_set():
+                raw = await ws.receive_text()
+                data = json.loads(raw)
+                msg_type = data.get("type", "")
+
+                # 权限响应 → 立即处理，不进入队列（避免主循环阻塞时积压）
+                if msg_type == "permission_response":
+                    req_id = data.get("id", "")
+                    action = data.get("action", "deny")
+                    found = permission_guard.handle_response(req_id, action)
+                    if not found:
+                        await ws.send_json({
+                            "type": "inject_info",
+                            "items": [f"权限请求 {req_id} 已过期或不存在"]
+                        })
+                    continue
+
+                await message_queue.put(data)
+        except WebSocketDisconnect:
+            await message_queue.put({"type": "_disconnect"})
+        except Exception:
+            await message_queue.put({"type": "_disconnect"})
+
+    reader_task = asyncio.create_task(ws_reader())
+
     try:
         while True:
-            raw = await ws.receive_text()
-            data = json.loads(raw)
+            data = await message_queue.get()
             msg_type = data.get("type", "")
+
+            if msg_type == "_disconnect":
+                break
 
             if msg_type == "stop":
                 await ws.send_json({"type": "done"})
@@ -137,9 +179,14 @@ async def chat_websocket(ws: WebSocket):
                 session_history.clear()
                 memory_char_counter = 0
                 memory_msg_counter = 0
+                token_tracker.reset_current()
                 new_conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
                 current_conv_id = new_conv_id  # 更新会话级 conv_id，防御前端残留旧 ID
 
+                await ws.send_json({
+                    "type": "token_stats",
+                    "data": token_tracker.get_stats(),
+                })
                 await ws.send_json({
                     "type": "conv_id",
                     "id": new_conv_id,
@@ -164,6 +211,8 @@ async def chat_websocket(ws: WebSocket):
                         saved = await loop.run_in_executor(None, load_conversation, load_conv_id)
                         if saved and saved.get("messages"):
                             # 发送消息给前端展示（排除 tool，前端不单独展示工具调用）
+                            # 旧对话可能没有每条消息的 timestamp，用对话 created 兜底
+                            fallback_ts = saved.get("created", "")
                             display_msgs: list[dict] = []
                             for m in saved["messages"]:
                                 r = m.get("role", "")
@@ -171,6 +220,7 @@ async def chat_websocket(ws: WebSocket):
                                     display_msgs.append({
                                         "role": r,
                                         "content": m.get("content", ""),
+                                        "timestamp": m.get("timestamp", "") or fallback_ts,
                                     })
                             if display_msgs:
                                 await ws.send_json({
@@ -191,6 +241,17 @@ async def chat_websocket(ws: WebSocket):
                             await ws.send_json({"type": "error", "content": f"对话 {load_conv_id} 不存在"})
                     except Exception:
                         await ws.send_json({"type": "error", "content": "加载对话失败"})
+                continue
+
+            if msg_type == "get_token_stats":
+                stats = token_tracker.get_stats()
+                await ws.send_json({"type": "token_stats", "data": stats})
+                continue
+
+            if msg_type == "reset_token_stats":
+                token_tracker.reset_current()
+                stats = token_tracker.get_stats()
+                await ws.send_json({"type": "token_stats", "data": stats})
                 continue
 
             if msg_type == "message":
@@ -551,7 +612,7 @@ async def chat_websocket(ws: WebSocket):
                 # 结构: system_prompt + session_history + current_user_message
                 messages: list[dict] = [{"role": "system", "content": system_content}]
                 messages.extend(session_history)
-                messages.append({"role": "user", "content": user_text})
+                messages.append({"role": "user", "content": user_text, "timestamp": datetime.now().isoformat()})
 
                 # ── Agent Loop ──
                 tools: list[dict] = list(deps.mcp_manager.get_enabled_tools() or [])
@@ -566,14 +627,18 @@ async def chat_websocket(ws: WebSocket):
                         model_config=model_config,
                         mcp_manager=deps.mcp_manager,
                         thinking_enabled=thinking_enabled,
+                        permission_guard=permission_guard,
                     ):
                         await ws.send_json(event)
 
                     await ws.send_json({"type": "done"})
 
-                    # ── 更新会话历史（只保留 user 和 assistant 消息）──
+                    # ── 更新会话历史（只追加本轮新消息，避免修复后重复）──
+                    # messages = [system] + session_history_old + [本轮 user/assistant/tool]
+                    # 只取本轮新增部分：跳过 system(1) + 旧历史(len(session_history_old))
+                    old_len = len(session_history)
                     new_char_count = 0
-                    for m in messages[1:]:  # 跳过 system prompt
+                    for m in messages[1 + old_len:]:
                         role = m.get("role", "")
                         if role in ("user", "assistant", "tool"):
                             session_history.append(m)
@@ -584,6 +649,11 @@ async def chat_websocket(ws: WebSocket):
 
                     # ── 保存对话到磁盘（完整保存，不受裁剪影响）──
                     save_data_msgs = [messages[0]] + session_history
+                    # 为没有时间戳的消息补充时间戳（系统提示、assistant/tool 消息等）
+                    now_ts = datetime.now().isoformat()
+                    for m in save_data_msgs:
+                        if "timestamp" not in m:
+                            m["timestamp"] = now_ts
                     save_conversation(
                         messages=save_data_msgs,
                         model=model_config.get("model_id", ""),
@@ -646,3 +716,14 @@ async def chat_websocket(ws: WebSocket):
             await ws.send_json({"type": "error", "content": f"服务错误: {str(e)}"})
         except Exception:
             pass
+    finally:
+        # 停止后台 Reader
+        _stop_event.set()
+        if reader_task and not reader_task.done():
+            reader_task.cancel()
+            try:
+                await reader_task
+            except asyncio.CancelledError:
+                pass
+        # 清理所有待处理的权限请求
+        permission_guard.cancel_all()

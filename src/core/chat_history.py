@@ -55,14 +55,24 @@ def save_conversation(
     if conv_id is None:
         conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    # 保留原始创建时间（不因后续保存而覆盖）
+    path = CONVERSATIONS_DIR / f"{conv_id}.json"
+    if path.exists():
+        try:
+            old_data = json.loads(path.read_text(encoding="utf-8"))
+            created = old_data.get("created", datetime.now().isoformat())
+        except (json.JSONDecodeError, KeyError):
+            created = datetime.now().isoformat()
+    else:
+        created = datetime.now().isoformat()
+
     data = {
         "id": conv_id,
-        "created": datetime.now().isoformat(),
+        "created": created,
         "model": model,
         "role": role,
         "messages": messages,
     }
-    path = CONVERSATIONS_DIR / f"{conv_id}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return conv_id
 

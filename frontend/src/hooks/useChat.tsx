@@ -1,4 +1,6 @@
 import { createContext, useContext, useReducer, useRef, useCallback, useEffect, useState, type ReactNode } from 'react'
+import type { TokenStatsData } from '@/components/TokenPanel'
+import type { PermissionRequest } from '@/components/PermissionDialog'
 
 // ── Types ──
 
@@ -42,7 +44,7 @@ type ChatAction =
   | { type: 'SET_DONE' }
   | { type: 'SET_ERROR'; content: string }
   | { type: 'NEW_SCENE' }
-  | { type: 'LOAD_CONVERSATION'; messages: Array<{ role: string; content: string }>; convId: string }
+  | { type: 'LOAD_CONVERSATION'; messages: Array<{ role: string; content: string; timestamp?: string }>; convId: string }
 
 // ── Reducer (same logic, now at module level) ──
 
@@ -203,7 +205,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         id: nextId(),
         role: m.role as ChatMessage['role'],
         content: m.content,
-        timestamp: Date.now() - 1,  // 稍早于当前时间，排序在旧消息中
+        timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now() - 1,
       }))
       return { ...state, messages: loadedMsgs, streaming: false, error: null }
     }
@@ -227,6 +229,9 @@ interface ChatContextValue {
   sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles) => void
   stopStreaming: () => void
   newScene: () => void
+  tokenStats: TokenStatsData | null
+  permissionRequest: PermissionRequest | null
+  respondPermission: (id: string, action: 'allow_once' | 'allow_always' | 'deny' | 'deny_always') => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -236,6 +241,8 @@ const ChatContext = createContext<ChatContextValue | null>(null)
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null, contextInfo: null, sceneCount: 1 })
   const [toggles, setToggles] = useState<ChatToggles>({ rag: false, memory: true, thinking: false })
+  const [tokenStats, setTokenStats] = useState<TokenStatsData | null>(null)
+  const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const convIdRef = useRef<string>(localStorage.getItem('aicraft_last_conv_id') || '')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -299,6 +306,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               dispatch({ type: 'LOAD_CONVERSATION', messages: data.messages, convId: data.conv_id || '' })
             }
             break
+          case 'token_stats':
+            if (data.data) {
+              setTokenStats(data.data)
+            }
+            break
+          case 'permission_request':
+            // AI 请求文件操作权限 → 弹出确认框
+            setPermissionRequest({
+              id: data.id,
+              tool: data.tool,
+              paths: data.paths || [],
+              operation: data.operation || 'read',
+              risk: data.risk || 'low',
+              preview: data.preview || '',
+            })
+            break
           case 'error':
             dispatch({ type: 'SET_ERROR', content: data.content })
             // 如果对话文件不存在，清除本地缓存的 convId
@@ -314,6 +337,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     ws.onopen = () => {
+      // 启动时获取 token 统计
+      ws.send(JSON.stringify({ type: 'get_token_stats' }))
       // 启动时自动恢复上一次对话（无 convId 时后端自动找最近对话）
       ws.send(JSON.stringify({ type: 'load_conv', conv_id: convIdRef.current }))
     }
@@ -397,10 +422,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'NEW_SCENE' })
     convIdRef.current = ''
     localStorage.removeItem('aicraft_last_conv_id')
+    // 重置当前场景的 token 统计（后端已重置，前端也清零等待推送）
+    setTokenStats(null)
   }, [])
 
+  const respondPermission = useCallback(
+    (id: string, action: 'allow_once' | 'allow_always' | 'deny' | 'deny_always') => {
+      setPermissionRequest(null)
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'permission_response',
+          id,
+          action,
+        }))
+      }
+    },
+    []
+  )
+
   return (
-    <ChatContext.Provider value={{ state, toggles, setToggles, sendMessage, stopStreaming, newScene }}>
+    <ChatContext.Provider value={{
+      state, toggles, setToggles, sendMessage, stopStreaming, newScene,
+      tokenStats, permissionRequest, respondPermission,
+    }}>
       {children}
     </ChatContext.Provider>
   )
@@ -424,5 +468,8 @@ export function useChat() {
     sendMessage: ctx.sendMessage,
     stopStreaming: ctx.stopStreaming,
     newScene: ctx.newScene,
+    tokenStats: ctx.tokenStats,
+    permissionRequest: ctx.permissionRequest,
+    respondPermission: ctx.respondPermission,
   }
 }

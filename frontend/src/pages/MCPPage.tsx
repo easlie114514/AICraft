@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Zap, ChevronDown, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, Zap, ChevronDown, RefreshCw, Shield, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { api } from '@/lib/api'
@@ -38,11 +39,20 @@ const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructiv
   error: { variant: 'destructive', label: '错误' },
 }
 
+interface PermissionConfig {
+  trusted_paths: string[]
+  denied_paths: string[]
+  prompt_timeout_seconds: number
+}
+
 export default function MCPPage() {
   const [connections, setConnections] = useState<MCPConnection[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [envStatus, setEnvStatus] = useState<{ available: boolean; path: string | null; version: string | null } | null>(null)
   const [connecting, setConnecting] = useState<Record<string, boolean>>({})
+  const [permConfig, setPermConfig] = useState<PermissionConfig | null>(null)
+  const [newTrustedPath, setNewTrustedPath] = useState('')
+  const [newDeniedPath, setNewDeniedPath] = useState('')
   const [form, setForm] = useState({
     name: '', type: 'sse', host: '', port: '', url: '', command: '', args: '',
   })
@@ -61,7 +71,22 @@ export default function MCPPage() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { loadConnections(); loadEnvStatus() }, [loadConnections, loadEnvStatus])
+  const loadPermissions = useCallback(async () => {
+    try {
+      const data = await api.get<PermissionConfig>('/mcp/permissions')
+      setPermConfig(data)
+    } catch { /* ignore */ }
+  }, [])
+
+  const savePermissions = useCallback(async (updated: PermissionConfig) => {
+    if (!updated) return
+    try {
+      await api.put('/mcp/permissions', updated)
+      setPermConfig(updated)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { loadConnections(); loadEnvStatus(); loadPermissions() }, [loadConnections, loadEnvStatus, loadPermissions])
 
   const handleAdd = async () => {
     if (!form.name.trim()) return
@@ -135,8 +160,8 @@ export default function MCPPage() {
                 <Card key={conn.name} className="hover:shadow-card-hover transition-shadow duration-200">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <Avatar className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-[#4080FF]">
-                        <AvatarFallback className="bg-transparent text-white">
+                      <Avatar className="h-10 w-10 shrink-0 rounded-full bg-primary/15">
+                        <AvatarFallback className="bg-transparent text-primary">
                           <Zap className="h-5 w-5" />
                         </AvatarFallback>
                       </Avatar>
@@ -205,6 +230,130 @@ export default function MCPPage() {
                 </Card>
               )
             })}
+          </div>
+        )}
+        {permConfig && (
+          <div className="mt-6">
+            <Separator className="mb-4" />
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="h-4 w-4 text-primary" />
+              <h3 className="text-base font-semibold text-text-primary">文件访问权限</h3>
+              <span className="text-xs text-text-tertiary">
+                AI 访问文件前需要你的批准 · 超时 {permConfig.prompt_timeout_seconds} 秒自动拒绝
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* 信任路径 */}
+              <Card>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-success">
+                    <Lock className="h-3 w-3" />
+                    信任路径（自动放行）
+                  </div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {permConfig.trusted_paths.length === 0 && (
+                      <p className="text-xs text-text-disabled">无信任路径</p>
+                    )}
+                    {permConfig.trusted_paths.map((p) => (
+                      <div key={p} className="flex items-center gap-1 text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded">
+                        <span className="flex-1 truncate">{p}</span>
+                        <Button
+                          variant="ghost" size="icon"
+                          className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            const updated = { ...permConfig, trusted_paths: permConfig.trusted_paths.filter((x) => x !== p) }
+                            savePermissions(updated)
+                          }}
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-1">
+                    <Input
+                      className="h-7 text-xs"
+                      placeholder="添加路径..."
+                      value={newTrustedPath}
+                      onChange={(e) => setNewTrustedPath(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newTrustedPath.trim()) {
+                          savePermissions({ ...permConfig, trusted_paths: [...permConfig.trusted_paths, newTrustedPath.trim()] })
+                          setNewTrustedPath('')
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline" size="sm" className="h-7 text-xs px-2 shrink-0"
+                      onClick={() => {
+                        if (newTrustedPath.trim()) {
+                          savePermissions({ ...permConfig, trusted_paths: [...permConfig.trusted_paths, newTrustedPath.trim()] })
+                          setNewTrustedPath('')
+                        }
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 拒绝路径 */}
+              <Card>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-danger">
+                    <Shield className="h-3 w-3" />
+                    拒绝路径（禁止访问）
+                  </div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {permConfig.denied_paths.length === 0 && (
+                      <p className="text-xs text-text-disabled">无拒绝路径</p>
+                    )}
+                    {permConfig.denied_paths.map((p) => (
+                      <div key={p} className="flex items-center gap-1 text-xs font-mono bg-danger/5 px-1.5 py-0.5 rounded">
+                        <span className="flex-1 truncate">{p}</span>
+                        <Button
+                          variant="ghost" size="icon"
+                          className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            const updated = { ...permConfig, denied_paths: permConfig.denied_paths.filter((x) => x !== p) }
+                            savePermissions(updated)
+                          }}
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-1">
+                    <Input
+                      className="h-7 text-xs"
+                      placeholder="添加路径..."
+                      value={newDeniedPath}
+                      onChange={(e) => setNewDeniedPath(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newDeniedPath.trim()) {
+                          savePermissions({ ...permConfig, denied_paths: [...permConfig.denied_paths, newDeniedPath.trim()] })
+                          setNewDeniedPath('')
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline" size="sm" className="h-7 text-xs px-2 shrink-0"
+                      onClick={() => {
+                        if (newDeniedPath.trim()) {
+                          savePermissions({ ...permConfig, denied_paths: [...permConfig.denied_paths, newDeniedPath.trim()] })
+                          setNewDeniedPath('')
+                        }
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
       </ScrollArea>

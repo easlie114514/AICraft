@@ -1,0 +1,13 @@
+{
+  "trusted_paths": [],
+  "denied_paths": [
+    "C:/Windows/**",
+    "C:/Program Files/**",
+    "C:/Program Files (x86)/**",
+    "**/System32/**",
+    "**/WinSxS/**",
+    "**/.git/config",
+    "**/.ssh/**"
+  ],
+  "prompt_timeout_seconds": 60
+}

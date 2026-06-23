@@ -3,6 +3,8 @@
 支持两种运行模式：
 - 开发模式 (python run.py): 所有数据在项目根目录
 - 打包模式 (PyInstaller): 出厂数据只读，用户数据在 %APPDATA%/AICraft/
+
+Author: Easlie_YHQ
 """
 
 import json

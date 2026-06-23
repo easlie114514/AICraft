@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.deps import init_deps, get_deps
-from backend.routers import models, roles, skills, mcp, rag, memory, search
+from backend.routers import models, roles, skills, mcp, rag, memory, search, settings
 from backend.chat_ws import router as chat_ws_router
 from src.utils.config import FRONTEND_DIST
 
@@ -60,6 +60,7 @@ app.include_router(mcp.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
 app.include_router(memory.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
+app.include_router(settings.router, prefix="/api")
 app.include_router(chat_ws_router, prefix="/api")
 
 # 生产模式：挂载前端静态资源

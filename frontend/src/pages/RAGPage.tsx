@@ -347,8 +347,8 @@ export default function RAGPage() {
               <Card key={s.name} className="hover:shadow-card-hover transition-shadow duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
-                    <Avatar className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-primary to-[#4080FF]">
-                      <AvatarFallback className="bg-transparent text-white">
+                    <Avatar className="h-10 w-10 shrink-0 rounded-full bg-primary/15">
+                      <AvatarFallback className="bg-transparent text-primary">
                         <Folder className="h-5 w-5" />
                       </AvatarFallback>
                     </Avatar>

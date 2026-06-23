@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
+import PermissionDialog from '@/components/PermissionDialog'
+import TokenPanel from '@/components/TokenPanel'
 import { useChat } from '@/hooks/useChat'
 import { api } from '@/lib/api'
 
@@ -25,7 +27,7 @@ interface RoleOption {
 }
 
 export default function ChatPage() {
-  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
@@ -33,6 +35,7 @@ export default function ChatPage() {
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [selectedModel, setSelectedModel] = useState('')
   const [selectedRole, setSelectedRole] = useState('')
+  const [tokenPanelOpen, setTokenPanelOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [isNearBottom, setIsNearBottom] = useState(true)
 
@@ -273,7 +276,7 @@ export default function ChatPage() {
           </Select>
 
           <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v ?? '')}>
-            <SelectTrigger className="w-[120px] !h-auto self-stretch text-xs">
+            <SelectTrigger className="w-[90px] !h-auto self-stretch text-xs">
               <SelectValue placeholder="角色" />
             </SelectTrigger>
             <SelectContent sideOffset={6}>
@@ -285,18 +288,30 @@ export default function ChatPage() {
             </SelectContent>
           </Select>
 
+          <TokenPanel
+            stats={tokenStats}
+            isOpen={tokenPanelOpen}
+            onToggle={() => setTokenPanelOpen((v) => !v)}
+          />
+
           {streaming ? (
             <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
               <Square className="h-4 w-4" />
             </Button>
           ) : (
-            <Button size="icon" onClick={handleSend} disabled={!input.trim()} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
+            <Button onClick={handleSend} disabled={!input.trim()} className="h-10 min-w-[86px] rounded-lg shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           )}
         </div>
         </div>
       </div>
+
+      {/* Permission Dialog — overlaid on top of everything */}
+      <PermissionDialog
+        request={permissionRequest}
+        onResponse={respondPermission}
+      />
     </div>
   )
 }

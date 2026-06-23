@@ -1,12 +1,62 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════
+   多主题色系 — 通过切换 <html> 上的 .theme-{name} 类实现
+   新增主题只需加一套 :root 变量即可
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 字节蓝（默认）── */
+:root,
+.theme-blue {
+  --theme-primary: #165DFF;
+  --theme-primary-hover: #0E42D2;
+  --theme-primary-light: #E8F3FF;
+  --theme-primary-lighter: #F2F7FF;
+  --theme-ring: #165DFF;
+  --theme-nav-bg: #0F1E4A;
+  --theme-input: #E4E8F0;
+}
+
+/* ── 竹叶绿 ── */
+.theme-green {
+  --theme-primary: #16A34A;
+  --theme-primary-hover: #15803D;
+  --theme-primary-light: #F0FDF4;
+  --theme-primary-lighter: #F7FEF9;
+  --theme-ring: #16A34A;
+  --theme-nav-bg: #0A1F12;
+  --theme-input: #E2EBE5;
+}
+
+/* ── 暮光紫 ── */
+.theme-purple {
+  --theme-primary: #7C3AED;
+  --theme-primary-hover: #6D28D9;
+  --theme-primary-light: #F5F3FF;
+  --theme-primary-lighter: #FAF9FF;
+  --theme-ring: #7C3AED;
+  --theme-nav-bg: #1A0F2E;
+  --theme-input: #E9E5F0;
+}
+
+/* ── 日落橙 ── */
+.theme-orange {
+  --theme-primary: #EA580C;
+  --theme-primary-hover: #C2410C;
+  --theme-primary-light: #FFF7ED;
+  --theme-primary-lighter: #FFFBEB;
+  --theme-ring: #EA580C;
+  --theme-nav-bg: #1F1005;
+  --theme-input: #EDE7E1;
+}
+
 @theme {
-  /* 主色：字节蓝 #165DFF */
-  --color-primary: hsl(219 100% 55%);
+  /* ── 主色：引用主题 CSS 变量，切换 .theme-* 类即可全局变色 ── */
+  --color-primary: var(--theme-primary);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-primary-hover: #0E42D2;
-  --color-primary-light: #E8F3FF;
-  --color-primary-lighter: #F2F7FF;
+  --color-primary-hover: var(--theme-primary-hover);
+  --color-primary-light: var(--theme-primary-light);
+  --color-primary-lighter: var(--theme-primary-lighter);
 
   /* 背景/前景 */
   --color-background: #F7F8FA;
@@ -20,11 +70,11 @@
   --color-muted: #ECEEF2;
   --color-muted-foreground: #4E5969;
 
-  /* 边框 */
-  --color-border: #E5E6EB;
+  /* 边框 / 输入框 — 跟随主题色系微调 */
+  --color-border: var(--theme-input);
   --color-border-light: #F2F3F5;
-  --color-input: #E5E6EB;
-  --color-ring: hsl(219 100% 55%);
+  --color-input: var(--theme-input);
+  --color-ring: var(--theme-ring);
 
   /* 语义色 */
   --color-destructive: hsl(0 84% 60%);
@@ -42,8 +92,8 @@
   --color-text-tertiary: #86909C;
   --color-text-disabled: #C9CDD4;
 
-  /* 导航 */
-  --color-nav-bg: #0D47D7;
+  /* 导航 — 跟随主题色系 */
+  --color-nav-bg: var(--theme-nav-bg);
   --color-nav-text: #FFFFFF;
 
   /* accent / secondary / popover */

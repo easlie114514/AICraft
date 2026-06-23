@@ -7,7 +7,24 @@ import type { ChatMessage as ChatMessageType } from '@/hooks/useChat'
 
 function formatTime(ts: number): string {
   const d = new Date(ts)
-  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  const now = new Date()
+  const sameDay = d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  const sameYear = d.getFullYear() === now.getFullYear()
+
+  if (sameDay) {
+    // 今天：只显示时间
+    return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  if (sameYear) {
+    // 同年不同天：月/日 时间
+    return `${d.getMonth() + 1}/${d.getDate()} ` +
+      d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  // 跨年：完整年月日 时间
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ` +
+    d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
 interface Props {

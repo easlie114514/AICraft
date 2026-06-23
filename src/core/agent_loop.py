@@ -30,6 +30,8 @@ from anthropic import AsyncAnthropic
 
 from src.core.llm import get_current_model_config
 from src.core.openai_client import acompletion as openai_completion
+from src.core.permission_guard import PermissionGuard
+from src.core.token_tracker import token_tracker
 from src.core.web_search import (
     QUICK_SOURCE_TOOLS_ANTHROPIC,
     QUICK_SOURCE_TOOLS_OPENAI,
@@ -81,6 +83,15 @@ def _convert_messages_to_anthropic(messages: list[dict]) -> tuple[str, list[dict
             anthropic_messages.append({"role": "user", "content": msg.get("content", "")})
 
         elif role == "assistant":
+            # 如果有 anthropic_content（直接来自 API 响应的完整 content blocks），
+            # 直接使用它，以保证 thinking block 的 signature 等字段原样传回
+            if msg.get("anthropic_content"):
+                anthropic_messages.append({
+                    "role": "assistant",
+                    "content": msg["anthropic_content"],
+                })
+                continue
+
             content = msg.get("content") or ""
             tool_calls = msg.get("tool_calls") or []
 
@@ -188,6 +199,9 @@ async def _stream_via_anthropic(
     thinking_start_time: float | None = None
     full_text = ""
     tool_use_blocks: dict[int, dict[str, Any]] = {}
+    # 追踪所有 Anthropic content blocks（保留顺序，用于传回 API）
+    # 深度思考模式下，thinking block 的 signature 必须在后续请求中传回
+    content_blocks: dict[int, dict[str, Any]] = {}
 
     async with client.messages.stream(**kwargs) as stream:
         async for event in stream:
@@ -202,16 +216,29 @@ async def _stream_via_anthropic(
                 if block_type == "thinking":
                     if thinking_start_time is None:
                         thinking_start_time = time.time()
+                    content_blocks[idx] = {
+                        "type": "thinking",
+                        "thinking": "",
+                        "signature": getattr(block, 'signature', ''),
+                    }
+
+                elif block_type == "text":
+                    content_blocks[idx] = {
+                        "type": "text",
+                        "text": "",
+                    }
 
                 elif block_type == "server_tool_use":
                     yield {"type": "search_status", "status": "searching"}
 
                 elif block_type == "tool_use":
                     tool_use_blocks[idx] = {
+                        "type": "tool_use",
                         "id": getattr(block, 'id', ''),
                         "name": getattr(block, 'name', ''),
                         "input_json": "",
                     }
+                    content_blocks[idx] = tool_use_blocks[idx]
 
             # ── content_block_delta ──
             elif event_type == "content_block_delta":
@@ -225,6 +252,8 @@ async def _stream_via_anthropic(
                         if thinking_start_time is None:
                             thinking_start_time = time.time()
                         yield {"type": "thinking", "content": thinking_text}
+                        if idx in content_blocks:
+                            content_blocks[idx]["thinking"] += thinking_text
 
                 elif delta_type == "text_delta":
                     text = getattr(delta, 'text', '')
@@ -235,19 +264,74 @@ async def _stream_via_anthropic(
                             thinking_start_time = None
                         full_text += text
                         yield {"type": "text", "content": text}
+                        if idx in content_blocks:
+                            content_blocks[idx]["text"] += text
 
                 elif delta_type == "input_json_delta":
                     partial = getattr(delta, 'partial_json', '')
                     if idx in tool_use_blocks:
                         tool_use_blocks[idx]["input_json"] += partial
 
+        # ── 流结束后获取 usage（Anthropic SDK）──
+        try:
+            # 方式1：get_final_message()（标准方式）
+            final_message = await stream.get_final_message()
+            if final_message and hasattr(final_message, 'usage') and final_message.usage:
+                usage_dict = {
+                    "input_tokens": getattr(final_message.usage, 'input_tokens', 0) or 0,
+                    "output_tokens": getattr(final_message.usage, 'output_tokens', 0) or 0,
+                    "cache_read_input_tokens": getattr(final_message.usage, 'cache_read_input_tokens', 0) or 0,
+                    "cache_creation_input_tokens": getattr(final_message.usage, 'cache_creation_input_tokens', 0) or 0,
+                }
+                yield {"type": "_usage", "usage": usage_dict, "model": actual_model}
+        except Exception as e:
+            import logging
+            logging.getLogger("aicraft").warning(f"token_tracker: get_final_message() failed: {e}")
+            # 方式2：尝试 current_message_snapshot（SDK 内部快照）
+            try:
+                snap = stream.current_message_snapshot
+                if snap and hasattr(snap, 'usage') and snap.usage:
+                    usage_dict = {
+                        "input_tokens": getattr(snap.usage, 'input_tokens', 0) or 0,
+                        "output_tokens": getattr(snap.usage, 'output_tokens', 0) or 0,
+                        "cache_read_input_tokens": getattr(snap.usage, 'cache_read_input_tokens', 0) or 0,
+                        "cache_creation_input_tokens": getattr(snap.usage, 'cache_creation_input_tokens', 0) or 0,
+                    }
+                    yield {"type": "_usage", "usage": usage_dict, "model": actual_model}
+            except Exception:
+                pass
+
     # ── 流结束后处理 ──
     if thinking_start_time is not None:
         duration_ms = int((time.time() - thinking_start_time) * 1000)
         yield {"type": "thinking_end", "duration_ms": duration_ms}
 
-    # ── 流结束：总是 yield _stream_end 携带累积的 full_text ──
-    yield {"type": "_stream_end", "full_text": full_text}
+    # ── 构建 anthropic_content：保留完整的 content blocks 用于传回 API ──
+    # 深度思考模式下，thinking block 的 signature 必须原样传回
+    anthropic_content: list[dict[str, Any]] = []
+    for idx in sorted(content_blocks.keys()):
+        block = content_blocks[idx]
+        if block["type"] == "tool_use":
+            json_str = block.get("input_json", "")
+            try:
+                input_data = json.loads(json_str) if json_str else {}
+            except json.JSONDecodeError:
+                input_data = {}
+            anthropic_content.append({
+                "type": "tool_use",
+                "id": block["id"],
+                "name": block["name"],
+                "input": input_data,
+            })
+        else:
+            anthropic_content.append(dict(block))
+
+    # ── 流结束：总是 yield _stream_end 携带累积的 full_text 和 anthropic_content ──
+    yield {
+        "type": "_stream_end",
+        "full_text": full_text,
+        "anthropic_content": anthropic_content,
+    }
 
     # 如果有客户端 tool_use，yield 出来让 agent_loop 执行
     for idx in sorted(tool_use_blocks.keys()):
@@ -270,20 +354,39 @@ async def execute_mcp_tool(
     tool_name: str,
     tool_args: dict[str, Any],
     mcp_manager: Any,
+    permission_guard: PermissionGuard | None = None,
 ) -> str:
     """执行 MCP 工具调用
 
     遍历所有已连接的 MCP 服务器，找到拥有该工具的服务器并通过 MCPManager.call_tool 调用。
     call_tool 会自动处理 SSE（短连接）和 Stdio（长连接）两种模式。
 
+    如果传入 permission_guard，会在执行前检查文件操作权限。
+
     Args:
         tool_name: 工具名称
         tool_args: 工具参数
         mcp_manager: MCPManager 实例
+        permission_guard: 可选的权限守卫
 
     Returns:
         工具执行结果的文本表示
     """
+    # ── 权限检查 ──
+    if permission_guard is not None and permission_guard.needs_guard(tool_name):
+        # 提取写入/删除操作的内容预览
+        preview = ""
+        if tool_name in ("write_file", "edit_file"):
+            preview = str(tool_args.get("content", "") or tool_args.get("new_string", ""))
+        elif tool_name == "delete_file":
+            preview = f"DELETE: {tool_args.get('path', '')}"
+        elif tool_name == "move_file":
+            preview = f"MOVE: {tool_args.get('source', '')} → {tool_args.get('destination', '')}"
+
+        perm = await permission_guard.check(tool_name, tool_args, preview)
+        if not perm.allowed:
+            return f"[权限拒绝] {perm.reason}"
+
     for conn in mcp_manager.connections:
         if not (conn.enabled and conn.status == "connected"):
             continue
@@ -333,6 +436,7 @@ async def agent_loop(
     max_rounds: int = 10,
     thinking_enabled: bool = False,
     search_enabled: bool = True,
+    permission_guard: PermissionGuard | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Agent 主循环 — 支持多轮工具调用
 
@@ -382,6 +486,9 @@ async def agent_loop(
             # ── Anthropic SDK 路径（DeepSeek / Claude）──
             tool_call_events: list[dict] = []
             full_text = ""
+            anthropic_content: list[dict[str, Any]] | None = None
+            stream_usage: dict | None = None
+            stream_model: str = ""
 
             async for event in _stream_via_anthropic(
                 messages=messages,
@@ -392,14 +499,26 @@ async def agent_loop(
             ):
                 if event.get("type") == "_stream_end":
                     full_text = event.get("full_text", "")
+                    anthropic_content = event.get("anthropic_content")
+                elif event.get("type") == "_usage":
+                    stream_usage = event.get("usage")
+                    stream_model = event.get("model", "")
                 elif event.get("type") == "tool_call":
                     tool_call_events.append(event)
                 else:
                     yield event
 
+            # ── 追踪 token 用量 ──
+            if stream_usage:
+                token_tracker.update(stream_usage, stream_model)
+                yield {"type": "token_stats", "data": token_tracker.get_stats()}
+
             # 流结束，无客户端 tool_use → 保存 assistant 消息并结束
             if not tool_call_events:
-                messages.append({"role": "assistant", "content": full_text})
+                msg: dict[str, Any] = {"role": "assistant", "content": full_text}
+                if anthropic_content:
+                    msg["anthropic_content"] = anthropic_content
+                messages.append(msg)
                 break
 
             # 有客户端工具调用 → 构建 assistant 消息（含 tool_calls）并执行工具
@@ -414,11 +533,14 @@ async def agent_loop(
                     },
                 })
 
-            messages.append({
+            msg = {
                 "role": "assistant",
                 "content": full_text or None,
                 "tool_calls": tool_calls_for_msg,
-            })
+            }
+            if anthropic_content:
+                msg["anthropic_content"] = anthropic_content
+            messages.append(msg)
 
             # 逐个执行工具
             for ev in tool_call_events:
@@ -438,7 +560,9 @@ async def agent_loop(
                 # MCP 工具
                 elif mcp_manager is not None:
                     try:
-                        result = await execute_mcp_tool(tool_name, tool_args, mcp_manager)
+                        result = await execute_mcp_tool(
+                            tool_name, tool_args, mcp_manager, permission_guard
+                        )
                     except Exception as e:
                         result = f"工具执行异常: {str(e)}"
                 else:
@@ -466,9 +590,14 @@ async def agent_loop(
 
             full_text = ""
             tool_call_deltas: dict[int, dict[str, str]] = {}
+            stream_usage: dict | None = None
 
             async for chunk in response:
                 delta = chunk.choices[0].delta
+
+                # ── 捕获 usage（streaming 最后一个 chunk 携带）──
+                if chunk.usage:
+                    stream_usage = dict(chunk.usage)
 
                 # ── Thinking 增量 ──
                 if thinking_enabled:
@@ -506,6 +635,11 @@ async def agent_loop(
                         thinking_start_time = None
                     full_text += delta.content
                     yield {"type": "text", "content": delta.content}
+
+            # ── 追踪 token 用量 ──
+            if stream_usage:
+                token_tracker.update(stream_usage, model_config.get("model_id", ""))
+                yield {"type": "token_stats", "data": token_tracker.get_stats()}
 
             # ── 无工具调用 → 循环结束 ──
             if not tool_call_deltas:
@@ -561,7 +695,9 @@ async def agent_loop(
                         result = f"联网搜索失败: {str(e)}"
                 elif mcp_manager is not None:
                     try:
-                        result = await execute_mcp_tool(tool_name, tool_args, mcp_manager)
+                        result = await execute_mcp_tool(
+                            tool_name, tool_args, mcp_manager, permission_guard
+                        )
                     except Exception as e:
                         result = f"工具执行异常: {str(e)}"
                 else:

@@ -1,4 +1,5 @@
 import WindowControls from '@/components/WindowControls'
+import ThemeSwitcher from '@/components/ThemeSwitcher'
 import { cn } from '@/lib/utils'
 
 interface TabItem {
@@ -21,23 +22,28 @@ export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
         <span className="text-white font-medium text-sm">AICraft</span>
       </div>
 
-      {/* Tab 列表：下划线指示器风格 */}
-      <nav className="flex items-center h-full">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => onTabChange(tab.key)}
-            className={cn(
-              'px-4 h-full text-sm font-medium transition-all duration-200 border-b-2',
-              activeTab === tab.key
-                ? 'text-white border-white'
-                : 'text-white/60 hover:text-white/80 border-transparent'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      {/* 中间：Tab 列表 + 主题切换 */}
+      <div className="flex items-center h-full">
+        <nav className="flex items-center h-full">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => onTabChange(tab.key)}
+              className={cn(
+                'px-4 h-full text-sm font-medium transition-all duration-200 border-b-2',
+                activeTab === tab.key
+                  ? 'text-white border-white'
+                  : 'text-white/60 hover:text-white/80 border-transparent'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+        <div className="ml-3">
+          <ThemeSwitcher />
+        </div>
+      </div>
 
       {/* 右侧：窗口控制 */}
       <WindowControls />

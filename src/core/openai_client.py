@@ -56,6 +56,7 @@ class OpenAIStreamChunk:
 
     def __init__(self, data: dict):
         self.choices = [OpenAIChoice(c) for c in data.get("choices", [])]
+        self.usage = data.get("usage")  # streaming 最后一个 chunk 可能携带 usage
 
 
 class OpenAIFunction:
@@ -77,9 +78,10 @@ class OpenAIToolCall:
 class OpenAIMessage:
     """非流式响应的 message"""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict, usage: dict | None = None):
         self.content = data.get("content") or ""
         self.tool_calls = None
+        self.usage = usage
         raw_tc = data.get("tool_calls")
         if raw_tc:
             self.tool_calls = [OpenAIToolCall(tc) for tc in raw_tc]
@@ -121,6 +123,7 @@ async def acompletion(
     payload.update(kwargs)  # 透传 temperature 等其他参数
 
     if stream:
+        payload["stream_options"] = {"include_usage": True}
         return _stream_response(url, headers, payload)
     else:
         return await _non_stream_response(url, headers, payload)
@@ -167,4 +170,4 @@ async def _non_stream_response(
         resp = await client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        return OpenAIMessage(data["choices"][0]["message"])
+        return OpenAIMessage(data["choices"][0]["message"], usage=data.get("usage"))

@@ -57,6 +57,9 @@ def init_deps() -> AppDeps:
                     args=substituted_args,
                     env=item.get("env", {}),
                 )
+    else:
+        # ── 迁移：将旧的 npm server-filesystem 替换为 Python 版 file_manager ──
+        _migrate_file_manager(mcp)
 
     rag = RAGEngine()
 
@@ -91,6 +94,21 @@ def init_deps() -> AppDeps:
         skill_loader=skill,
     )
     return _deps
+
+
+def _migrate_file_manager(mcp: MCPManager) -> None:
+    """将旧版 npm server-filesystem MCP 连接迁移为 Python 版"""
+    import json as _json
+
+    for conn in mcp.connections:
+        args = conn.args or []
+        args_str = " ".join(args)
+        if "@modelcontextprotocol/server-filesystem" in args_str:
+            # 替换为 Python 版 file_manager
+            conn.command = "python"
+            conn.args = ["src/mcp_servers/file_manager.py"]
+            # 持久化
+            mcp.save_connections()
 
 
 def get_deps() -> AppDeps:

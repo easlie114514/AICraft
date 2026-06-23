@@ -100,3 +100,28 @@ async def disconnect_mcp(name: str):
     except Exception:
         pass
     return {"ok": True}
+
+
+# ── 权限配置 API ──
+
+@router.get("/mcp/permissions")
+async def get_permissions():
+    """获取权限配置（信任/拒绝路径、超时等）"""
+    from src.core.permission_guard import load_permission_config
+    return load_permission_config()
+
+
+@router.put("/mcp/permissions")
+async def update_permissions(data: dict):
+    """更新权限配置"""
+    from src.core.permission_guard import load_permission_config, save_permission_config
+
+    cfg = load_permission_config()
+    # 只允许更新白名单字段
+    allowed_fields = {"trusted_paths", "denied_paths", "prompt_timeout_seconds"}
+    for key in allowed_fields:
+        if key in data:
+            cfg[key] = data[key]
+
+    save_permission_config(cfg)
+    return cfg

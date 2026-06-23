@@ -122,7 +122,7 @@ export default function ModelPage() {
           <Button variant="outline" size="icon" onClick={() => { loadModels(); loadChannels() }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setShowChannel(true)} className="bg-gradient-to-br from-primary to-[#4080FF] text-white">
+          <Button onClick={() => setShowChannel(true)} className="bg-primary text-white">
             <Zap className="h-4 w-4 mr-1" />
             DeepSeek一键接入
           </Button>
@@ -148,8 +148,8 @@ export default function ModelPage() {
                 <Card key={m.name} className="hover:shadow-card-hover transition-shadow duration-200">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <Avatar className={`h-10 w-10 shrink-0 rounded-lg ${m.tier === 'flash' ? 'bg-gradient-to-br from-warning to-[#D07030]' : 'bg-gradient-to-br from-primary to-[#4080FF]'}`}>
-                        <AvatarFallback className="bg-transparent text-white">
+                      <Avatar className={`h-10 w-10 shrink-0 rounded-full ${m.tier === 'flash' ? 'bg-warning/15' : 'bg-primary/15'}`}>
+                        <AvatarFallback className={`bg-transparent ${m.tier === 'flash' ? 'text-warning' : 'text-primary'}`}>
                           <Cpu className="h-5 w-5" />
                         </AvatarFallback>
                       </Avatar>
@@ -271,7 +271,7 @@ export default function ModelPage() {
             <Button variant="outline" onClick={() => setShowChannel(false)} >取消</Button>
             <Button
               onClick={handleAddChannel}
-              className="bg-gradient-to-br from-primary to-[#4080FF] text-white"
+              className="bg-primary text-white"
               disabled={!channelApiKey.trim()}
             >
               保存
