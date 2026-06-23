@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useRef, useCallback, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useReducer, useRef, useCallback, useEffect, useState, type ReactNode } from 'react'
 
 // ── Types ──
 
@@ -214,9 +214,17 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
 // ── Context ──
 
+export interface ChatToggles {
+  rag: boolean
+  memory: boolean
+  thinking: boolean
+}
+
 interface ChatContextValue {
   state: ChatState
-  sendMessage: (content: string, modelId: string, role: string, toggles: Record<string, boolean>) => void
+  toggles: ChatToggles
+  setToggles: (toggles: ChatToggles) => void
+  sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles) => void
   stopStreaming: () => void
   newScene: () => void
 }
@@ -227,6 +235,7 @@ const ChatContext = createContext<ChatContextValue | null>(null)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null, contextInfo: null, sceneCount: 1 })
+  const [toggles, setToggles] = useState<ChatToggles>({ rag: false, memory: true, thinking: false })
   const wsRef = useRef<WebSocket | null>(null)
   const convIdRef = useRef<string>(localStorage.getItem('aicraft_last_conv_id') || '')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -339,7 +348,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [connect])
 
   const sendMessage = useCallback(
-    (content: string, modelId: string, role: string, toggles: Record<string, boolean>) => {
+    (content: string, modelId: string, role: string, toggles: ChatToggles) => {
       const ws = wsRef.current
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         // Reconnect and send
@@ -391,7 +400,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <ChatContext.Provider value={{ state, sendMessage, stopStreaming, newScene }}>
+    <ChatContext.Provider value={{ state, toggles, setToggles, sendMessage, stopStreaming, newScene }}>
       {children}
     </ChatContext.Provider>
   )
@@ -410,6 +419,8 @@ export function useChat() {
     error: ctx.state.error,
     contextInfo: ctx.state.contextInfo,
     sceneCount: ctx.state.sceneCount,
+    toggles: ctx.toggles,
+    setToggles: ctx.setToggles,
     sendMessage: ctx.sendMessage,
     stopStreaming: ctx.stopStreaming,
     newScene: ctx.newScene,

@@ -118,11 +118,18 @@ class RAGEngine:
         return load_json(CONFIG_DIR / "rag_config.json")
 
     def _get_embed_fn(self):
-        """根据配置获取 embedding 函数"""
-        config = self._get_rag_config()
-        mode = config.get("embedding_mode", "auto")
-        api_key = config.get("embedding_api_key", "")
-        return get_embedding_function(mode=mode, api_key=api_key)
+        """根据配置获取 embedding 函数，失败返回 None 并打印警告"""
+        try:
+            config = self._get_rag_config()
+            mode = config.get("embedding_mode", "auto")
+            api_key = config.get("embedding_api_key", "")
+            return get_embedding_function(mode=mode, api_key=api_key)
+        except ValueError as e:
+            print(f"[RAG] Embedding 不可用: {e}")
+            return None
+        except Exception as e:
+            print(f"[RAG] Embedding 初始化异常: {type(e).__name__}: {e}")
+            return None
 
     # ── 配置持久化 ──
 
@@ -313,6 +320,7 @@ class RAGEngine:
                 result = await loop.run_in_executor(None, embed_fn, ["warmup"])
                 return len(result) > 0 and len(result[0]) > 0
             else:
+                # 本地 ONNX 模式
                 import chromadb
                 client = chromadb.PersistentClient(path=str(CHROMA_DIR))
                 collection = client.get_or_create_collection(
@@ -329,6 +337,9 @@ class RAGEngine:
     def search(self, query: str, top_k: int = 5) -> list[str]:
         """检索相关文档片段"""
         try:
+            embed_fn = self._get_embed_fn()
+            # embed_fn 为 None 表示使用 ChromaDB 默认 ONNX（本地模式），合法
+
             import chromadb
             client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 

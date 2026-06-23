@@ -27,6 +27,7 @@ chroma_db/
 .env
 *.key
 api_keys*.json
+config/rag_config.json
 
 # OS files
 Thumbs.db
@@ -39,4 +40,5 @@ Thumbs.db
 *.log
 /memory/conversations/
 /skills/toggles.json
-/models/
+/models/*.json
+!/models/onnx/

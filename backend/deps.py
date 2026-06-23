@@ -52,6 +52,11 @@ def init_deps() -> AppDeps:
                 )
 
     rag = RAGEngine()
+
+    # 确保 rag_config.json 存在（从默认模板复制）
+    from src.utils.config import ensure_rag_config
+    ensure_rag_config()
+
     rag.load_sources()
 
     # 首次启动自动导入出厂 RAG 配置

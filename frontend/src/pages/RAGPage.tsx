@@ -53,13 +53,22 @@ export default function RAGPage() {
   const [ragConfig, setRagConfig] = useState<RAGConfig | null>(null)
   const [configLoading, setConfigLoading] = useState(false)
   const [embedMode, setEmbedMode] = useState('auto')
-  const [apiKey, setApiKey] = useState('')
+  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('aicraft_rag_apikey') || '')
   const [showKey, setShowKey] = useState(false)
   const [embedModel, setEmbedModel] = useState('BAAI/bge-large-zh-v1.5')
   const [apiBase, setApiBase] = useState('https://api.siliconflow.cn/v1')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; dimension?: number; error?: string } | null>(null)
   const [configSaving, setConfigSaving] = useState(false)
+
+  // 持久化 API Key 输入到 sessionStorage（页面切换不丢失）
+  useEffect(() => {
+    if (apiKey) {
+      sessionStorage.setItem('aicraft_rag_apikey', apiKey)
+    } else {
+      sessionStorage.removeItem('aicraft_rag_apikey')
+    }
+  }, [apiKey])
 
   const loadSources = useCallback(async () => {
     try {
@@ -319,10 +328,18 @@ export default function RAGPage() {
 
         {/* ── 数据源列表 ── */}
         {sources.length === 0 && !configLoading ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <Database className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无 RAG 数据源</p>
-            <p className="text-xs mt-1">添加本地文档目录作为知识库数据源</p>
+          <div className="flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
+            <Database className="h-12 w-12 mb-4 opacity-30" />
+            <p className="text-base font-medium text-foreground mb-1">📚 RAG 知识库</p>
+            <p className="text-sm mb-4">给 AI 喂资料，让它从你的文档中找到答案。</p>
+            <Button onClick={() => setShowAdd(true)} className="rounded-xl mb-4">
+              <Plus className="h-4 w-4 mr-1" />
+              添加数据源
+            </Button>
+            <div className="text-xs space-y-1 text-center text-muted-foreground/70">
+              <p>💡 支持 txt/md/py/json/csv/html/xml/docx/pdf 格式</p>
+              <p>💡 推荐先用硅基流动免费 API 做 Embedding（设置页配置）</p>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">

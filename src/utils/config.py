@@ -44,6 +44,24 @@ def save_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def ensure_rag_config():
+    """确保 rag_config.json 存在，不存在则从默认模板复制"""
+    target = CONFIG_DIR / "rag_config.json"
+    if not target.exists():
+        import shutil
+        template = DEFAULTS_DIR / "default_rag_config.json"
+        if template.exists():
+            shutil.copy2(template, target)
+        else:
+            # 硬编码兜底
+            save_json(target, {
+                "embedding_mode": "auto",
+                "embedding_api_key": "",
+                "embedding_model": "BAAI/bge-large-zh-v1.5",
+                "embedding_api_base": "https://api.siliconflow.cn/v1",
+            })
+
+
 def get_current_profile() -> str:
     """获取当前激活的profile名称"""
     app_config = load_json(CONFIG_DIR / "app.json")

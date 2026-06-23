@@ -1,10 +1,27 @@
-"""Embedding 函数 — 支持 SiliconFlow API 和本地 onnx 两种模式"""
+"""Embedding 函数 — 支持 SiliconFlow API 和本地 ONNX 两种模式
+
+本地模式使用项目内置的 all-MiniLM-L6-v2 ONNX 模型（models/onnx/），
+无需联网下载，开箱即用。
+"""
 
 import json
+from pathlib import Path
 from typing import Any
 
 import httpx
 from chromadb.api.types import EmbeddingFunction
+
+BASE_DIR = Path(__file__).parent.parent.parent
+BUNDLED_MODEL_DIR = BASE_DIR / "models" / "onnx" / "all-MiniLM-L6-v2"
+
+# ── 引导 ChromaDB 默认 ONNX 模型指向项目内置目录 ──
+# ChromaDB 的 ONNXMiniLM_L6_V2 默认从 ~/.cache/chroma/onnx_models/ 下载模型。
+# 这里把路径指向项目内置的 models/onnx/，用户无需联网即可使用本地 Embedding。
+try:
+    import chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 as _onnx_module
+    _onnx_module.ONNXMiniLM_L6_V2.DOWNLOAD_PATH = BUNDLED_MODEL_DIR
+except Exception:
+    pass  # chromadb 未安装时静默跳过
 
 
 class SiliconFlowEmbeddingFunction(EmbeddingFunction):
@@ -92,20 +109,42 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
         )
 
 
+def is_local_embedding_available() -> bool:
+    """检测本地 Embedding 是否可用（模型文件 + onnxruntime 运行时）"""
+    # 1. 检查模型文件是否内置
+    model_dir = BUNDLED_MODEL_DIR / "onnx"
+    required_files = [
+        "config.json", "model.onnx", "special_tokens_map.json",
+        "tokenizer.json", "tokenizer_config.json", "vocab.txt",
+    ]
+    for f in required_files:
+        if not (model_dir / f).exists():
+            return False
+
+    # 2. 检查 onnxruntime 运行时
+    try:
+        import onnxruntime  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def get_embedding_function(mode: str = "auto", api_key: str = "") -> EmbeddingFunction | None:
     """获取 embedding 函数
 
-    mode="api"   → 强制硅基流动API（需api_key）
-    mode="local" → 本地onnx（返回None，ChromaDB用默认）
-    mode="auto"  → 有key用API，否则本地
+    mode="api"   → 强制硅基流动 API（需 api_key）
+    mode="local" → 本地 ONNX 模型（项目内置，无需联网；返回 None = ChromaDB 默认）
+    mode="auto"  → 有 Key 用 API，否则本地
     """
     if mode == "api":
         if not api_key:
             raise ValueError("API 模式需要提供硅基流动 API Key")
         return SiliconFlowEmbeddingFunction(api_key=api_key)
+
     if mode == "local":
-        return None
-    # auto
+        return None  # ChromaDB 使用默认 ONNX，路径已在模块顶部指向内置模型
+
+    # auto 模式
     if api_key:
         return SiliconFlowEmbeddingFunction(api_key=api_key)
-    return None
+    return None  # 本地 ONNX

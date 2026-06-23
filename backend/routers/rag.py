@@ -122,6 +122,17 @@ async def update_rag_config(data: dict):
     return {"success": True}
 
 
+@router.get("/rag/patch-status")
+async def rag_patch_status():
+    """检测本地 Embedding 补丁是否已安装"""
+    try:
+        from src.core.embedding import is_local_embedding_available
+        available = is_local_embedding_available()
+    except Exception:
+        available = False
+    return {"local_embedding_available": available}
+
+
 @router.post("/rag/test-embedding")
 async def test_embedding(data: dict):
     """测试 Embedding API 连通性"""

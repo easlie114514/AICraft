@@ -25,11 +25,10 @@ interface RoleOption {
 }
 
 export default function ChatPage() {
-  const { messages, streaming, error, contextInfo, sceneCount, sendMessage, stopStreaming, newScene } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
-  const [toggles, setToggles] = useState({ rag: false, memory: true, thinking: false })
   const [models, setModels] = useState<ModelOption[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [selectedModel, setSelectedModel] = useState('')
