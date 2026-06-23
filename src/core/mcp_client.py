@@ -51,6 +51,19 @@ class MCPConnection:
         return f"{self.host}:{self.port}"
 
 
+def _extract_error(exc: Exception) -> str:
+    """从 ExceptionGroup 中提取实际错误信息"""
+    msg = str(exc)
+    # Python 3.11+ ExceptionGroup: 展开子异常获取真实错误
+    if hasattr(exc, "exceptions"):
+        sub_msgs = []
+        for sub in exc.exceptions:  # type: ignore[attr-defined]
+            sub_msgs.append(_extract_error(sub))
+        if sub_msgs:
+            msg = "; ".join(sub_msgs)
+    return msg
+
+
 class MCPManager:
     """MCP连接管理器 — 支持 SSE 和 Stdio 两种模式"""
 
@@ -226,7 +239,7 @@ class MCPManager:
 
         except Exception as e:
             conn.status = "error"
-            conn.error_msg = str(e)[:200]
+            conn.error_msg = _extract_error(e)[:200]
             return False
 
     # ── Stdio 连接（长连接：后台 Task + 消息队列）──
@@ -301,13 +314,13 @@ class MCPManager:
                                 )
                                 resp_q.put_nowait({"ok": True, "result": result})
                             except Exception as e:
-                                resp_q.put_nowait({"ok": False, "error": str(e)})
+                                resp_q.put_nowait({"ok": False, "error": _extract_error(e)})
 
             except asyncio.CancelledError:
                 pass  # 正常取消，async with 的 __aexit__ 在同一 task 中执行
             except Exception as e:
                 try:
-                    result_queue.put_nowait({"ok": False, "error": str(e)[:200]})
+                    result_queue.put_nowait({"ok": False, "error": _extract_error(e)[:200]})
                 except asyncio.QueueFull:
                     pass
             finally:
