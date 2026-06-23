@@ -102,7 +102,7 @@ class MCPManager:
         return connections
 
     def save_connections(self) -> None:
-        """保存连接列表到配置文件"""
+        """保存连接列表到配置文件（args 中的项目路径自动转回相对路径）"""
         from src.utils.config import save_profile_config
         data = {
             "connections": [
@@ -113,7 +113,7 @@ class MCPManager:
                     "port": c.port,
                     "url": c.url,
                     "command": c.command,
-                    "args": c.args,
+                    "args": MCPManager._relativize_mcp_args(c.args),
                     "env": c.env,
                     "enabled": c.enabled,
                 }
@@ -124,13 +124,14 @@ class MCPManager:
 
     @staticmethod
     def _resolve_mcp_args(args: list[str]) -> list[str]:
-        """将 MCP stdio args 中的文件系统路径解析为绝对路径。
+        """加载时：将 args 中的相对路径解析为绝对路径（以 BASE_DIR 为基准）。
 
-        只解析「看起来像路径」的参数：包含路径分隔符、以 . 开头、或文件/目录已存在。
-        跳过 flags（-开头）、npm 包名（@开头或无作用域包名如 code-executor-mcp）、
+        跳过 flags（-开头）、npm 包名（@开头或无作用域包名）、
         占位符（{开头）、URL（http开头）、纯数字（端口/超时值）。
+        其余参数若在 BASE_DIR 下存在、或以 . / \\ 开头，视为相对路径并解析。
         """
         from pathlib import Path
+        from src.utils.config import BASE_DIR
         result = []
         for arg in args:
             if not isinstance(arg, str):
@@ -140,16 +141,53 @@ class MCPManager:
             if arg.startswith(("-", "@", "{", "http")) or arg.isdigit():
                 result.append(arg)
                 continue
-            # 只有「看起来像路径」的参数才做解析
+            # 如果已经是绝对路径，保持
+            p = Path(arg)
+            if p.is_absolute():
+                result.append(arg)
+                continue
+            # 相对路径：以 BASE_DIR 为基准解析
+            # 条件：包含路径分隔符 / \、以 . 开头、或在 BASE_DIR 下存在
             looks_like_path = (
                 "/" in arg or "\\" in arg
                 or arg.startswith(".")
-                or Path(arg).exists()
+                or (BASE_DIR / arg).exists()
             )
             if looks_like_path:
                 resolved = resolve_path(arg)
                 result.append(str(resolved))
             else:
+                result.append(arg)
+        return result
+
+    @staticmethod
+    def _relativize_mcp_args(args: list[str]) -> list[str]:
+        """保存时：将 args 中位于项目目录下的绝对路径转回相对路径。
+
+        这样配置文件在不同机器/盘符间可移植，不会写入 E:\\AICraft 等绝对路径。
+        不在项目目录下的外部路径保持绝对路径不变。
+        """
+        from pathlib import Path
+        from src.utils.config import BASE_DIR
+        result = []
+        for arg in args:
+            if not isinstance(arg, str):
+                result.append(arg)
+                continue
+            try:
+                p = Path(arg)
+                if p.is_absolute():
+                    # 尝试转为相对于 BASE_DIR 的路径
+                    try:
+                        rel = p.relative_to(BASE_DIR)
+                        # 使用 POSIX 风格正斜杠，跨平台兼容
+                        result.append(rel.as_posix())
+                    except ValueError:
+                        # 不在项目目录下，保持绝对路径
+                        result.append(arg)
+                else:
+                    result.append(arg)
+            except Exception:
                 result.append(arg)
         return result
 
