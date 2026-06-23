@@ -65,29 +65,110 @@ class RAGEngine:
         self._client = None
         self._embedder = None
 
+    # ── 路径可移植辅助方法 ──
+
+    @staticmethod
+    def _resolve_source_path(path: str) -> str:
+        """加载时解析路径：相对→绝对；过时绝对路径自动自愈"""
+        from pathlib import Path
+        from src.utils.config import BASE_DIR
+        p = Path(path)
+        if p.is_absolute():
+            if p.exists():
+                return str(p)
+            # 自愈：绝对路径不存在，尝试在当前 BASE_DIR 下查找同名路径
+            healed = RAGEngine._heal_source_path(path, BASE_DIR)
+            if healed is not None:
+                return healed
+            return str(p)
+        # 相对路径 → 绝对
+        return str(resolve_path(path))
+
+    @staticmethod
+    def _heal_source_path(abs_path: str, base_dir) -> str | None:
+        """自愈过时的绝对路径：尝试在 base_dir 下查找同名文件/目录"""
+        from pathlib import Path
+        p = Path(abs_path)
+        parts = p.parts
+        for i in range(1, len(parts)):
+            candidate = Path(base_dir, *parts[i:])
+            if candidate.exists():
+                return str(candidate)
+        return None
+
+    @staticmethod
+    def _relativize_source_path(path: str) -> str:
+        """保存时：将项目内绝对路径转回相对路径，保证跨机器可移植"""
+        from pathlib import Path
+        from src.utils.config import BASE_DIR
+        p = Path(path)
+        if p.is_absolute():
+            try:
+                rel = p.relative_to(BASE_DIR)
+                return rel.as_posix()
+            except ValueError:
+                pass
+        return path
+
+    # ── 配置持久化 ──
+
     def load_sources(self) -> list[RAGSource]:
-        """加载数据源配置"""
+        """加载数据源配置（自动自愈过时路径 + 解析相对路径）
+
+        自愈后或 ChromaDB 集合缺失/为空时，将 indexed 重置为 False，
+        确保下次 search 前触发重新索引。
+        """
+        from pathlib import Path
         config = load_json(self.CONFIG_PATH)
         sources = []
         for item in config.get("sources", []):
+            raw_path = item.get("path", "")
+            resolved = self._resolve_source_path(raw_path)
+
+            # 自愈仅指：原本是过时绝对路径（如 E:\...），被修复为当前绝对路径
+            raw_is_absolute = Path(raw_path).is_absolute()
+            was_healed = raw_is_absolute and raw_path != resolved
+            is_missing = not Path(resolved).exists()
+
+            indexed = item.get("indexed", False)
+            file_count = item.get("file_count", 0)
+
+            if was_healed or is_missing:
+                indexed = False
+                file_count = 0
+            elif indexed:
+                # 路径正确但 ChromaDB 集合可能为空/不存在（换机器后残留）
+                try:
+                    import chromadb
+                    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+                    col = client.get_collection(
+                        f"rag_{_safe_collection_name(item.get('name', ''))}"
+                    )
+                    if col.count() == 0:
+                        indexed = False
+                        file_count = 0
+                except Exception:
+                    indexed = False
+                    file_count = 0
+
             sources.append(RAGSource(
                 name=item.get("name", ""),
-                path=item.get("path", ""),
+                path=resolved,
                 source_type=item.get("type", "local"),
                 enabled=item.get("enabled", True),
-                file_count=item.get("file_count", 0),
-                indexed=item.get("indexed", False),
+                file_count=file_count,
+                indexed=indexed,
             ))
         self.sources = sources
         return sources
 
     def save_sources(self) -> None:
-        """保存数据源配置"""
+        """保存数据源配置（项目内路径自动转回相对路径）"""
         data = {
             "sources": [
                 {
                     "name": s.name,
-                    "path": s.path,
+                    "path": self._relativize_source_path(s.path),
                     "type": s.source_type,
                     "enabled": s.enabled,
                     "file_count": s.file_count,
