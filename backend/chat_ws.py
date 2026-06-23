@@ -104,6 +104,7 @@ async def chat_websocket(ws: WebSocket):
     # 同一个 WS 会话内的对话历史（保持连续对话上下文）
     session_history: list[dict] = []
     current_role: str = ""  # 追踪当前角色，用于检测角色切换
+    current_conv_id: str = ""  # 追踪当前会话 ID，防御前端残留旧 conv_id 导致历史被重新加载
 
     # ── 记忆压缩状态（独立于聊天历史）──
     memory_char_counter = 0   # 自上次压缩以来的对话增量字符数
@@ -137,6 +138,7 @@ async def chat_websocket(ws: WebSocket):
                 memory_char_counter = 0
                 memory_msg_counter = 0
                 new_conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                current_conv_id = new_conv_id  # 更新会话级 conv_id，防御前端残留旧 ID
 
                 await ws.send_json({
                     "type": "conv_id",
@@ -231,7 +233,11 @@ async def chat_websocket(ws: WebSocket):
                 # ── 会话 ID 管理 ──
                 if not conv_id:
                     conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    current_conv_id = conv_id
                     await ws.send_json({"type": "conv_id", "id": conv_id})
+                elif current_conv_id and conv_id != current_conv_id:
+                    # 前端残留旧 conv_id（new_scene 后 localStorage 未更新），用当前 ID 覆盖
+                    conv_id = current_conv_id
                 elif not session_history:
                     # WS 重连后恢复历史（仅当角色匹配）
                     try:
@@ -244,6 +250,7 @@ async def chat_websocket(ws: WebSocket):
                                     if r in ("user", "assistant", "tool"):
                                         session_history.append(m)
                                 if session_history:
+                                    current_conv_id = conv_id  # 恢复后记录当前 ID
                                     await ws.send_json({
                                         "type": "inject_info",
                                         "items": [f"已恢复对话 ({len(session_history)} 条消息)"]
@@ -251,6 +258,7 @@ async def chat_websocket(ws: WebSocket):
                             else:
                                 # 角色变了，旧消息风格不兼容，生成新 conv_id
                                 conv_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                current_conv_id = conv_id
                                 await ws.send_json({"type": "conv_id", "id": conv_id})
                     except Exception:
                         pass
