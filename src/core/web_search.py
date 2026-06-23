@@ -260,7 +260,7 @@ QUICK_SOURCE_TOOLS_ANTHROPIC = [
     },
 ]
 
-# OpenAI 格式（用于 litellm 路径，非 DeepSeek 模型）
+# OpenAI 格式（用于 openai_completion 路径，非 DeepSeek 模型）
 QUICK_SOURCE_TOOLS_OPENAI = [
     {
         "type": "function",

@@ -18,7 +18,7 @@
               循环直到 LLM 不再调工具
 
 DeepSeek: 使用 Anthropic SDK 直连 api.deepseek.com/anthropic 端点，支持 server-side web_search
-其他模型: 继续使用 litellm
+其他模型: 使用 httpx 直连 OpenAI 兼容 API
 """
 
 import asyncio
@@ -26,10 +26,10 @@ import json
 import time
 from typing import Any, AsyncGenerator
 
-import litellm
 from anthropic import AsyncAnthropic
 
 from src.core.llm import get_current_model_config
+from src.core.openai_client import acompletion as openai_completion
 from src.core.web_search import (
     QUICK_SOURCE_TOOLS_ANTHROPIC,
     QUICK_SOURCE_TOOLS_OPENAI,
@@ -130,7 +130,7 @@ async def _stream_via_anthropic(
 ) -> AsyncGenerator[dict[str, Any], None]:
     """使用 Anthropic SDK 调用 DeepSeek/Claude 的 Anthropic 兼容端点
 
-    Yields 与 litellm 路径相同的事件类型，外加 search_status。
+    Yields 与 openai_completion 路径相同的事件类型，外加 search_status。
     """
     model_id = model_config.get("model_id", "")
     provider = model_config.get("provider", "").lower()
@@ -304,24 +304,18 @@ async def _build_llm_kwargs(
     model_config: dict,
     thinking_enabled: bool = False,
 ) -> dict:
-    """构建 litellm.completion 的 kwargs（非 DeepSeek/Claude 模型使用）"""
+    """构建 openai_completion 的 kwargs（非 DeepSeek/Claude 模型使用）"""
     kwargs: dict = {
         "model": model_config.get("model_id", ""),
         "messages": messages,
         "stream": True,
+        "api_key": model_config.get("api_key", ""),
+        "api_base": model_config.get("api_base", "") or "https://api.openai.com/v1",
     }
-    for key in ("api_key", "api_base"):
-        val = model_config.get(key, "")
-        if val:
-            kwargs[key] = val
     if tools:
         kwargs["tools"] = tools
-
-    if thinking_enabled:
-        model_id = model_config.get("model_id", "").lower()
-        if "claude" in model_id:
-            kwargs["thinking"] = {"type": "enabled", "budget_tokens": 10000}
-
+    # 注意：thinking 参数不是 OpenAI 兼容 API 的标准参数
+    # DeepSeek/Claude 走 Anthropic SDK 路径，不会进入此函数
     return kwargs
 
 
@@ -377,11 +371,11 @@ async def agent_loop(
         if tools:
             anthropic_tools = [_convert_openai_tool_to_anthropic(t) for t in tools]
     else:
-        # litellm 路径：合并 quick sources (OpenAI 格式) + MCP tools
-        litellm_tools = list(QUICK_SOURCE_TOOLS_OPENAI)
+        # openai_completion 路径：合并 quick sources (OpenAI 格式) + MCP tools
+        openai_tools = list(QUICK_SOURCE_TOOLS_OPENAI)
         if tools:
-            litellm_tools.extend(tools)
-        tools = litellm_tools if litellm_tools else None
+            openai_tools.extend(tools)
+        tools = openai_tools if openai_tools else None
 
     for round_num in range(max_rounds):
         if use_anthropic:
@@ -463,12 +457,12 @@ async def agent_loop(
                 })
 
         else:
-            # ── litellm 路径（其他模型）──
+            # ── openai_completion 路径（其他模型）──
             thinking_start_time: float | None = None
 
             kwargs = await _build_llm_kwargs(messages, tools, model_config, thinking_enabled)
 
-            response = await litellm.acompletion(**kwargs)
+            response = await openai_completion(**kwargs)
 
             full_text = ""
             tool_call_deltas: dict[int, dict[str, str]] = {}
@@ -478,10 +472,7 @@ async def agent_loop(
 
                 # ── Thinking 增量 ──
                 if thinking_enabled:
-                    reasoning = (
-                        getattr(delta, 'reasoning_content', None)
-                        or getattr(delta, 'thinking', None)
-                    )
+                    reasoning = delta.reasoning_content
                     if reasoning:
                         if thinking_start_time is None:
                             thinking_start_time = time.time()

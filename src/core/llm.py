@@ -1,9 +1,8 @@
-"""LLM调用模块 - 基于litellm的统一调用接口"""
+"""LLM调用模块 - 基于 httpx 的统一调用接口"""
 
 from typing import Any, AsyncGenerator
 
-import litellm
-
+from src.core.openai_client import acompletion as openai_completion
 from src.utils.config import (
     get_all_model_configs,
     get_current_model_id,
@@ -53,7 +52,7 @@ async def chat_completion(
 
     Args:
         messages: 消息列表 [{"role": "user", "content": "..."}, ...]
-        tools: MCP工具列表（litellm function-calling 格式），None 表示无工具
+        tools: MCP工具列表（OpenAI function-calling 格式），None 表示无工具
         model_config: 模型配置dict，不传则用当前模型
         stream: 是否流式输出
 
@@ -78,17 +77,14 @@ async def chat_completion(
         "model": model_config["model_id"],
         "messages": messages,
         "stream": stream,
+        "api_key": api_key,
+        "api_base": api_base or "https://api.openai.com/v1",
     }
-
-    if api_key:
-        kwargs["api_key"] = api_key
-    if api_base:
-        kwargs["api_base"] = api_base
     if tools:
         kwargs["tools"] = tools
 
     if stream:
-        response = await litellm.acompletion(**kwargs)
+        response = await openai_completion(**kwargs)
 
         full_text = ""
         tool_call_deltas: dict[int, dict[str, str]] = {}
@@ -124,8 +120,8 @@ async def chat_completion(
                 "text": full_text,
             }
     else:
-        response = await litellm.acompletion(**kwargs)
-        msg = response.choices[0].message
+        response = await openai_completion(**kwargs)
+        msg = response  # 非流式直接返回 OpenAIMessage
         content = msg.content or ""
         yield {"type": "text", "content": content}
 
@@ -136,8 +132,8 @@ async def chat_completion(
                 "tool_calls": [
                     {
                         "id": tc.id or "",
-                        "function_name": tc.function.name if tc.function else "",
-                        "function_arguments": tc.function.arguments if tc.function else "",
+                        "function_name": tc.function.name,
+                        "function_arguments": tc.function.arguments,
                     }
                     for tc in msg.tool_calls
                 ],
@@ -163,7 +159,7 @@ async def simple_completion(
     messages: list[dict],
     max_tokens: int = 500,
 ) -> str:
-    """协议感知的非流式简单完成 — 根据 protocol 自动选择 Anthropic SDK 或 litellm
+    """协议感知的非流式简单完成 — 根据 protocol 自动选择 Anthropic SDK 或 openai_completion
 
     Args:
         model_config: 模型配置 dict
@@ -206,16 +202,13 @@ async def simple_completion(
                 return block.text
         return ""
 
-    # ── litellm 路径（OpenAI 兼容等）──
-    kwargs: dict = {
-        "model": model_id,
-        "messages": messages,
-        "max_tokens": max_tokens,
-    }
-    if api_key:
-        kwargs["api_key"] = api_key
-    if api_base:
-        kwargs["api_base"] = api_base
-
-    response = await litellm.acompletion(**kwargs)
-    return response.choices[0].message.content or ""
+    # ── httpx 路径（OpenAI 兼容等）──
+    response = await openai_completion(
+        model=model_id,
+        messages=messages,
+        max_tokens=max_tokens,
+        api_key=api_key or "",
+        api_base=api_base or "https://api.openai.com/v1",
+        stream=False,
+    )
+    return response.content or ""
