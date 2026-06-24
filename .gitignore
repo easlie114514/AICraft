@@ -15,7 +15,7 @@ env/
 chroma_db/
 memory/
 workspace/
-models/
+# models/onnx 纳入版本管理
 config/profiles/
 config/app.json
 config/permissions.json
