@@ -77,9 +77,15 @@ def run_python_code(code: str, timeout: int = 60) -> str:
         tmp_path = f.name
 
     try:
+        # 打包模式：exe 需要通过 --run-script 标志执行脚本
+        if getattr(sys, 'frozen', False):
+            cmd = [sys.executable, "--run-script", tmp_path]
+        else:
+            cmd = [sys.executable, tmp_path]
+
         if os.name == "nt":
             proc = subprocess.Popen(
-                [sys.executable, tmp_path],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
@@ -88,7 +94,7 @@ def run_python_code(code: str, timeout: int = 60) -> str:
             )
         else:
             proc = subprocess.Popen(
-                [sys.executable, tmp_path],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,

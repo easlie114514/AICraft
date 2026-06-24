@@ -3,10 +3,16 @@
 支持两种连接模式：
   - SSE: HTTP 连接远程 MCP Server（短连接，每次调用重新建立）
   - Stdio: subprocess + 管道连接本地脚本（长连接，保持子进程存活）
+
+打包模式 (PyInstaller)：
+  - Stdio 连接的 command 自动从 "python" 切换为 sys.executable (exe 自身)
+  - MCP Server 通过 --mcp-server <name> 标志在子进程中启动
 """
 
 import asyncio
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from src.utils.config import load_json, save_json, RAG_DIR, resolve_path
@@ -319,6 +325,42 @@ class MCPManager:
     #                   ◀──response───  resp_queue  ◀──
     #
 
+    @staticmethod
+    def _normalize_stdio_params(
+        command: str, args: list[str]
+    ) -> tuple[str, list[str]]:
+        """适配打包环境：将 "python script.py" 转换为 "exe --mcp-server name"
+
+        在 PyInstaller 打包后，系统没有独立的 python 解释器。
+        需要让 exe 通过 --mcp-server <name> 标志自举启动 MCP 服务器。
+
+        映射规则（从 args 提取服务器名称）：
+          src/mcp_servers/code_executor.py  →  code_executor
+          src/mcp_servers/file_manager.py   →  file_manager
+        """
+        if not getattr(sys, 'frozen', False):
+            return command, args
+
+        # 只转换 python/py 命令（保留 node/npx 等其他命令不变）
+        if command not in ("python", "py", "python3"):
+            return command, args
+
+        # 从 args 中提取 MCP 服务器名称
+        server_name = ""
+        for arg in args:
+            if not isinstance(arg, str):
+                continue
+            # 匹配 "xxx/code_executor.py" 或 "xxx\\code_executor.py"
+            p = Path(arg)
+            if p.suffix == ".py":
+                server_name = p.stem
+                break
+
+        if not server_name:
+            return command, args
+
+        return sys.executable, ["--mcp-server", server_name]
+
     async def connect_stdio(self, conn: MCPConnection) -> bool:
         """启动后台 task 持有 stdio 长连接"""
         conn.status = "connecting"
@@ -330,9 +372,12 @@ class MCPManager:
         from mcp import ClientSession
         from mcp.client.stdio import StdioServerParameters, stdio_client
 
+        # 打包模式下自动切换 command：python → sys.executable
+        command, args = self._normalize_stdio_params(conn.command, conn.args)
+
         server_params = StdioServerParameters(
-            command=conn.command,
-            args=conn.args,
+            command=command,
+            args=args,
             env=conn.env if conn.env else None,
         )
 

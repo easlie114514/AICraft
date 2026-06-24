@@ -45,6 +45,12 @@ from src.utils.config import (
     resolve_path,
 )
 
+# ── PyInstaller 隐式导入标记 ──
+# 这些模块通过 --mcp-server CLI 动态加载，静态分析无法发现，
+# 必须在此显式导入以确保 PyInstaller 将其打包进 exe。
+import src.mcp_servers.code_executor  # noqa: F401
+import src.mcp_servers.file_manager  # noqa: F401
+
 
 # ============================================================
 # 辅助函数
@@ -1839,4 +1845,32 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
+    import sys as _sys
+
+    # ── 打包模式 CLI 入口 ──
+    # --mcp-server <name>  : 启动 MCP stdio server（代码执行 / 文件管理）
+    # --run-script  <path> : 执行 Python 脚本（代码执行器的 Level 2 子进程）
+    if len(_sys.argv) >= 2:
+        if _sys.argv[1] == "--mcp-server" and len(_sys.argv) >= 3:
+            server_name = _sys.argv[2]
+            import asyncio as _asyncio
+            if server_name == "code_executor":
+                from src.mcp_servers.code_executor import main as _mcp_main
+                _asyncio.run(_mcp_main())
+            elif server_name == "file_manager":
+                from src.mcp_servers.file_manager import main as _mcp_main
+                _asyncio.run(_mcp_main())
+            else:
+                print(f"Unknown MCP server: {server_name}", file=_sys.stderr)
+                _sys.exit(1)
+            _sys.exit(0)
+
+        if _sys.argv[1] == "--run-script" and len(_sys.argv) >= 3:
+            script_path = _sys.argv[2]
+            _sys.path.insert(0, os.path.dirname(os.path.abspath(script_path)))
+            _sys.argv = _sys.argv[1:]  # 让脚本感知到的 argv 以 --run-script 开头
+            import runpy
+            runpy.run_path(script_path, run_name="__main__")
+            _sys.exit(0)
+
     ft.app(target=main)
