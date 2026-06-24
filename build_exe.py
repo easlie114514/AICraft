@@ -108,9 +108,10 @@ def main():
     if os.path.exists(RELEASE_ZIP):
         os.remove(RELEASE_ZIP)
 
-    # 使用 PowerShell Compress-Archive
+    # 压缩 release/AICraft 目录本身，使 ZIP 内部保留 AICraft/ 父目录
+    # 用户解压后始终得到一个整洁的 AICraft/ 文件夹，不会散落文件
     ps_cmd = (
-        f"Compress-Archive -Path '{RELEASE_DIR}\\*' "
+        f"Compress-Archive -Path '{RELEASE_DIR}' "
         f"-DestinationPath '{RELEASE_ZIP}' -Force"
     )
     result = subprocess.run(
