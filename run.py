@@ -101,4 +101,31 @@ def main():
 
 
 if __name__ == "__main__":
+    # ── 子进程模式：MCP stdio server / 脚本执行 ──
+    # 打包后 exe 通过 --mcp-server <name> 自举启动内置 MCP 服务器，
+    # 或通过 --run-script <path> 执行临时脚本。
+    # 这些模式必须走纯 stdio 通信，不能启动 webview 窗口。
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == "--mcp-server" and len(sys.argv) >= 3:
+            server_name = sys.argv[2]
+            import asyncio as _asyncio
+            if server_name == "code_executor":
+                from src.mcp_servers.code_executor import main as _mcp_main
+                _asyncio.run(_mcp_main())
+            elif server_name == "file_manager":
+                from src.mcp_servers.file_manager import main as _mcp_main
+                _asyncio.run(_mcp_main())
+            else:
+                print(f"Unknown MCP server: {server_name}", file=sys.stderr)
+                sys.exit(1)
+            sys.exit(0)
+
+        if sys.argv[1] == "--run-script" and len(sys.argv) >= 3:
+            script_path = sys.argv[2]
+            sys.path.insert(0, os.path.dirname(os.path.abspath(script_path)))
+            sys.argv = sys.argv[1:]  # 让脚本感知到的 argv 以 --run-script 开头
+            import runpy as _runpy
+            _runpy.run_path(script_path, run_name="__main__")
+            sys.exit(0)
+
     main()
