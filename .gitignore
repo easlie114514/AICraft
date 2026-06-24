@@ -35,6 +35,7 @@ frontend/node_modules/
 dist/
 build/
 *.spec
+!aicraft.spec
 
 # ── 系统文件 ──
 .DS_Store
