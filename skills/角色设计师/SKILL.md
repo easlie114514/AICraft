@@ -6,15 +6,18 @@
 >
 > AICraft 支持两种启动方式，为确保角色在任何模式下都能被找到，**每次保存角色时必须同时写入以下两个路径**：
 >
-> | 用途 | 绝对路径 |
-> |------|----------|
-> | 开发模式 (`python run.py`) | `E:\AI_Craft\roles\<角色名>.md` |
-> | 打包模式 (`AICraft.exe`) | `C:\Users\Easlie\AppData\Roaming\AICraft\roles\<角色名>.md` |
+> | 用途 | 路径 |
+> |------|------|
+> | 开发模式 (`python run.py`) | `<项目根目录>/roles/<角色名>.md` |
+> | 打包模式 (`AICraft.exe`) | `<AppData>/AICraft/roles/<角色名>.md` |
+>
+> 其中 `<项目根目录>` 是本仓库的根目录（即包含 `run.py`、`skills/` 的目录），`<AppData>` 在 Windows 上为 `%APPDATA%`（通常是 `C:\Users\<你的用户名>\AppData\Roaming`）。
 >
 > **执行步骤**（每次保存都做）：
-> 1. 确保两个目录都存在（不存在就 `mkdir -p` 创建）
-> 2. 将相同的角色内容分别写入两个路径
-> 3. 两个文件内容必须完全一致
+> 1. 先定位项目根目录（查找 `run.py` 或 `.git` 所在目录）
+> 2. 确保两个目录都存在（不存在就 `mkdir -p` 创建）
+> 3. 将相同的角色内容分别写入两个路径
+> 4. 两个文件内容必须完全一致
 >
 > ⛔ **绝对禁止**去 `release/`、`dist/`、`_internal/`、`node_modules/` 等子目录下搜索或写入 `roles/`。
 
@@ -24,8 +27,8 @@
 2. **生成提示词**：按照标准模板设计角色提示词
 3. **先发送确认**：将完整提示词以 markdown 代码块发送给用户审阅，明确告知用户确认后才会保存
 4. **保存文件**：用户确认后，**同时写入**两个路径：
-   - `E:\AI_Craft\roles\<角色名>.md`
-   - `C:\Users\Easlie\AppData\Roaming\AICraft\roles\<角色名>.md`
+   - `<项目根目录>/roles/<角色名>.md`（开发模式）
+   - `<AppData>/AICraft/roles/<角色名>.md`（打包模式，Windows 上为 `%APPDATA%/AICraft/roles/`）
 
 > ⚠️ **必须遵守**：先发提示词给用户确认，不得跳过确认直接保存文件。
 

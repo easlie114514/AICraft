@@ -1,14 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Read(E:\\AI_Craft\\roles\\**)",
-      "Write(E:\\AI_Craft\\roles\\**)",
-      "Edit(E:\\AI_Craft\\roles\\**)",
-      "Glob(E:\\AI_Craft\\roles\\**)",
-      "Read(C:\\Users\\Easlie\\AppData\\Roaming\\AICraft\\roles\\**)",
-      "Write(C:\\Users\\Easlie\\AppData\\Roaming\\AICraft\\roles\\**)",
-      "Edit(C:\\Users\\Easlie\\AppData\\Roaming\\AICraft\\roles\\**)",
-      "Glob(C:\\Users\\Easlie\\AppData\\Roaming\\AICraft\\roles\\**)"
+      "Read(roles/**)",
+      "Write(roles/**)",
+      "Edit(roles/**)",
+      "Glob(roles/**)",
+      "Read(~/AppData/Roaming/AICraft/roles/**)",
+      "Write(~/AppData/Roaming/AICraft/roles/**)",
+      "Edit(~/AppData/Roaming/AICraft/roles/**)",
+      "Glob(~/AppData/Roaming/AICraft/roles/**)"
     ]
   }
 }
