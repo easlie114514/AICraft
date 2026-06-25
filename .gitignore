@@ -46,6 +46,7 @@ Thumbs.db
 /skills/toggles.json
 /models/*.json
 !/models/onnx/
+roles/.trash/
 
 # Frontend
 frontend/node_modules/
