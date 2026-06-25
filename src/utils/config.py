@@ -44,6 +44,7 @@ MEMORY_DIR = USER_DIR / "memory"
 CHROMA_DIR = USER_DIR / "chroma_db"
 WORKSPACE_DIR = USER_DIR / "workspace"
 RAG_STATE_DIR = USER_DIR / "rag"              # RAG 数据源配置（sources.json）
+USER_ROLES_DIR = USER_DIR / "roles"           # 用户自建角色（打包模式下与出厂角色分离）
 
 CONVERSATIONS_DIR = MEMORY_DIR / "conversations"
 NOTES_DIR = MEMORY_DIR / "project-notes"
@@ -107,7 +108,7 @@ def ensure_user_dirs():
     # 确保所有用户目录存在
     for d in [CONFIG_DIR, PROFILES_DIR, MODELS_DIR, MEMORY_DIR,
               CONVERSATIONS_DIR, NOTES_DIR, CHROMA_DIR, WORKSPACE_DIR,
-              RAG_STATE_DIR]:
+              RAG_STATE_DIR, USER_ROLES_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
     # 检查是否需要初始化（.version 文件不存在表示首次启动）
