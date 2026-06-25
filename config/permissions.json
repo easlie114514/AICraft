@@ -1,5 +1,7 @@
 {
-  "trusted_paths": [],
+  "trusted_paths": [
+    "{PROJECT_ROOT}"
+  ],
   "denied_paths": [
     "C:/Windows/**",
     "C:/Program Files/**",
@@ -7,7 +9,8 @@
     "**/System32/**",
     "**/WinSxS/**",
     "**/.git/config",
-    "**/.ssh/**"
+    "**/.ssh/**",
+    "\\"
   ],
   "prompt_timeout_seconds": 60
 }

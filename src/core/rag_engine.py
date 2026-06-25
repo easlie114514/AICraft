@@ -370,12 +370,13 @@ class RAGEngine:
                 except ValueError as e:
                     if "Embedding function conflict" in str(e):
                         print(f"[RAG] 检索 '{source.name}': embedding 函数不兼容，跳过 (需重新索引)")
-                        continue
-                    raise
+                    else:
+                        print(f"[RAG] 检索 '{source.name}': {e}")
+                    continue
                 except Exception as e:
                     print(f"[RAG] 检索 '{source.name}' 失败: {type(e).__name__}: {e}")
 
-            return results[:top_k]
+            return results
         except Exception as e:
             print(f"[RAG] search 异常: {type(e).__name__}: {e}")
             return []

@@ -1,6 +1,6 @@
 {
   "model_id": "",
-  "role": "通用助手",
+  "role": "Diana",
   "web_search": false,
   "rag": false,
   "memory": true,

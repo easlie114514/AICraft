@@ -7,6 +7,14 @@
       "enabled": true,
       "file_count": 0,
       "indexed": false
+    },
+    {
+      "name": "SIPP",
+      "path": "release/AICraft/rag/SIPP",
+      "type": "local",
+      "enabled": true,
+      "file_count": 4,
+      "indexed": true
     }
   ]
 }
