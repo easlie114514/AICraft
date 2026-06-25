@@ -1,6 +1,6 @@
 {
   "model_id": "",
-  "role": "MayaFey",
+  "role": "AICraft智能小助手",
   "web_search": false,
   "rag": false,
   "memory": true,

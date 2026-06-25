@@ -12,7 +12,7 @@
       ],
       "env": {},
       "enabled": true,
-      "require_approval": true
+      "auto_grant": false
     },
     {
       "name": "代码执行",
@@ -26,7 +26,7 @@
       ],
       "env": {},
       "enabled": true,
-      "require_approval": true
+      "auto_grant": false
     }
   ]
 }

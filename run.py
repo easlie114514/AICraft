@@ -144,13 +144,23 @@ def main():
     webview.settings['DRAG_REGION_SELECTOR'] = '.app-region-drag'
     webview.settings['DRAG_REGION_DIRECT_TARGET_ONLY'] = True
 
+    # 获取屏幕尺寸，计算窗口居中坐标
+    user32 = ctypes.windll.user32
+    screen_w = user32.GetSystemMetrics(0)
+    screen_h = user32.GetSystemMetrics(1)
+    win_w, win_h = 1280, 800
+    x = (screen_w - win_w) // 2
+    y = (screen_h - win_h) // 2
+
     # 创建 frameless 窗口，js_api 暴露给前端 window.pywebview.api
     webview.create_window(
         title="AICraft",
         url=url,
         js_api=WindowAPI(),
-        width=1280,
-        height=800,
+        width=win_w,
+        height=win_h,
+        x=x,
+        y=y,
         min_size=(800, 600),
         frameless=True,
         easy_drag=False,

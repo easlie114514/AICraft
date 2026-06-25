@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 
-export type ThemeName = 'blue' | 'green' | 'purple' | 'orange'
+export type ThemeName = 'blue' | 'green' | 'purple' | 'orange' | 'rose' | 'teal' | 'amber' | 'pink' | 'slate'
 
 interface ThemeInfo {
   name: ThemeName
@@ -13,6 +13,11 @@ export const THEMES: ThemeInfo[] = [
   { name: 'green',  label: '竹叶绿', color: '#16A34A' },
   { name: 'purple', label: '暮光紫', color: '#7C3AED' },
   { name: 'orange', label: '日落橙', color: '#EA580C' },
+  { name: 'rose',   label: '玫瑰红', color: '#DC2626' },
+  { name: 'teal',   label: '青碧色', color: '#0D9488' },
+  { name: 'amber',  label: '琥珀金', color: '#F59E0B' },
+  { name: 'pink',   label: '樱花粉', color: '#DB2777' },
+  { name: 'slate',  label: '石墨灰', color: '#475569' },
 ]
 
 const THEME_CLASS_PREFIX = 'theme-'
@@ -83,7 +88,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // 策略：localStorage 优先（用户之前的选择），首次启动无 localStorage 时从后端加载
   useEffect(() => {
     if (localTheme) {
-      // 已有 localStorage 值 → 推送到后端（处理迁移：旧版本只写 localStorage）
+      // 已有 localStorage 值 → 应用到 DOM + 推送到后端（处理迁移：旧版本只写 localStorage）
+      applyThemeClass(localTheme)
       saveThemeToBackend(localTheme)
     } else {
       // 无 localStorage → 从后端加载
