@@ -193,7 +193,7 @@ export default function MCPPage() {
                               onCheckedChange={(v) => handleToggleApproval(conn.name, v)}
                               disabled={!conn.enabled}
                             />
-                            <span className="text-[9px] text-text-tertiary/60 leading-none">自动授予</span>
+                            <span className="text-[9px] text-text-tertiary/60 leading-none">自动授权</span>
                           </div>
                         </div>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(conn.name)} className="text-muted-foreground hover:text-destructive">
