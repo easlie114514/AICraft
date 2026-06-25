@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Awaitable
 
-from src.utils.config import load_json, save_json, CONFIG_DIR
+from src.utils.config import load_json, save_json, CONFIG_DIR, APP_DIR
 
 
 # ═══════════════════════════════════════════════════════════
@@ -94,7 +94,7 @@ def _get_default_config() -> dict:
         ]
 
     return {
-        "trusted_paths": [],
+        "trusted_paths": ["{PROJECT_ROOT}"],
         "denied_paths": denied,
         "prompt_timeout_seconds": 60,
     }
@@ -185,11 +185,15 @@ class PermissionGuard:
                 paths.append(val)
         return paths
 
+    def _expand_pattern(self, pattern: str) -> str:
+        """展开模式中的占位符，如 {PROJECT_ROOT} → 实际项目路径"""
+        return pattern.replace("{PROJECT_ROOT}", str(APP_DIR).replace("\\", "/"))
+
     def _match_path(self, real_path: str, policy_pattern: str) -> bool:
         """检查路径是否匹配某个策略模式"""
         # 规范化路径
         rp = str(Path(real_path)).replace("\\", "/")
-        pp = policy_pattern.replace("\\", "/")
+        pp = self._expand_pattern(policy_pattern).replace("\\", "/")
 
         # 前缀匹配（精确目录路径匹配子路径）
         pp_clean = pp.rstrip("/")

@@ -7,7 +7,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(ROOT, "frontend")
-DIST_EXE = os.path.join(ROOT, "dist", "AICraft.exe")
+DIST_EXE = os.path.join(ROOT, "dist", "AICraft", "AICraft.exe")
 RELEASE_DIR = os.path.join(ROOT, "release", "AICraft")
 RELEASE_ZIP = os.path.join(ROOT, "release", "AICraft.zip")
 SPEC_FILE = os.path.join(ROOT, "aicraft.spec")
@@ -59,7 +59,12 @@ def main():
     if os.path.exists(RELEASE_DIR):
         shutil.rmtree(RELEASE_DIR)
 
-    # 目录列表
+    # 复制整个 onedir 产物 (dist/AICraft/) 到 release/AICraft/
+    src_onedir = os.path.join(ROOT, "dist", "AICraft")
+    shutil.copytree(src_onedir, RELEASE_DIR)
+    print("[OK] 已复制完整的 onedir 产物")
+
+    # 创建运行时可写的目录（首次启动需要）
     dirs = [
         "config/profiles",
         "config/defaults",
@@ -76,18 +81,7 @@ def main():
     for d in dirs:
         os.makedirs(os.path.join(RELEASE_DIR, d), exist_ok=True)
 
-    # 复制 exe
-    shutil.copy2(DIST_EXE, os.path.join(RELEASE_DIR, "AICraft.exe"))
-    print("[OK] 已复制 AICraft.exe")
-
-    # 复制配置文件
-    for f in ["config/app.json"]:
-        src = os.path.join(ROOT, f)
-        dst = os.path.join(RELEASE_DIR, f)
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
-
-    # 复制出厂默认配置
+    # 复制出厂默认配置（仅第一次启动时无用户配置时使用）
     defaults_src = os.path.join(ROOT, "config", "defaults")
     defaults_dst = os.path.join(RELEASE_DIR, "config", "defaults")
     if os.path.exists(defaults_src):
@@ -108,6 +102,7 @@ def main():
     if os.path.exists(RELEASE_ZIP):
         os.remove(RELEASE_ZIP)
 
+    # 使用 PowerShell Compress-Archive
     # 压缩 release/AICraft 目录本身，使 ZIP 内部保留 AICraft/ 父目录
     # 用户解压后始终得到一个整洁的 AICraft/ 文件夹，不会散落文件
     ps_cmd = (
