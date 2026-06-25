@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Eye, Star, Trash2, RefreshCw, User } from 'lucide-react'
+import { Plus, Eye, Pencil, Star, Trash2, RefreshCw, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -21,7 +21,9 @@ export default function RolePage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [showView, setShowView] = useState<Role | null>(null)
+  const [showEdit, setShowEdit] = useState<Role | null>(null)
   const [form, setForm] = useState({ name: '', content: '' })
+  const [editForm, setEditForm] = useState({ name: '', content: '' })
 
   const loadRoles = useCallback(async () => {
     try {
@@ -42,6 +44,20 @@ export default function RolePage() {
 
   const handleDelete = async (name: string) => {
     await api.delete(`/roles/${encodeURIComponent(name)}`)
+    loadRoles()
+  }
+
+  const handleEdit = async () => {
+    if (!editForm.name.trim() || !showEdit) return
+    if (editForm.name !== showEdit.name) {
+      // Name changed - delete old, create new
+      await api.delete(`/roles/${encodeURIComponent(showEdit.name)}`)
+      await api.post('/roles', { name: editForm.name, content: editForm.content })
+    } else {
+      // Only content changed
+      await api.put(`/roles/${encodeURIComponent(showEdit.name)}`, { content: editForm.content })
+    }
+    setShowEdit(null)
     loadRoles()
   }
 
@@ -96,6 +112,13 @@ export default function RolePage() {
                         <Eye className="h-4 w-4 mr-1" />
                         查看
                       </Button>
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setShowEdit(r)
+                        setEditForm({ name: r.name, content: r.content })
+                      }}>
+                        <Pencil className="h-4 w-4 mr-1" />
+                        编辑
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => handleSetCurrent(r.name)} >
                         <Star className="h-4 w-4 mr-1" />
                         设为当前
@@ -114,22 +137,28 @@ export default function RolePage() {
 
       {/* Add Role Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>创建角色</DialogTitle>
             <DialogDescription>定义 AI 的角色和行为</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
             <div className="space-y-2">
               <Label>角色名称</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  placeholder="例如: 代码助手" />
             </div>
             <div className="space-y-2">
               <Label>角色内容 (System Prompt)</Label>
-              <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={8}  placeholder="描述 AI 的角色和行为..." />
+              <Textarea
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+                rows={8}
+                className="max-h-[300px]"
+                placeholder="描述 AI 的角色和行为..."
+              />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setShowAdd(false)} >取消</Button>
             <Button onClick={handleAdd} >创建</Button>
           </DialogFooter>
@@ -138,16 +167,60 @@ export default function RolePage() {
 
       {/* View Role Dialog */}
       <Dialog open={!!showView} onOpenChange={() => setShowView(null)}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{showView?.name}</DialogTitle>
             <DialogDescription>角色 System Prompt 内容</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[300px]">
+          <ScrollArea className="flex-1 min-h-0 max-h-[50vh]">
             <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-lg">{showView?.content}</pre>
           </ScrollArea>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
+            <Button variant="outline" onClick={() => {
+              if (showView) {
+                setShowEdit(showView)
+                setEditForm({ name: showView.name, content: showView.content })
+                setShowView(null)
+              }
+            }}>
+              <Pencil className="h-4 w-4 mr-1" />
+              编辑
+            </Button>
             <Button variant="outline" onClick={() => setShowView(null)} >关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Role Dialog */}
+      <Dialog open={!!showEdit} onOpenChange={() => setShowEdit(null)}>
+        <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>编辑角色</DialogTitle>
+            <DialogDescription>修改角色名称和 System Prompt</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
+            <div className="space-y-2">
+              <Label>角色名称</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="角色名称"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>角色内容 (System Prompt)</Label>
+              <Textarea
+                value={editForm.content}
+                onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                rows={8}
+                className="max-h-[300px]"
+                placeholder="描述 AI 的角色和行为..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="shrink-0">
+            <Button variant="outline" onClick={() => setShowEdit(null)} >取消</Button>
+            <Button onClick={handleEdit} >保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

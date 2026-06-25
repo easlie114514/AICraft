@@ -742,7 +742,13 @@ def build_role_view(page: ft.Page, app_state: dict) -> ft.Column:
                                 icon=ft.Icons.OPEN_IN_BROWSER,
                                 tooltip="查看角色内容",
                                 icon_size=16,
-                                on_click=lambda e, r=role: _view_role_content(page, r),
+                                on_click=lambda e, r=role: _view_role_content(page, r, role_loader, refresh_role_list),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT,
+                                tooltip="编辑角色",
+                                icon_size=16,
+                                on_click=lambda e, r=role: _edit_role_dialog(page, r, role_loader, refresh_role_list),
                             ),
                         ]),
                         bgcolor=ft.Colors.SURFACE_CONTAINER if is_current else None,
@@ -794,23 +800,96 @@ def _select_role(role, page: ft.Page, refresh_fn) -> None:
     refresh_fn()
 
 
-def _view_role_content(page: ft.Page, role) -> None:
+def _view_role_content(page: ft.Page, role, role_loader: RoleLoader, refresh_fn) -> None:
     """查看角色完整内容"""
 
     def close_dlg(e):
         dlg.open = False
         page.update()
 
+    def on_edit(e):
+        dlg.open = False
+        page.update()
+        _edit_role_dialog(page, role, role_loader, refresh_fn)
+
     dlg = ft.AlertDialog(
         title=ft.Text(f"角色: {role.name}"),
         content=ft.Container(
-            content=ft.Text(role.content, selectable=True, size=13),
+            content=ft.Column([
+                ft.Text(role.content, selectable=True, size=13),
+            ], scroll=ft.ScrollMode.AUTO),
             width=500,
-            height=300,
+            height=350,
         ),
         actions=[
+            ft.FilledButton("编辑", on_click=on_edit),
             ft.TextButton("关闭", on_click=close_dlg),
         ],
+        actions_padding=ft.padding.only(left=16, right=16, bottom=12),
+    )
+    page.overlay.append(dlg)
+    dlg.open = True
+    page.update()
+
+
+def _edit_role_dialog(page: ft.Page, role, role_loader: RoleLoader, refresh_fn) -> None:
+    """编辑已有角色"""
+    name_field = ft.TextField(label="角色名称", value=role.name, text_size=13)
+    content_field = ft.TextField(
+        label="角色描述（System Prompt）",
+        hint_text="描述这个角色的特点、输出风格、关注重点...",
+        multiline=True,
+        min_lines=5,
+        max_lines=12,
+        text_size=13,
+        value=role.content,
+    )
+    status_text = ft.Text("", size=12)
+
+    def on_save(e):
+        name = name_field.value.strip()
+        content = content_field.value.strip()
+        if not name:
+            status_text.value = "❌ 角色名称不能为空"
+            status_text.color = ft.Colors.ERROR
+            status_text.update()
+            return
+
+        # 如果名称变了，删除旧文件
+        if name != role.name:
+            old_path = role.path
+            if old_path.exists():
+                old_path.unlink()
+
+        # 保存为新文件
+        path = ROLES_DIR / f"{name}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content or f"你是{name}，请用中文回答问题。", encoding="utf-8")
+
+        dlg.open = False
+        page.update()
+        refresh_fn()
+
+    def close_dlg(e):
+        dlg.open = False
+        page.update()
+
+    dlg = ft.AlertDialog(
+        title=ft.Text(f"编辑角色: {role.name}"),
+        content=ft.Container(
+            content=ft.Column([
+                name_field,
+                content_field,
+                status_text,
+            ], scroll=ft.ScrollMode.AUTO, spacing=10),
+            width=480,
+            height=380,
+        ),
+        actions=[
+            ft.FilledButton("保存", on_click=on_save),
+            ft.TextButton("取消", on_click=close_dlg),
+        ],
+        actions_padding=ft.padding.only(left=16, right=16, bottom=12),
     )
     page.overlay.append(dlg)
     dlg.open = True
@@ -854,15 +933,20 @@ def _show_new_role_dialog(page: ft.Page, role_loader: RoleLoader, refresh_fn) ->
 
     dlg = ft.AlertDialog(
         title=ft.Text("新建角色"),
-        content=ft.Column([
-            name_field,
-            content_field,
-            status_text,
-        ], width=450, height=320),
+        content=ft.Container(
+            content=ft.Column([
+                name_field,
+                content_field,
+                status_text,
+            ], scroll=ft.ScrollMode.AUTO, spacing=10),
+            width=480,
+            height=380,
+        ),
         actions=[
             ft.FilledButton("保存", on_click=on_save),
             ft.TextButton("取消", on_click=close_dlg),
         ],
+        actions_padding=ft.padding.only(left=16, right=16, bottom=12),
     )
     page.overlay.append(dlg)
     dlg.open = True

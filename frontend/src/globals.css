@@ -123,6 +123,11 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* 全局默认禁止窗口拖拽，仅导航栏通过 JS API 可拖拽 */
+html, body {
+  -webkit-app-region: no-drag;
+}
+
 body {
   font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   background-color: #F7F8FA;
@@ -150,6 +155,14 @@ pre, code {
 
 /* === 全局选中态 === */
 ::selection { background: #E8F3FF; color: #0E42D2; }
+
+/* === 窗口拖拽区域控制（pywebview frameless 窗口） === */
+.app-region-drag {
+  -webkit-app-region: drag;
+}
+.app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
 
 /* === 代码块 === */
 .prose pre {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import NavBar from '@/components/NavBar'
+import ResizeHandles from '@/components/ResizeHandles'
 import ChatPage from '@/pages/ChatPage'
 import ModelPage from '@/pages/ModelPage'
 import RolePage from '@/pages/RolePage'
@@ -29,6 +30,7 @@ function App() {
   return (
     <ChatProvider>
       <div className="flex flex-col fixed inset-0">
+        <ResizeHandles />
         <NavBar
           tabs={PAGES.map((p) => ({ key: p.key, label: p.label }))}
           activeTab={activeTab}
