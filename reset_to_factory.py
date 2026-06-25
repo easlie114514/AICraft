@@ -1,7 +1,7 @@
 """AICraft 恢复出厂预配置 — 精准清理
 
 保留 (出厂预配置):
-  - 4 SKILLs:  代码审查 / 写作助手 / 数据分析 / 翻译助手
+  - 5 SKILLs:  代码审查 / 写作助手 / 数据分析 / 翻译助手 / 角色设计师
   - 2 MCPs:    文件管理 (file_manager.py) / 代码执行 (code_executor.py)
   - 1 RAG源:   使用指导
   - 1 角色:    通用助手
@@ -55,7 +55,7 @@ def reset():
 
     # ── 4. 额外 SKILL (只保留出厂4个) ──
     skills_dir = ROOT / "skills"
-    keep_skills = {"代码审查", "写作助手", "数据分析", "翻译助手"}
+    keep_skills = {"代码审查", "写作助手", "数据分析", "翻译助手", "角色设计师"}
     for d in skills_dir.iterdir():
         if d.is_dir() and d.name not in keep_skills:
             shutil.rmtree(d)
