@@ -57,10 +57,18 @@ export default function ChatPage() {
 
   // Load models and roles (prepend Auto option)
   useEffect(() => {
-    api.get<ModelOption[]>('/models').then((data) => {
-      setModels([{ name: '⚡ Auto（智能路由）', model_id: 'auto', is_current: false }, ...data])
-    }).catch(() => {})
-    api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
+    const loadModels = () => {
+      api.get<ModelOption[]>('/models').then((data) => {
+        setModels([{ name: '⚡ Auto（智能路由）', model_id: 'auto', is_current: false }, ...data])
+      }).catch(() => {})
+    }
+    const loadRoles = () => {
+      api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
+    }
+    loadModels()
+    loadRoles()
+    window.addEventListener('roles-changed', loadRoles)
+    return () => window.removeEventListener('roles-changed', loadRoles)
   }, [])
 
   // Set defaults (Auto is default when no model selected)

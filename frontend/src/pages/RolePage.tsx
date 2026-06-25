@@ -34,17 +34,21 @@ export default function RolePage() {
 
   useEffect(() => { loadRoles() }, [loadRoles])
 
+  const notify = () => window.dispatchEvent(new CustomEvent('roles-changed'))
+
   const handleAdd = async () => {
     if (!form.name.trim()) return
     await api.post('/roles', form)
     setShowAdd(false)
     setForm({ name: '', content: '' })
     loadRoles()
+    notify()
   }
 
   const handleDelete = async (name: string) => {
     await api.delete(`/roles/${encodeURIComponent(name)}`)
     loadRoles()
+    notify()
   }
 
   const handleEdit = async () => {
@@ -59,11 +63,13 @@ export default function RolePage() {
     }
     setShowEdit(null)
     loadRoles()
+    notify()
   }
 
   const handleSetCurrent = async (name: string) => {
     await api.put('/roles/current', { name })
     loadRoles()
+    notify()
   }
 
   return (
