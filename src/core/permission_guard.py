@@ -57,10 +57,15 @@ TOOL_PATH_ARGS: dict[str, list[str]] = {
     "search_files":     ["path"],
     "move_file":        ["source", "destination"],
     "get_file_info":    ["path"],
+    "execute_python":   ["code"],
+    "execute_shell":    ["command"],
 }
 
 # 所有需要权限检查的工具名
 GUARDED_TOOLS: set[str] = set(TOOL_PATH_ARGS.keys())
+
+# 代码执行类工具 — 始终高风险，不走路径规则，始终需用户确认
+CODE_EXEC_TOOLS: set[str] = {"execute_python", "execute_shell"}
 
 
 # ═══════════════════════════════════════════════════════════
@@ -156,6 +161,8 @@ class PermissionGuard:
         self._ws_send_fn = ws_send_fn
         self._pending: dict[str, PermissionRequest] = {}
         self._config = load_permission_config()
+        # 会话级别允许列表: {"tool_name:conn_name", ...} — 本次应用运行期间有效，重启后重置
+        self._session_approved: set[str] = set()
 
     # ── API 给外部设置 WebSocket 回调 ──
 
@@ -253,37 +260,127 @@ class PermissionGuard:
         # 3) 需要确认
         return None, "", paths[0]  # type: ignore[return-value]
 
+    async def _request_code_exec_approval(
+        self,
+        tool_name: str,
+        tool_args: dict,
+        paths: list[str],
+        conn_name: str,
+    ) -> PermissionResult:
+        """代码执行工具专用审批流程 — 始终高风险，始终弹窗确认"""
+        if self._ws_send_fn is None:
+            return PermissionResult(
+                allowed=False,
+                reason="需要用户确认但当前无交互通道，默认拒绝",
+                operation="execute",
+            )
+
+        code_or_command = paths[0] if paths else ""
+        # 截断过长的代码/命令用于展示
+        preview = code_or_command[:800] if code_or_command else ""
+
+        tool_label = "Python 代码" if tool_name == "execute_python" else "Shell 命令"
+
+        req_id = f"perm_{uuid.uuid4().hex[:8]}"
+        req = PermissionRequest(
+            id=req_id,
+            tool_name=tool_name,
+            paths=paths,
+            operation="execute",
+            risk="high",
+            preview=preview,
+        )
+
+        await self._ws_send_fn({
+            "type": "permission_request",
+            "id": req_id,
+            "tool": tool_name,
+            "tool_label": tool_label,
+            "conn_name": conn_name,
+            "paths": paths,
+            "operation": "execute",
+            "risk": "high",
+            "preview": preview,
+        })
+
+        self._pending[req_id] = req
+
+        timeout = self._config.get("prompt_timeout_seconds", 60)
+        try:
+            action = await asyncio.wait_for(req.future, timeout=timeout)
+        except asyncio.TimeoutError:
+            self._pending.pop(req_id, None)
+            return PermissionResult(
+                allowed=False,
+                reason=f"权限请求超时（{timeout}秒无响应），自动拒绝",
+                operation="execute",
+            )
+
+        self._pending.pop(req_id, None)
+
+        if action == "allow_once":
+            return PermissionResult(
+                allowed=True, reason="用户允许（单次）", operation="execute",
+            )
+        elif action == "allow_session":
+            session_key = f"{tool_name}:{conn_name}" if conn_name else tool_name
+            self._session_approved.add(session_key)
+            return PermissionResult(
+                allowed=True, reason="用户允许（本次会话）", operation="execute",
+            )
+        else:  # "deny"
+            return PermissionResult(
+                allowed=False, reason="用户拒绝", operation="execute",
+            )
+
     # ── 工具调用入口 ──
 
     def needs_guard(self, tool_name: str) -> bool:
         """检查此工具是否需要权限守卫"""
         return tool_name in GUARDED_TOOLS
 
+    def is_session_approved(self, tool_name: str, conn_name: str = "") -> bool:
+        """检查工具+连接组合是否在本次会话已被用户批准"""
+        key = f"{tool_name}:{conn_name}" if conn_name else tool_name
+        return key in self._session_approved
+
     async def check(
         self,
         tool_name: str,
         tool_args: dict,
         preview_content: str = "",
+        conn_name: str = "",
     ) -> PermissionResult:
         """检查工具调用是否需要权限审批
 
-        返回 PermissionResult(allowed=True) → 可直接执行
-        返回 PermissionResult(allowed=False) → 拒绝执行
+        Returns:
+            PermissionResult(allowed=True) → 可直接执行
+            PermissionResult(allowed=False) → 拒绝执行
 
         如果需要用户确认，会通过 WebSocket 发送权限请求并等待响应。
-
         每次调用时自动重载配置，确保热更新生效。
         """
         # ── 热更新：每次检查前重载配置 ──
         self._config = load_permission_config()
 
+        # ── 会话级别允许检查 ──
+        session_key = f"{tool_name}:{conn_name}" if conn_name else tool_name
+        if session_key in self._session_approved:
+            return PermissionResult(allowed=True, reason="本次会话已允许此类操作", operation="execute")
+
         # 提取路径
         paths = self._extract_paths(tool_name, tool_args)
+
+        # ── 代码执行工具：始终高风险，不走路径规则，直接进入用户确认流程 ──
+        if tool_name in CODE_EXEC_TOOLS:
+            return await self._request_code_exec_approval(
+                tool_name, tool_args, paths, conn_name
+            )
+
         if not paths:
-            # 没有可识别的路径参数 → 放行（如 read_file path 写错时由工具报错）
             return PermissionResult(allowed=True, reason="无文件路径参数")
 
-        # 检查规则
+        # ── 检查规则（denied → 拒绝, trusted → 放行, 其他 → 需确认）──
         allowed, reason, matched_path = self._check_rules(paths)
 
         if allowed is True:
@@ -293,14 +390,12 @@ class PermissionGuard:
 
         # ── 需要用户确认 ──
         if self._ws_send_fn is None:
-            # 无 WebSocket 连接 → 默认拒绝
             return PermissionResult(
                 allowed=False,
                 reason="需要用户确认但当前无交互通道，默认拒绝",
                 path=matched_path,
             )
 
-        # 确定操作类型和风险等级
         if tool_name in DELETE_OPS:
             operation = "delete"
             risk = "high"
@@ -311,7 +406,6 @@ class PermissionGuard:
             operation = "read"
             risk = "low"
 
-        # 创建权限请求
         req_id = f"perm_{uuid.uuid4().hex[:8]}"
         req = PermissionRequest(
             id=req_id,
@@ -322,11 +416,11 @@ class PermissionGuard:
             preview=preview_content[:500] if preview_content else "",
         )
 
-        # 发送到前端
         await self._ws_send_fn({
             "type": "permission_request",
             "id": req_id,
             "tool": tool_name,
+            "conn_name": conn_name,
             "paths": paths,
             "operation": operation,
             "risk": risk,
@@ -335,7 +429,6 @@ class PermissionGuard:
 
         self._pending[req_id] = req
 
-        # 等待用户响应（带超时）
         timeout = self._config.get("prompt_timeout_seconds", 60)
         try:
             action = await asyncio.wait_for(req.future, timeout=timeout)
@@ -352,43 +445,40 @@ class PermissionGuard:
 
         if action == "allow_once":
             return PermissionResult(
-                allowed=True,
-                reason="用户允许（单次）",
-                path=matched_path,
-                operation=operation,
+                allowed=True, reason="用户允许（单次）",
+                path=matched_path, operation=operation,
             )
         elif action == "allow_always":
-            # 把路径加入信任列表
             for p in paths:
                 parent = str(Path(p).parent)
                 if parent not in self.trusted_paths:
                     self._config.setdefault("trusted_paths", []).append(parent)
             save_permission_config(self._config)
             return PermissionResult(
-                allowed=True,
-                reason="用户允许（始终信任此目录）",
-                path=matched_path,
-                operation=operation,
+                allowed=True, reason="用户允许（始终信任此目录）",
+                path=matched_path, operation=operation,
+            )
+        elif action == "allow_session":
+            session_key = f"{tool_name}:{conn_name}" if conn_name else tool_name
+            self._session_approved.add(session_key)
+            return PermissionResult(
+                allowed=True, reason="用户允许（本次会话）",
+                path=matched_path, operation=operation,
             )
         elif action == "deny_always":
-            # 把路径加入拒绝列表
             for p in paths:
                 parent = str(Path(p).parent)
                 if parent not in self.denied_paths:
                     self._config.setdefault("denied_paths", []).append(parent)
             save_permission_config(self._config)
             return PermissionResult(
-                allowed=False,
-                reason="用户拒绝（始终拒绝此目录）",
-                path=matched_path,
-                operation=operation,
+                allowed=False, reason="用户拒绝（始终拒绝此目录）",
+                path=matched_path, operation=operation,
             )
         else:  # "deny"
             return PermissionResult(
-                allowed=False,
-                reason="用户拒绝",
-                path=matched_path,
-                operation=operation,
+                allowed=False, reason="用户拒绝",
+                path=matched_path, operation=operation,
             )
 
     # ── 处理用户响应 ──

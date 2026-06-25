@@ -24,6 +24,7 @@ interface MCPConnection {
   args: string[]
   env: Record<string, string>
   enabled: boolean
+  auto_grant: boolean
   status: string
   tools: { name: string; description?: string }[]
   error_msg: string
@@ -49,7 +50,6 @@ export default function MCPPage() {
   const [connections, setConnections] = useState<MCPConnection[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [envStatus, setEnvStatus] = useState<{ available: boolean; path: string | null; version: string | null } | null>(null)
-  const [connecting, setConnecting] = useState<Record<string, boolean>>({})
   const [permConfig, setPermConfig] = useState<PermissionConfig | null>(null)
   const [newTrustedPath, setNewTrustedPath] = useState('')
   const [newDeniedPath, setNewDeniedPath] = useState('')
@@ -110,18 +110,8 @@ export default function MCPPage() {
     loadConnections()
   }
 
-  const handleConnect = async (name: string) => {
-    setConnecting((prev) => ({ ...prev, [name]: true }))
-    try {
-      await api.post(`/mcp/${encodeURIComponent(name)}/connect`)
-      loadConnections()
-    } finally {
-      setConnecting((prev) => ({ ...prev, [name]: false }))
-    }
-  }
-
-  const handleDisconnect = async (name: string) => {
-    await api.post(`/mcp/${encodeURIComponent(name)}/disconnect`)
+  const handleToggleApproval = async (name: string, auto_grant: boolean) => {
+    await api.put(`/mcp/${encodeURIComponent(name)}/toggle-approval`, { auto_grant })
     loadConnections()
   }
 
@@ -191,15 +181,21 @@ export default function MCPPage() {
                           <p className="text-xs text-destructive mt-1 truncate">{conn.error_msg}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Switch checked={conn.enabled} onCheckedChange={(v) => handleToggle(conn.name, v)} />
-                        {conn.status === 'connected' ? (
-                          <Button variant="outline" size="sm" onClick={() => handleDisconnect(conn.name)}>断开</Button>
-                        ) : (
-                          <Button size="sm" onClick={() => handleConnect(conn.name)} disabled={connecting[conn.name]}>
-                            {connecting[conn.name] ? '连接中...' : '连接'}
-                          </Button>
-                        )}
+                      <div className="flex items-start gap-3 shrink-0">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <Switch checked={conn.enabled} onCheckedChange={(v) => handleToggle(conn.name, v)} />
+                            <span className="text-[9px] text-text-tertiary/60 leading-none">启用</span>
+                          </div>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <Switch
+                              checked={conn.auto_grant}
+                              onCheckedChange={(v) => handleToggleApproval(conn.name, v)}
+                              disabled={!conn.enabled}
+                            />
+                            <span className="text-[9px] text-text-tertiary/60 leading-none">自动授予</span>
+                          </div>
+                        </div>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(conn.name)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
