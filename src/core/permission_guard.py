@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Awaitable
 
-from src.utils.config import load_json, save_json, CONFIG_DIR, APP_DIR
+from src.utils.config import load_json, save_json, CONFIG_DIR, APP_DIR, USER_DIR
 
 
 # ═══════════════════════════════════════════════════════════
@@ -99,7 +99,7 @@ def _get_default_config() -> dict:
         ]
 
     return {
-        "trusted_paths": ["{PROJECT_ROOT}"],
+        "trusted_paths": ["{PROJECT_ROOT}", "{USER_DATA}"],
         "denied_paths": denied,
         "prompt_timeout_seconds": 60,
     }
@@ -116,6 +116,10 @@ def load_permission_config() -> dict:
     for k, v in defaults.items():
         if k not in cfg:
             cfg[k] = v
+    # 补齐 trusted_paths 中缺失的默认占位符（如 {USER_DATA}）
+    for placeholder in defaults.get("trusted_paths", []):
+        if placeholder not in cfg.get("trusted_paths", []):
+            cfg.setdefault("trusted_paths", []).append(placeholder)
     return cfg
 
 
@@ -194,7 +198,10 @@ class PermissionGuard:
 
     def _expand_pattern(self, pattern: str) -> str:
         """展开模式中的占位符，如 {PROJECT_ROOT} → 实际项目路径"""
-        return pattern.replace("{PROJECT_ROOT}", str(APP_DIR).replace("\\", "/"))
+        return (
+            pattern.replace("{PROJECT_ROOT}", str(APP_DIR).replace("\\", "/"))
+                   .replace("{USER_DATA}", str(USER_DIR).replace("\\", "/"))
+        )
 
     def _match_path(self, real_path: str, policy_pattern: str) -> bool:
         """检查路径是否匹配某个策略模式"""

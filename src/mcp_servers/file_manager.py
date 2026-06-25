@@ -3,6 +3,10 @@
 通过 stdio 暴露文件管理工具，支持全盘访问（无内置路径限制）。
 权限控制由 AICraft 的 PermissionGuard 在客户端层统一管理。
 
+相对路径解析：所有相对路径以 USER_DIR 为基准解析（开发模式=项目根目录，
+打包模式=%APPDATA%/AICraft），确保 Skill 写的 "roles/xxx.md" 等相对路径
+始终落在正确位置。
+
 工具接口兼容 @modelcontextprotocol/server-filesystem，LLM 无感知切换。
 """
 
@@ -18,6 +22,8 @@ from pathlib import Path
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
+
+from src.utils.config import USER_DIR
 
 
 # ═══════════════════════════════════════════════════════════
@@ -278,6 +284,22 @@ GET_FILE_INFO_TOOL = Tool(
 
 
 # ═══════════════════════════════════════════════════════════
+# 路径解析
+# ═══════════════════════════════════════════════════════════
+
+def _resolve_path(raw_path: str) -> Path:
+    """将路径解析为绝对路径。相对路径以 USER_DIR 为基准。
+
+    这样 Skill 写的 "roles/xxx.md" 在开发模式解析到项目根目录，
+    在打包模式解析到 %APPDATA%/AICraft/，不受 CWD 影响。
+    """
+    p = Path(raw_path)
+    if p.is_absolute():
+        return p
+    return (USER_DIR / p).resolve()
+
+
+# ═══════════════════════════════════════════════════════════
 # 工具实现
 # ═══════════════════════════════════════════════════════════
 
@@ -532,7 +554,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     try:
         if name == "read_file":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
             offset = arguments.get("offset", 0) or 0
@@ -541,7 +563,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=output)]
 
         elif name == "write_file":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             content = arguments.get("content", "")
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
@@ -549,7 +571,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=output)]
 
         elif name == "edit_file":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             old_string = arguments.get("old_string", "")
             new_string = arguments.get("new_string", "")
             replace_all = arguments.get("replace_all", False)
@@ -561,28 +583,28 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=output)]
 
         elif name == "delete_file":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
             output = await loop.run_in_executor(None, _delete_file, path)
             return [TextContent(type="text", text=output)]
 
         elif name == "create_directory":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
             output = await loop.run_in_executor(None, _create_directory, path)
             return [TextContent(type="text", text=output)]
 
         elif name == "list_directory":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
             output = await loop.run_in_executor(None, _list_directory, path)
             return [TextContent(type="text", text=output)]
 
         elif name == "search_files":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             pattern = arguments.get("pattern", "*")
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
@@ -590,15 +612,15 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=output)]
 
         elif name == "move_file":
-            source = Path(arguments.get("source", ""))
-            destination = Path(arguments.get("destination", ""))
+            source = _resolve_path(arguments.get("source", ""))
+            destination = _resolve_path(arguments.get("destination", ""))
             if not str(source).strip() or not str(destination).strip():
                 return [TextContent(type="text", text="错误: source 和 destination 参数不能为空")]
             output = await loop.run_in_executor(None, _move_file, source, destination)
             return [TextContent(type="text", text=output)]
 
         elif name == "get_file_info":
-            path = Path(arguments.get("path", ""))
+            path = _resolve_path(arguments.get("path", ""))
             if not str(path).strip():
                 return [TextContent(type="text", text="错误: path 参数不能为空")]
             output = await loop.run_in_executor(None, _get_file_info, path)
