@@ -2,17 +2,11 @@ import { Minus, Square, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function WindowControls() {
-  const isPywebview = typeof window !== 'undefined' && (window as any).pywebview !== undefined
+  const getApi = () => (typeof window !== 'undefined' ? (window as any).pywebview?.api : null)
 
-  const handleMinimize = () => {
-    if (isPywebview) (window as any).pywebview.api.minimize()
-  }
-  const handleMaximize = () => {
-    if (isPywebview) (window as any).pywebview.api.toggle_fullscreen()
-  }
-  const handleClose = () => {
-    if (isPywebview) (window as any).pywebview.api.close()
-  }
+  const handleMinimize = () => getApi()?.minimize()
+  const handleMaximize = () => getApi()?.toggle_fullscreen()
+  const handleClose = () => getApi()?.close()
 
   return (
     <div className="flex items-center gap-0.5">

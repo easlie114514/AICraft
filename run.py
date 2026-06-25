@@ -5,6 +5,7 @@
 打包模式: AICraft.exe (PyInstaller onedir)
 """
 
+import ctypes
 import os
 import sys
 import threading
@@ -32,6 +33,19 @@ FRONTEND_INDEX = os.path.join(FRONTEND_DIST, "index.html")
 class WindowAPI:
     """暴露给前端 JS 的窗口控制 API (通过 window.pywebview.api 调用)"""
 
+    def __init__(self):
+        self._hwnd = None
+        self._scale = 1.0
+
+    def _ensure_hwnd(self):
+        """缓存窗口句柄和 DPI（纯 Win32，线程安全）"""
+        if self._hwnd is None:
+            self._hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if self._hwnd:
+                dpi = ctypes.windll.user32.GetDpiForWindow(self._hwnd)
+                self._scale = dpi / 96.0
+        return self._hwnd
+
     def minimize(self):
         win = webview.active_window()
         if win:
@@ -46,6 +60,47 @@ class WindowAPI:
         win = webview.active_window()
         if win:
             win.destroy()
+
+    def resize_window(self, edge: str, dx: int, dy: int):
+        """拖拽边框缩放窗口（纯 Win32 API，线程安全）"""
+        hwnd = self._ensure_hwnd()
+        if not hwnd:
+            return
+
+        user32 = ctypes.windll.user32
+
+        class RECT(ctypes.Structure):
+            _fields_ = [('left', ctypes.c_long), ('top', ctypes.c_long),
+                        ('right', ctypes.c_long), ('bottom', ctypes.c_long)]
+        rect = RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        x, y = rect.left, rect.top
+        w, h = rect.right - rect.left, rect.bottom - rect.top
+
+        # JS 传入逻辑像素 delta → 物理像素
+        dx_px = int(dx * self._scale)
+        dy_px = int(dy * self._scale)
+
+        if 'left' in edge:
+            x += dx_px; w -= dx_px
+        elif 'right' in edge:
+            w += dx_px
+        if 'top' in edge:
+            y += dy_px; h -= dy_px
+        elif 'bottom' in edge:
+            h += dy_px
+
+        # 最小尺寸（逻辑 400×300 → 物理）
+        min_w, min_h = int(400 * self._scale), int(300 * self._scale)
+        if w < min_w:
+            if 'left' in edge: x -= (min_w - w)
+            w = min_w
+        if h < min_h:
+            if 'top' in edge: y -= (min_h - h)
+            h = min_h
+
+        # SWP_NOZORDER | SWP_NOACTIVATE 避免焦点切换
+        user32.SetWindowPos(hwnd, None, x, y, w, h, 0x0004 | 0x0010)
 
 
 def start_server():
@@ -85,6 +140,10 @@ def main():
         print("[AICraft] 开发模式 — 使用 Vite dev server (请先运行 npm run dev)")
         url = "http://127.0.0.1:5173"
 
+    # 配置拖拽区域：仅 .app-region-drag 的直接命中可拖拽（排除子元素）
+    webview.settings['DRAG_REGION_SELECTOR'] = '.app-region-drag'
+    webview.settings['DRAG_REGION_DIRECT_TARGET_ONLY'] = True
+
     # 创建 frameless 窗口，js_api 暴露给前端 window.pywebview.api
     webview.create_window(
         title="AICraft",
@@ -94,7 +153,7 @@ def main():
         height=800,
         min_size=(800, 600),
         frameless=True,
-        easy_drag=True,
+        easy_drag=False,
     )
 
     webview.start(debug=False)
