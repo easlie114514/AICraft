@@ -100,15 +100,18 @@ async def update_role(name: str, data: dict):
 
 @router.delete("/roles/{name}")
 async def delete_role(name: str):
-    """删除角色 — 只能删除用户自建角色"""
+    """删除角色 — 用户角色物理删除，出厂角色软删除（写入 .trash 标记隐藏）"""
     deps = get_deps()
     deps.role_loader.scan()
     role = deps.role_loader.get_role(name)
     if not role:
         raise HTTPException(status_code=404, detail="角色不存在")
-    if not role.is_user:
-        raise HTTPException(status_code=400, detail="出厂角色不可删除，你可以在用户目录创建同名角色覆盖它")
 
-    role.path.unlink(missing_ok=True)
+    if role.is_user:
+        role.path.unlink(missing_ok=True)
+    else:
+        # 出厂角色无法物理删除，用软删除标记隐藏
+        deps.role_loader.hide_role(name)
+
     deps.role_loader.scan()
     return {"ok": True}

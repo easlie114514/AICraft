@@ -29,28 +29,44 @@ class RoleLoader:
         self.user_dir = user_dir           # 用户自建角色（始终可写）
         self.roles: list[Role] = []
 
+    @property
+    def _trash_dir(self) -> Path:
+        """软删除标记目录"""
+        return self.user_dir / ".trash"
+
     def scan(self) -> list[Role]:
         """扫描出厂 + 用户角色目录，合并返回
 
         同名角色以用户版本为准（允许覆盖出厂角色）。
-        开发模式下两目录合一，所有角色均视为用户角色（可删除）。
+        开发模式下两目录合一，所有角色均视为用户角色。
+        被软删除的角色（.trash 中有同名标记文件）会被过滤掉。
         """
         role_map: dict[str, Role] = {}
         same_dir = (self.user_dir == self.bundled_dir)
 
+        # 读取软删除标记
+        hidden: set[str] = set()
+        trash = self._trash_dir
+        if trash.exists():
+            for f in trash.glob("*.md"):
+                hidden.add(f.stem)
+
         # 1) 先加载出厂角色
         if self.bundled_dir.exists():
             for f in sorted(self.bundled_dir.glob("*.md")):
-                content = f.read_text(encoding="utf-8")
                 name = f.stem
-                # 开发模式（同目录）：统一视为用户角色，允许删除
+                if name in hidden:
+                    continue
+                content = f.read_text(encoding="utf-8")
                 role_map[name] = Role(name=name, path=f, content=content, is_user=same_dir)
 
         # 2) 再加载用户角色（覆盖同名出厂角色）
         if self.user_dir.exists() and not same_dir:
             for f in sorted(self.user_dir.glob("*.md")):
-                content = f.read_text(encoding="utf-8")
                 name = f.stem
+                if name in hidden:
+                    continue
+                content = f.read_text(encoding="utf-8")
                 role_map[name] = Role(name=name, path=f, content=content, is_user=True)
 
         self.roles = list(role_map.values())
@@ -60,6 +76,11 @@ class RoleLoader:
     def writable_dir(self) -> Path:
         """返回可写入的角色目录（新建/修改角色用）"""
         return self.user_dir
+
+    def hide_role(self, name: str) -> None:
+        """软删除出厂角色——在 .trash 目录下创建同名标记文件"""
+        self._trash_dir.mkdir(parents=True, exist_ok=True)
+        (self._trash_dir / f"{name}.md").touch()
 
     def get_role(self, name: str) -> Role | None:
         """按名称获取角色"""

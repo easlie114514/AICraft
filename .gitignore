@@ -10,6 +10,9 @@ venv/
 .venv/
 env/
 
+# ── 角色软删除标记 ──
+roles/.trash/
+
 # ── 运行时数据（用户生成，首次启动自动创建） ──
 .version
 chroma_db/
