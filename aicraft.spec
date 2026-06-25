@@ -35,7 +35,7 @@ a = Analysis(
         # LLM
         'anthropic',
         # 桌面
-        'pywebview', 'pyperclip',
+        'webview', 'pyperclip',
         # 工具
         'watchdog', 'rich', 'tenacity', 'orjson',
         # MCP
