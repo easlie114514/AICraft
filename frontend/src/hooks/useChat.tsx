@@ -231,7 +231,7 @@ interface ChatContextValue {
   newScene: () => void
   tokenStats: TokenStatsData | null
   permissionRequest: PermissionRequest | null
-  respondPermission: (id: string, action: 'allow_once' | 'allow_always' | 'deny' | 'deny_always') => void
+  respondPermission: (id: string, action: 'allow_once' | 'allow_always' | 'allow_session' | 'deny' | 'deny_always') => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -312,10 +312,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
             break
           case 'permission_request':
-            // AI 请求文件操作权限 → 弹出确认框
+            // AI 请求权限 → 弹出确认框
             setPermissionRequest({
               id: data.id,
               tool: data.tool,
+              tool_label: data.tool_label || '',
+              conn_name: data.conn_name || '',
               paths: data.paths || [],
               operation: data.operation || 'read',
               risk: data.risk || 'low',
@@ -427,7 +429,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const respondPermission = useCallback(
-    (id: string, action: 'allow_once' | 'allow_always' | 'deny' | 'deny_always') => {
+    (id: string, action: 'allow_once' | 'allow_always' | 'allow_session' | 'deny' | 'deny_always') => {
       setPermissionRequest(null)
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({

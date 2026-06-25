@@ -11,7 +11,8 @@
         "src/mcp_servers/file_manager.py"
       ],
       "env": {},
-      "enabled": true
+      "enabled": true,
+      "require_approval": true
     },
     {
       "name": "代码执行",
@@ -24,7 +25,8 @@
         "src/mcp_servers/code_executor.py"
       ],
       "env": {},
-      "enabled": true
+      "enabled": true,
+      "require_approval": true
     }
   ]
 }

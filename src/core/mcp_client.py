@@ -33,6 +33,7 @@ class MCPConnection:
     env: dict[str, str] = field(default_factory=dict)  # 环境变量（可选）
     # 通用
     enabled: bool = True
+    auto_grant: bool = False    # 自动授予权限：True=无需确认直接执行，False=每次弹窗询问
     status: str = "disconnected"   # disconnected / connecting / connected / error
     tools: list[dict] = field(default_factory=list)
     error_msg: str = ""
@@ -101,6 +102,7 @@ class MCPManager:
                 args=self._resolve_mcp_args(item.get("args", [])),
                 env=item.get("env", {}),
                 enabled=item.get("enabled", True),
+                auto_grant=item.get("auto_grant", False),
             )
             connections.append(conn)
 
@@ -122,6 +124,7 @@ class MCPManager:
                     "args": MCPManager._relativize_mcp_args(c.args),
                     "env": c.env,
                     "enabled": c.enabled,
+                    "auto_grant": c.auto_grant,
                 }
                 for c in self.connections
             ]
@@ -234,6 +237,7 @@ class MCPManager:
         command: str = "",
         args: list[str] | None = None,
         env: dict[str, str] | None = None,
+        auto_grant: bool = False,
     ) -> MCPConnection:
         """添加新的MCP连接"""
         conn = MCPConnection(
@@ -245,6 +249,7 @@ class MCPManager:
             command=command,
             args=self._resolve_mcp_args(args or []),
             env=env or {},
+            auto_grant=auto_grant,
         )
         self.connections.append(conn)
         self.save_connections()
@@ -270,6 +275,14 @@ class MCPManager:
                     if name in self._stdio_procs:
                         from asyncio import ensure_future
                         ensure_future(self.disconnect_stdio(name))
+                break
+        self.save_connections()
+
+    def toggle_auto_grant(self, name: str, auto_grant: bool) -> None:
+        """开关 MCP 连接的自动授予权限"""
+        for conn in self.connections:
+            if conn.name == name:
+                conn.auto_grant = auto_grant
                 break
         self.save_connections()
 

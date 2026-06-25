@@ -19,6 +19,7 @@ def _conn_to_dict(conn):
         "args": conn.args,
         "env": conn.env,
         "enabled": conn.enabled,
+        "auto_grant": conn.auto_grant,
         "status": conn.status,
         "tools": conn.tools,
         "error_msg": conn.error_msg,
@@ -70,6 +71,14 @@ async def toggle_connection(name: str, data: dict):
     """启用/禁用 MCP 连接"""
     deps = get_deps()
     deps.mcp_manager.toggle_connection(name, data.get("enabled", True))
+    return {"ok": True}
+
+
+@router.put("/mcp/{name}/toggle-approval")
+async def toggle_approval(name: str, data: dict):
+    """开关 MCP 连接的自动授予权限"""
+    deps = get_deps()
+    deps.mcp_manager.toggle_auto_grant(name, data.get("auto_grant", False))
     return {"ok": True}
 
 

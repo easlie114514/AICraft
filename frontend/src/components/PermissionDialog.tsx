@@ -14,15 +14,17 @@ import { Badge } from '@/components/ui/badge'
 export interface PermissionRequest {
   id: string
   tool: string
+  tool_label?: string
+  conn_name?: string
   paths: string[]
-  operation: 'read' | 'write' | 'delete'
+  operation: 'read' | 'write' | 'delete' | 'execute'
   risk: 'low' | 'medium' | 'high'
   preview: string
 }
 
 interface PermissionDialogProps {
   request: PermissionRequest | null
-  onResponse: (id: string, action: 'allow_once' | 'allow_always' | 'deny' | 'deny_always') => void
+  onResponse: (id: string, action: 'allow_once' | 'allow_always' | 'allow_session' | 'deny' | 'deny_always') => void
   timeoutSeconds?: number
 }
 
@@ -42,12 +44,19 @@ const OP_ICONS: Record<string, typeof FileText> = {
   read: FileText,
   write: FolderOpen,
   delete: Trash2,
+  execute: Shield,
 }
 
 const OP_LABELS: Record<string, string> = {
   read: '读取',
   write: '写入',
   delete: '删除',
+  execute: '代码执行',
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  execute_python: 'Python 代码',
+  execute_shell: 'Shell 命令',
 }
 
 export default function PermissionDialog({
@@ -100,7 +109,7 @@ export default function PermissionDialog({
   }, [request?.id, timeoutSeconds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAction = useCallback(
-    (action: 'allow_once' | 'allow_always' | 'deny' | 'deny_always') => {
+    (action: 'allow_once' | 'allow_always' | 'allow_session' | 'deny' | 'deny_always') => {
       if (!request || respondedRef.current) return
       respondedRef.current = true
       if (timerRef.current) {
@@ -117,6 +126,8 @@ export default function PermissionDialog({
   if (!request) return null
 
   const OpIcon = OP_ICONS[request.operation] || FileText
+  const isCodeExec = request.operation === 'execute'
+  const toolLabel = request.tool_label || TOOL_LABELS[request.tool] || request.tool
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -141,10 +152,14 @@ export default function PermissionDialog({
                 'text-success'
               }`} />
             </div>
-            <DialogTitle>AI 请求文件操作权限</DialogTitle>
+            <DialogTitle>
+              {isCodeExec ? `AI 请求执行 ${toolLabel}` : 'AI 请求文件操作权限'}
+            </DialogTitle>
           </div>
           <DialogDescription>
-            AI 正在尝试执行文件操作，需要你的批准
+            {isCodeExec
+              ? `AI 正在尝试执行 ${toolLabel}，需要你的批准`
+              : 'AI 正在尝试执行文件操作，需要你的批准'}
           </DialogDescription>
         </DialogHeader>
 
@@ -153,38 +168,52 @@ export default function PermissionDialog({
           <div className="flex items-center gap-2">
             <OpIcon className="h-4 w-4 text-text-secondary" />
             <span className="text-sm font-medium">
-              {OP_LABELS[request.operation] || request.tool}
+              {isCodeExec ? toolLabel : (OP_LABELS[request.operation] || request.tool)}
             </span>
             <Badge className={`text-[10px] border ${RISK_COLORS[request.risk]}`}>
               {RISK_LABELS[request.risk]}
             </Badge>
           </div>
 
-          {/* 目标路径 */}
-          <div className="space-y-1">
-            <span className="text-[10px] text-text-tertiary uppercase tracking-wide">
-              目标路径
-            </span>
-            {request.paths.map((p, i) => (
-              <div
-                key={i}
-                className="text-xs font-mono bg-muted/50 px-2 py-1.5 rounded border border-border/50 break-all"
-              >
-                {p}
-              </div>
-            ))}
-          </div>
-
-          {/* 内容预览 */}
-          {request.preview && (
+          {/* 代码执行：显示代码/命令内容 */}
+          {isCodeExec ? (
             <div className="space-y-1">
               <span className="text-[10px] text-text-tertiary uppercase tracking-wide">
-                内容预览
+                {request.tool === 'execute_shell' ? 'Shell 命令' : 'Python 代码'}
               </span>
-              <div className="text-xs font-mono bg-muted/50 px-2 py-1.5 rounded border border-border/50 max-h-24 overflow-y-auto whitespace-pre-wrap break-all">
-                {request.preview}
+              <div className="text-xs font-mono bg-muted px-2 py-1.5 rounded border border-border/50 max-h-44 overflow-y-auto whitespace-pre-wrap break-all">
+                {request.preview || request.paths[0] || '(无内容)'}
               </div>
             </div>
+          ) : (
+            <>
+              {/* 文件操作：目标路径 */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-text-tertiary uppercase tracking-wide">
+                  目标路径
+                </span>
+                {request.paths.map((p, i) => (
+                  <div
+                    key={i}
+                    className="text-xs font-mono bg-muted/50 px-2 py-1.5 rounded border border-border/50 break-all"
+                  >
+                    {p}
+                  </div>
+                ))}
+              </div>
+
+              {/* 内容预览 */}
+              {request.preview && (
+                <div className="space-y-1">
+                  <span className="text-[10px] text-text-tertiary uppercase tracking-wide">
+                    内容预览
+                  </span>
+                  <div className="text-xs font-mono bg-muted/50 px-2 py-1.5 rounded border border-border/50 max-h-24 overflow-y-auto whitespace-pre-wrap break-all">
+                    {request.preview}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* 超时倒计时 */}
@@ -210,44 +239,79 @@ export default function PermissionDialog({
           {request.risk === 'high' && (
             <div className="flex items-start gap-1.5 text-[11px] text-danger bg-danger/5 px-2 py-1.5 rounded">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>此操作会删除文件或目录，无法撤销。请仔细确认。</span>
+              <span>
+                {isCodeExec
+                  ? '此操作会在你的电脑上执行代码，请确认代码来源可信。'
+                  : '此操作会删除文件或目录，无法撤销。请仔细确认。'}
+              </span>
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => handleAction('deny_always')}
-            className="text-xs"
-          >
-            始终拒绝
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleAction('deny')}
-            className="text-xs"
-          >
-            拒绝
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleAction('allow_always')}
-            className="text-xs"
-          >
-            始终允许
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => handleAction('allow_once')}
-            className="text-xs"
-          >
-            允许一次
-          </Button>
+          {isCodeExec ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAction('deny')}
+                className="text-xs"
+              >
+                拒绝
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAction('allow_session')}
+                className="text-xs"
+              >
+                本次会话允许
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => handleAction('allow_once')}
+                className="text-xs"
+              >
+                允许一次
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleAction('deny_always')}
+                className="text-xs"
+              >
+                始终拒绝
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAction('deny')}
+                className="text-xs"
+              >
+                拒绝
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAction('allow_always')}
+                className="text-xs"
+              >
+                始终允许
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => handleAction('allow_once')}
+                className="text-xs"
+              >
+                允许一次
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

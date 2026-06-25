@@ -361,7 +361,7 @@ async def execute_mcp_tool(
     遍历所有已连接的 MCP 服务器，找到拥有该工具的服务器并通过 MCPManager.call_tool 调用。
     call_tool 会自动处理 SSE（短连接）和 Stdio（长连接）两种模式。
 
-    如果传入 permission_guard，会在执行前检查文件操作权限。
+    如果传入 permission_guard，会在执行前检查文件操作权限和代码执行审批。
 
     Args:
         tool_name: 工具名称
@@ -372,33 +372,52 @@ async def execute_mcp_tool(
     Returns:
         工具执行结果的文本表示
     """
+    # 找到持有该工具的连接
+    conn = None
+    for c in mcp_manager.connections:
+        if not (c.enabled and c.status == "connected"):
+            continue
+        tool_names = {t["name"] for t in c.tools}
+        if tool_name in tool_names:
+            conn = c
+            break
+
+    if conn is None:
+        return f"未找到可执行工具 '{tool_name}' 的 MCP 服务器"
+
     # ── 权限检查 ──
     if permission_guard is not None and permission_guard.needs_guard(tool_name):
-        # 提取写入/删除操作的内容预览
-        preview = ""
-        if tool_name in ("write_file", "edit_file"):
-            preview = str(tool_args.get("content", "") or tool_args.get("new_string", ""))
-        elif tool_name == "delete_file":
-            preview = f"DELETE: {tool_args.get('path', '')}"
-        elif tool_name == "move_file":
-            preview = f"MOVE: {tool_args.get('source', '')} → {tool_args.get('destination', '')}"
+        # 自动授予权限开启 → 跳过所有权限检查
+        if conn.auto_grant:
+            pass
+        # 代码执行工具：始终需要用户确认（除非会话已批准）
+        elif tool_name in ("execute_python", "execute_shell"):
+            if permission_guard.is_session_approved(tool_name, conn.name):
+                pass  # 本次会话已批准此类操作
+            else:
+                preview = str(tool_args.get("code") or tool_args.get("command", ""))
+                perm = await permission_guard.check(tool_name, tool_args, preview, conn.name)
+                if not perm.allowed:
+                    return f"[权限拒绝] {perm.reason}"
+        else:
+            # 文件操作：走路径规则检查（信任路径自动放行，其他弹窗确认）
+            preview = ""
+            if tool_name in ("write_file", "edit_file"):
+                preview = str(tool_args.get("content", "") or tool_args.get("new_string", ""))
+            elif tool_name == "delete_file":
+                preview = f"DELETE: {tool_args.get('path', '')}"
+            elif tool_name == "move_file":
+                preview = f"MOVE: {tool_args.get('source', '')} → {tool_args.get('destination', '')}"
 
-        perm = await permission_guard.check(tool_name, tool_args, preview)
-        if not perm.allowed:
-            return f"[权限拒绝] {perm.reason}"
+            perm = await permission_guard.check(tool_name, tool_args, preview)
+            if not perm.allowed:
+                return f"[权限拒绝] {perm.reason}"
 
-    for conn in mcp_manager.connections:
-        if not (conn.enabled and conn.status == "connected"):
-            continue
-        tool_names = {t["name"] for t in conn.tools}
-        if tool_name not in tool_names:
-            continue
-        try:
-            return await mcp_manager.call_tool(conn.name, tool_name, tool_args)
-        except Exception as e:
-            return f"工具执行失败: {str(e)}"
-
-    return f"未找到可执行工具 '{tool_name}' 的 MCP 服务器"
+    # ── 执行工具 ──
+    try:
+        return await mcp_manager.call_tool(conn.name, tool_name, tool_args)
+    except Exception as e:
+        return f"工具执行失败: {str(e)}"
 
 
 async def _build_llm_kwargs(
