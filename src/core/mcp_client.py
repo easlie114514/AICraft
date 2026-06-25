@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -388,10 +389,20 @@ class MCPManager:
         # 打包模式下自动切换 command：python → sys.executable
         command, args = self._normalize_stdio_params(conn.command, conn.args)
 
+        # 确保子进程能找到项目模块（开发模式下 python 子进程的
+        # sys.path[0] 是脚本所在目录，不含项目根目录，导致
+        # "from src.xxx import ..." 失败）
+        from src.utils.config import BASE_DIR
+        child_env = (conn.env or {}).copy()
+        pythonpath = child_env.get("PYTHONPATH", os.environ.get("PYTHONPATH", ""))
+        sep = os.pathsep if pythonpath else ""
+        child_env["PYTHONPATH"] = f"{BASE_DIR}{sep}{pythonpath}".rstrip(os.pathsep)
+
         server_params = StdioServerParameters(
             command=command,
             args=args,
-            env=conn.env if conn.env else None,
+            env=child_env if child_env else None,
+            cwd=str(BASE_DIR),
         )
 
         result_queue: asyncio.Queue = asyncio.Queue(maxsize=1)

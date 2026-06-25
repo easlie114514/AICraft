@@ -13,7 +13,7 @@
   --theme-primary-light: #E8F3FF;
   --theme-primary-lighter: #F2F7FF;
   --theme-ring: #165DFF;
-  --theme-nav-bg: #0F1E4A;
+  --theme-nav-bg: #122556;
   --theme-input: #E4E8F0;
 }
 
@@ -24,7 +24,7 @@
   --theme-primary-light: #F0FDF4;
   --theme-primary-lighter: #F7FEF9;
   --theme-ring: #16A34A;
-  --theme-nav-bg: #0A1F12;
+  --theme-nav-bg: #0F3620;
   --theme-input: #E2EBE5;
 }
 
@@ -35,7 +35,7 @@
   --theme-primary-light: #F5F3FF;
   --theme-primary-lighter: #FAF9FF;
   --theme-ring: #7C3AED;
-  --theme-nav-bg: #1A0F2E;
+  --theme-nav-bg: #251742;
   --theme-input: #E9E5F0;
 }
 
@@ -46,8 +46,63 @@
   --theme-primary-light: #FFF7ED;
   --theme-primary-lighter: #FFFBEB;
   --theme-ring: #EA580C;
-  --theme-nav-bg: #1F1005;
+  --theme-nav-bg: #351A0A;
   --theme-input: #EDE7E1;
+}
+
+/* ── 玫瑰红 ── */
+.theme-rose {
+  --theme-primary: #DC2626;
+  --theme-primary-hover: #B91C1C;
+  --theme-primary-light: #FEF2F2;
+  --theme-primary-lighter: #FFF7F7;
+  --theme-ring: #DC2626;
+  --theme-nav-bg: #46141A;
+  --theme-input: #F0E6E7;
+}
+
+/* ── 青碧色 ── */
+.theme-teal {
+  --theme-primary: #0D9488;
+  --theme-primary-hover: #0F766E;
+  --theme-primary-light: #F0FDFA;
+  --theme-primary-lighter: #F6FEFC;
+  --theme-ring: #0D9488;
+  --theme-nav-bg: #113630;
+  --theme-input: #E4EDEB;
+}
+
+/* ── 琥珀金 ── */
+.theme-amber {
+  --theme-primary: #F59E0B;
+  --theme-primary-hover: #D97706;
+  --theme-primary-light: #FFFCEB;
+  --theme-primary-lighter: #FFFEF5;
+  --theme-ring: #F59E0B;
+  --theme-nav-bg: #35260D;
+  --theme-input: #EDEAE2;
+}
+
+/* ── 樱花粉 ── */
+.theme-pink {
+  --theme-primary: #DB2777;
+  --theme-primary-hover: #BE185D;
+  --theme-primary-light: #FDF2F8;
+  --theme-primary-lighter: #FFF7FB;
+  --theme-ring: #DB2777;
+  --theme-nav-bg: #3E122B;
+  --theme-input: #F0E4EC;
+}
+
+/* ── 石墨灰 ── */
+.theme-slate {
+  --theme-primary: #475569;
+  --theme-primary-hover: #334155;
+  --theme-primary-light: #F1F5F9;
+  --theme-primary-lighter: #F8FAFC;
+  --theme-ring: #475569;
+  --theme-nav-bg: #242A33;
+  --theme-input: #E5E8EC;
 }
 
 @theme {

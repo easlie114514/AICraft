@@ -70,7 +70,19 @@ async def delete_connection(name: str):
 async def toggle_connection(name: str, data: dict):
     """启用/禁用 MCP 连接"""
     deps = get_deps()
-    deps.mcp_manager.toggle_connection(name, data.get("enabled", True))
+    enabled = data.get("enabled", True)
+    deps.mcp_manager.toggle_connection(name, enabled)
+
+    # 启用时自动触发重连
+    if enabled:
+        conn = None
+        for c in deps.mcp_manager.connections:
+            if c.name == name:
+                conn = c
+                break
+        if conn:
+            await deps.mcp_manager.connect(conn)
+
     return {"ok": True}
 
 

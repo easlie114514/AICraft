@@ -32,7 +32,7 @@ export default function ThemeSwitcher() {
       />
 
       {open && (
-        <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-dropdown border border-border p-1.5 z-50 flex gap-1.5">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-xl shadow-dropdown border border-border p-1.5 z-50 flex gap-1.5">
           {THEMES.map((t) => (
             <button
               key={t.name}
