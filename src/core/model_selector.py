@@ -32,6 +32,27 @@ COMPLEX_KEYWORDS = [
 # 代码块/结构化内容检测模式
 _CODE_BLOCK_PATTERN = re.compile(r"```|\n    \w", re.IGNORECASE)
 
+# MCP工具使用意图检测 — 只有这些模式出现时才需要Pro处理工具调用
+_TOOL_USE_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"(读写|读取|写入|创建|删除|修改|编辑|移动|复制)[文檔档件]",
+        r"(新建|生成|编写|写)\w*(代码|脚本|程序|文件|文档|txt|py|js|md)",
+        r"(执行|运行)\w*(命令|代码|脚本|程序|shell|python)",
+        r"(安装|卸载|pip|npm|brew|apt).*\b(库|包|依赖|package)",
+        r"(查看|列出|搜索|查找|打开|cat|ls|dir)\s+\w*[/\\]",
+        r"\b(git|docker|kubectl|curl|wget|ffmpeg)\b",
+        r"帮我\s*\w*(写|弄|做|创建|生成|运行|执行|改)",
+        r"项目\w*(文件|目录|结构|路径|代码)",
+    ]
+]
+
+def _looks_like_tool_use(message: str) -> bool:
+    """检测消息是否可能涉及 MCP 工具操作（文件/命令/代码）"""
+    for pat in _TOOL_USE_PATTERNS:
+        if pat.search(message):
+            return True
+    return False
+
 
 def get_flash_model_config() -> dict[str, Any] | None:
     """获取当前 provider 的 Flash 模型配置，用于后台降级
@@ -116,8 +137,8 @@ def select_model_auto(
     if toggles.get("thinking"):
         return pro_model or user_model_config, "深度思考"
 
-    # ── 规则2：MCP工具调用 → Pro ──
-    if has_mcp_tools:
+    # ── 规则2：消息涉工具操作（路径/命令/代码） → Pro ──
+    if has_mcp_tools and _looks_like_tool_use(user_message):
         return pro_model or user_model_config, "工具调用"
 
     # ── 规则3：RAG检索 → Pro ──
