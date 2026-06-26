@@ -35,6 +35,7 @@ from src.utils.config import (
     MEMORY_DIR,
     MODELS_DIR,
     ROLES_DIR,
+    USER_ROLES_DIR,
     SKILLS_DIR,
     delete_model_config,
     get_current_role_name,
@@ -781,7 +782,7 @@ def build_role_view(page: ft.Page, app_state: dict) -> ft.Column:
                 ft.Button(
                     "打开角色文件夹",
                     icon=ft.Icons.FOLDER_OPEN,
-                    on_click=lambda e: _open_folder(ROLES_DIR),
+                    on_click=lambda e: _open_folder(USER_ROLES_DIR),
                 ),
             ]),
             ft.Divider(),
@@ -861,8 +862,8 @@ def _edit_role_dialog(page: ft.Page, role, role_loader: RoleLoader, refresh_fn) 
             if old_path.exists():
                 old_path.unlink()
 
-        # 保存为新文件
-        path = ROLES_DIR / f"{name}.md"
+        # 保存为新文件（写入用户角色目录，打包后 exe 同级 roles/）
+        path = USER_ROLES_DIR / f"{name}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content or f"你是{name}，请用中文回答问题。", encoding="utf-8")
 
@@ -918,8 +919,8 @@ def _show_new_role_dialog(page: ft.Page, role_loader: RoleLoader, refresh_fn) ->
             status_text.update()
             return
 
-        # 保存为md文件
-        path = ROLES_DIR / f"{name}.md"
+        # 保存为md文件（写入用户角色目录，打包后 exe 同级 roles/）
+        path = USER_ROLES_DIR / f"{name}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content or f"你是{name}，请用中文回答问题。", encoding="utf-8")
 
