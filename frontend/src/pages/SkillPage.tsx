@@ -42,19 +42,11 @@ export default function SkillPage() {
     loadSkills()
   }
 
-  const handleBrowseDir = async () => {
+  const handleOpenDir = async () => {
     try {
-      const res = await api.get<{ ok: boolean; path?: string; detail?: string }>('/skills/browse-dir')
-      if (res.ok && res.path) {
-        setDirInput(res.path)
-        // 自动应用新目录
-        const applyRes = await api.put<{ ok: boolean; path?: string; detail?: string }>('/skills/dir', { path: res.path })
-        if (applyRes.ok) {
-          setSkillDir(applyRes.path || res.path)
-          loadSkills()
-        } else {
-          alert(applyRes.detail || '设置失败')
-        }
+      const res = await api.get<{ ok: boolean; detail?: string }>('/skills/open-dir')
+      if (!res.ok) {
+        alert(res.detail || '打开目录失败')
       }
     } catch (e: any) {
       alert(e?.message || '打开目录失败')
@@ -75,12 +67,12 @@ export default function SkillPage() {
         <InputGroup className="flex-1 rounded-lg">
           <InputGroupInput
             value={dirInput}
-            onChange={(e) => setDirInput(e.target.value)}
-            placeholder="Skills 根目录路径，例如: skills (相对项目根)"
-            className="font-mono text-sm"
+            readOnly
+            placeholder="Skills 目录路径"
+            className="font-mono text-sm bg-muted/30 cursor-default"
           />
           <InputGroupAddon align="inline-end">
-            <InputGroupButton onClick={handleBrowseDir} title="浏览文件夹" size="icon-sm">
+            <InputGroupButton onClick={handleOpenDir} title="在资源管理器中打开 Skills 文件夹" size="icon-sm">
               <FolderOpen className="h-4 w-4" />
             </InputGroupButton>
           </InputGroupAddon>
@@ -92,7 +84,7 @@ export default function SkillPage() {
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Zap className="w-16 h-16 text-text-disabled mb-4" />
             <p className="text-sm text-text-secondary">暂无 Skill</p>
-            <p className="text-xs text-text-tertiary mt-1">设置根目录后，每个一级子目录（含 SKILL.md）即为一个技能</p>
+            <p className="text-xs text-text-tertiary mt-1">点击上方文件夹图标打开 Skills 目录，将技能文件夹拖入即可</p>
           </div>
         ) : (
           <div className="grid gap-4 pr-1">

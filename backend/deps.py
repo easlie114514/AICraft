@@ -9,7 +9,7 @@ from src.core.role_loader import RoleLoader
 from src.core.skill_loader import SkillLoader
 from src.utils.config import (
     APP_CONTEXT_DEFAULT, APP_CONTEXT_PATH,
-    DEFAULTS_DIR, WORKSPACE_DIR,
+    DEFAULTS_DIR, SKILLS_DIR, WORKSPACE_DIR,
     get_skills_dir, ensure_rag_config, ensure_user_dirs,
     migrate_from_appdata,
 )
@@ -93,7 +93,7 @@ def init_deps() -> AppDeps:
     memory = MemoryManager()
     role = RoleLoader()
     role.scan()
-    skill = SkillLoader(skill_dir=get_skills_dir())
+    skill = SkillLoader(skill_dir=SKILLS_DIR, user_dir=get_skills_dir())
     skill.scan()
     _deps = AppDeps(
         mcp_manager=mcp,

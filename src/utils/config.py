@@ -21,9 +21,10 @@ if _FROZEN:
     APP_DIR = Path(sys._MEIPASS) / "data"
     # 便携式设计：数据跟随程序，不散落到 APPDATA
     _exe_dir = Path(sys.executable).parent
-    if _exe_dir != Path(sys._MEIPASS):
-        # 非 onedir 模式（如 onefile）：_MEIPASS 是临时解压目录，与 exe 位置不同
-        # 此时回退到旧行为（APPDATA），但打印警告
+    # onedir 模式：_MEIPASS = exe_dir/_internal（如 D:\AICraft\dist\AICraft\_internal）
+    # onefile 模式：_MEIPASS 在系统临时目录，与 exe 位置无关
+    if _exe_dir != Path(sys._MEIPASS).parent:
+        # 非 onedir 模式（如 onefile）：回退到 APPDATA，并打印警告
         import warnings
         warnings.warn(
             f"检测到非 onedir 打包（_MEIPASS={sys._MEIPASS}，exe={sys.executable}），"
@@ -57,6 +58,7 @@ CHROMA_DIR = USER_DIR / "chroma_db"
 WORKSPACE_DIR = USER_DIR / "workspace"
 RAG_STATE_DIR = USER_DIR / "rag"              # RAG 数据源配置（sources.json）
 USER_ROLES_DIR = USER_DIR / "roles"           # 用户自建角色（打包模式下与出厂角色分离）
+USER_SKILLS_DIR = USER_DIR / "skills"         # 用户自建/修改 Skill（打包模式下与出厂 Skill 分离）
 
 CONVERSATIONS_DIR = MEMORY_DIR / "conversations"
 NOTES_DIR = MEMORY_DIR / "project-notes"
@@ -182,7 +184,7 @@ def ensure_user_dirs():
     # 确保所有用户目录存在
     for d in [CONFIG_DIR, PROFILES_DIR, MODELS_DIR, MEMORY_DIR,
               CONVERSATIONS_DIR, NOTES_DIR, CHROMA_DIR, WORKSPACE_DIR,
-              RAG_STATE_DIR, USER_ROLES_DIR]:
+              RAG_STATE_DIR, USER_ROLES_DIR, USER_SKILLS_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
     # 检查是否需要初始化（.version 文件不存在表示首次启动）
@@ -230,9 +232,35 @@ def ensure_user_dirs():
             "skills_dir": "",
         })
 
+    # 首次启动：从出厂目录复制 Skill 到用户目录（如用户目录为空）
+    if not any(USER_SKILLS_DIR.iterdir()) if USER_SKILLS_DIR.exists() else True:
+        _copy_factory_skills()
+
     # 标记版本
     if is_first_run:
         save_json(VERSION_FILE, {"version": CURRENT_VERSION})
+
+
+def _copy_factory_skills() -> None:
+    """将出厂 Skill 复制到用户 Skill 目录（首次初始化用）
+
+    只在用户目录为空时执行，不覆盖已有文件。
+    开发模式下 SKILLS_DIR == USER_SKILLS_DIR，跳过。
+    """
+    if not SKILLS_DIR.exists():
+        return
+    if SKILLS_DIR.resolve() == USER_SKILLS_DIR.resolve():
+        return  # 开发模式，无需复制
+
+    import shutil
+    USER_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    for src in SKILLS_DIR.iterdir():
+        if not src.is_dir() or src.name.startswith("."):
+            continue
+        dst = USER_SKILLS_DIR / src.name
+        if dst.exists():
+            continue
+        shutil.copytree(str(src), str(dst))
 
 
 def _copy_if_missing(src: Path, dst: Path):
@@ -384,14 +412,14 @@ def set_current_role_name(role_name: str) -> None:
 
 
 def get_skills_dir() -> Path:
-    """获取配置的SKILLS目录（从app.json读取，未配置则默认 SKILLS_DIR）"""
+    """获取用户 Skill 目录（从app.json读取，未配置则默认 USER_SKILLS_DIR）"""
     app_config = load_json(CONFIG_DIR / "app.json")
     configured = app_config.get("skills_dir", "")
     if configured:
         p = resolve_path(configured)
         if p.exists():
             return p
-    return SKILLS_DIR
+    return USER_SKILLS_DIR
 
 
 def set_skills_dir(path: str) -> Path:

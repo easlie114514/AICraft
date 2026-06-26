@@ -1,9 +1,14 @@
-"""Skill加载器 - 扫描Skill目录，读取SKILL.md"""
+"""Skill加载器 - 扫描Skill目录，读取SKILL.md
+
+支持双目录模式：
+- 出厂 Skill（APP_DIR/skills）：打包后只读，随版本发布
+- 用户 Skill（USER_DIR/skills）：用户自建/修改，优先级高于同名出厂 Skill
+"""
 
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.utils.config import SKILLS_DIR, load_json, save_json
+from src.utils.config import SKILLS_DIR, USER_SKILLS_DIR, load_json, save_json
 
 
 @dataclass
@@ -13,6 +18,7 @@ class Skill:
     path: Path
     description: str = ""
     enabled: bool = True
+    is_user: bool = False   # 是否为用户自建 Skill
 
     @property
     def skill_md(self) -> Path:
@@ -24,44 +30,62 @@ class Skill:
 
 
 class SkillLoader:
-    """技能加载器"""
+    """技能加载器 — 合并扫描出厂 + 用户 Skill 目录"""
 
-    def __init__(self, skill_dir: Path = SKILLS_DIR):
-        self.skill_dir = skill_dir
+    def __init__(self, skill_dir: Path = SKILLS_DIR, user_dir: Path = USER_SKILLS_DIR):
+        self.bundled_dir = skill_dir        # 出厂 Skill（打包后只读）
+        self.user_dir = user_dir             # 用户自建 Skill（始终可写）
         self.skills: list[Skill] = []
-        self._toggles_path = self.skill_dir / "toggles.json"
+        self._toggles_path = self.user_dir / "toggles.json"
 
     def scan(self) -> list[Skill]:
-        """扫描Skill目录，识别所有Skill"""
+        """扫描出厂 + 用户 Skill 目录，合并返回
+
+        同名 Skill 以用户版本为准（允许覆盖出厂 Skill）。
+        开发模式下两目录合一，所有 Skill 均视为用户 Skill。
+        """
+        skill_map: dict[str, Skill] = {}
+        same_dir = (self.user_dir.resolve() == self.bundled_dir.resolve())
+
+        # 1) 先加载出厂 Skill
+        if self.bundled_dir.exists():
+            for folder in sorted(self.bundled_dir.iterdir()):
+                if not folder.is_dir() or folder.name.startswith("."):
+                    continue
+                skill_md = folder / "SKILL.md"
+                if not skill_md.exists():
+                    continue
+                description = self._extract_description(skill_md)
+                skill_map[folder.name] = Skill(
+                    name=folder.name,
+                    path=folder,
+                    description=description,
+                    is_user=same_dir,
+                )
+
+        # 2) 再加载用户 Skill（覆盖同名出厂 Skill）
+        if self.user_dir.exists() and not same_dir:
+            for folder in sorted(self.user_dir.iterdir()):
+                if not folder.is_dir() or folder.name.startswith("."):
+                    continue
+                skill_md = folder / "SKILL.md"
+                if not skill_md.exists():
+                    continue
+                description = self._extract_description(skill_md)
+                skill_map[folder.name] = Skill(
+                    name=folder.name,
+                    path=folder,
+                    description=description,
+                    is_user=True,
+                )
+
+        # 3) 应用开关状态（优先从用户目录读取）
         toggles = self._load_toggles()
-        skills = []
+        for skill in skill_map.values():
+            skill.enabled = toggles.get(skill.name, True)
 
-        if not self.skill_dir.exists():
-            return skills
-
-        for folder in sorted(self.skill_dir.iterdir()):
-            if not folder.is_dir():
-                continue
-            if folder.name.startswith("."):
-                continue
-            skill_md = folder / "SKILL.md"
-            if not skill_md.exists():
-                continue
-
-            # 读取SKILL.md的前几行作为描述
-            description = self._extract_description(skill_md)
-            enabled = toggles.get(folder.name, True)
-
-            skill = Skill(
-                name=folder.name,
-                path=folder,
-                description=description,
-                enabled=enabled,
-            )
-            skills.append(skill)
-
-        self.skills = skills
-        return skills
+        self.skills = list(skill_map.values())
+        return self.skills
 
     def toggle(self, skill_name: str, enabled: bool) -> None:
         """开关某个Skill"""
@@ -107,7 +131,6 @@ class SkillLoader:
         return load_json(self._toggles_path)
 
     def _save_toggles(self) -> None:
-        """保存开关状态"""
+        """保存开关状态（始终写入用户目录）"""
         toggles = {s.name: s.enabled for s in self.skills}
-        from src.utils.config import save_json
         save_json(self._toggles_path, toggles)
