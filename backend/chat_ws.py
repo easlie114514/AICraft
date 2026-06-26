@@ -16,7 +16,7 @@ from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
 from src.core.permission_guard import PermissionGuard
 from src.core.token_tracker import token_tracker
-from src.utils.config import get_context_config, NOTES_DIR
+from src.utils.config import get_context_config, load_app_context, NOTES_DIR
 
 
 def _count_chars(messages: list[dict]) -> int:
@@ -416,6 +416,11 @@ async def chat_websocket(ws: WebSocket):
                         1
                     ))
 
+                    # 注入全局应用上下文 (P1 — 不被裁剪)
+                    app_context = load_app_context()
+                    if app_context:
+                        system_pieces.append(("app_context", app_context, 1))
+
                     await ws.send_json({
                         "type": "inject_info",
                         "items": [f"角色切换完成: {current_role} → {new_role}（记忆已保留，风格已重置）"]
@@ -432,6 +437,12 @@ async def chat_websocket(ws: WebSocket):
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
                         1
                     ))
+
+                    # 注入全局应用上下文 (P1 — 不被裁剪)
+                    app_context = load_app_context()
+                    if app_context:
+                        system_pieces.append(("app_context", app_context, 1))
+
                 current_role = new_role
 
                 # 注入技能 prompt
