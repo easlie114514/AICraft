@@ -199,7 +199,7 @@ class PermissionGuard:
     def _expand_pattern(self, pattern: str) -> str:
         """展开模式中的占位符，如 {PROJECT_ROOT} → 实际项目路径"""
         return (
-            pattern.replace("{PROJECT_ROOT}", str(APP_DIR).replace("\\", "/"))
+            pattern.replace("{PROJECT_ROOT}", str(USER_DIR).replace("\\", "/"))
                    .replace("{USER_DATA}", str(USER_DIR).replace("\\", "/"))
         )
 

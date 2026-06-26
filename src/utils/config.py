@@ -546,7 +546,7 @@ def expand_placeholders(text: str) -> str:
 
     # 先展开路径类占位符，后续填入的权限路径也会被正确展开
     def _expand_path(s: str) -> str:
-        return s.replace("{PROJECT_ROOT}", str(APP_DIR)) \
+        return s.replace("{PROJECT_ROOT}", str(USER_DIR)) \
                 .replace("{USER_DATA}", str(USER_DIR)) \
                 .replace("{WORKSPACE_DIR}", str(WORKSPACE_DIR))
 
