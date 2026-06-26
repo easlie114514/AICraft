@@ -4,7 +4,7 @@
 权限控制由 AICraft 的 PermissionGuard 在客户端层统一管理。
 
 相对路径解析：所有相对路径以 USER_DIR 为基准解析（开发模式=项目根目录，
-打包模式=%APPDATA%/AICraft），确保 Skill 写的 "roles/xxx.md" 等相对路径
+打包模式=exe 同级目录），确保 Skill 写的 "roles/xxx.md" 等相对路径
 始终落在正确位置。
 
 工具接口兼容 @modelcontextprotocol/server-filesystem，LLM 无感知切换。
@@ -291,7 +291,7 @@ def _resolve_path(raw_path: str) -> Path:
     """将路径解析为绝对路径。相对路径以 USER_DIR 为基准。
 
     这样 Skill 写的 "roles/xxx.md" 在开发模式解析到项目根目录，
-    在打包模式解析到 %APPDATA%/AICraft/，不受 CWD 影响。
+    在打包模式解析到 exe 同级目录，不受 CWD 影响。
     """
     p = Path(raw_path)
     if p.is_absolute():

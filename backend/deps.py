@@ -11,6 +11,7 @@ from src.utils.config import (
     APP_CONTEXT_DEFAULT, APP_CONTEXT_PATH,
     DEFAULTS_DIR, WORKSPACE_DIR,
     get_skills_dir, ensure_rag_config, ensure_user_dirs,
+    migrate_from_appdata,
 )
 
 
@@ -29,6 +30,9 @@ _deps: AppDeps | None = None
 def init_deps() -> AppDeps:
     """初始化所有核心模块单例"""
     global _deps
+
+    # 便携化迁移：将旧版 APPDATA 用户数据迁移到 exe 同级目录
+    migrate_from_appdata()
 
     # 首次启动：创建用户数据目录结构
     ensure_user_dirs()
