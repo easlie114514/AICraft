@@ -4,11 +4,7 @@
       "Read(roles/**)",
       "Write(roles/**)",
       "Edit(roles/**)",
-      "Glob(roles/**)",
-      "Read(~/AppData/Roaming/AICraft/roles/**)",
-      "Write(~/AppData/Roaming/AICraft/roles/**)",
-      "Edit(~/AppData/Roaming/AICraft/roles/**)",
-      "Glob(~/AppData/Roaming/AICraft/roles/**)"
+      "Glob(roles/**)"
     ]
   }
 }

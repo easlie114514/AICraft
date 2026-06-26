@@ -2,7 +2,7 @@
 
 支持两种运行模式：
 - 开发模式 (python run.py): 所有数据在项目根目录
-- 打包模式 (PyInstaller): 出厂数据只读，用户数据在 %APPDATA%/AICraft/
+- 打包模式 (PyInstaller onedir): 出厂数据只读（data/ 子目录），用户数据在 exe 同级目录
 
 Author: Easlie_YHQ
 """
@@ -17,9 +17,21 @@ from typing import Any
 _FROZEN = getattr(sys, 'frozen', False)
 
 if _FROZEN:
-    # 打包模式：出厂只读数据在 exe 内部，用户数据在 AppData
+    # 打包模式：出厂只读数据在 data/ 子目录，用户数据在 exe 同级目录
     APP_DIR = Path(sys._MEIPASS) / "data"
-    USER_DIR = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')) / 'AICraft'
+    # 便携式设计：数据跟随程序，不散落到 APPDATA
+    _exe_dir = Path(sys.executable).parent
+    if _exe_dir != Path(sys._MEIPASS):
+        # 非 onedir 模式（如 onefile）：_MEIPASS 是临时解压目录，与 exe 位置不同
+        # 此时回退到旧行为（APPDATA），但打印警告
+        import warnings
+        warnings.warn(
+            f"检测到非 onedir 打包（_MEIPASS={sys._MEIPASS}，exe={sys.executable}），"
+            f"用户数据将回退到 APPDATA。建议使用 onedir 打包以确保便携性。"
+        )
+        USER_DIR = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')) / 'AICraft'
+    else:
+        USER_DIR = _exe_dir
 else:
     # 开发模式：所有数据在项目根目录
     APP_DIR = Path(__file__).parent.parent.parent
@@ -51,7 +63,7 @@ NOTES_DIR = MEMORY_DIR / "project-notes"
 
 # ── 版本号（用于首次启动/升级检测） ──
 VERSION_FILE = USER_DIR / ".version"
-CURRENT_VERSION = "1.0.1"
+CURRENT_VERSION = "1.1.0"
 
 
 def resolve_path(p: str | Path) -> Path:
@@ -98,6 +110,68 @@ def ensure_rag_config():
                 "embedding_model": "BAAI/bge-large-zh-v1.5",
                 "embedding_api_base": "https://api.siliconflow.cn/v1",
             })
+
+
+def migrate_from_appdata() -> None:
+    """将旧版 APPDATA 用户数据迁移到 exe 同级目录（便携化迁移）
+
+    仅在 frozen 模式下执行。迁移条件：
+    - 旧目录 %APPDATA%/AICraft/ 存在
+    - 新目录（exe 同级）尚未初始化（无 .version 文件）
+
+    迁移策略：逐项移动，目标已存在则跳过（不覆盖），旧数据保留不删除。
+    迁移完成后在旧目录写入 MIGRATED_TO_EXE.txt 说明。
+    """
+    if not _FROZEN:
+        return
+
+    old_dir = Path(os.environ.get('APPDATA', '')) / 'AICraft'
+    if not old_dir.exists():
+        return
+
+    new_version_file = USER_DIR / ".version"
+    if new_version_file.exists():
+        # 新目录已初始化，不重复迁移
+        return
+
+    # 新目录可能还没创建，先建好
+    USER_DIR.mkdir(parents=True, exist_ok=True)
+
+    import shutil
+    migrated_items: list[str] = []
+    skipped_items: list[str] = []
+
+    for item in old_dir.iterdir():
+        target = USER_DIR / item.name
+        if target.exists():
+            skipped_items.append(item.name)
+            continue
+        try:
+            shutil.move(str(item), str(target))
+            migrated_items.append(item.name)
+        except OSError as e:
+            skipped_items.append(f"{item.name} ({e})")
+
+    # 写迁移记录到旧目录
+    record_lines = [
+        "AICraft 数据已迁移\n",
+        "=" * 40 + "\n",
+        f"旧位置：{old_dir}\n",
+        f"新位置：{USER_DIR}\n",
+        "\n已迁移：\n",
+    ]
+    for name in migrated_items:
+        record_lines.append(f"  - {name}\n")
+    if skipped_items:
+        record_lines.append("\n跳过（目标已存在或移动失败）：\n")
+        for name in skipped_items:
+            record_lines.append(f"  - {name}\n")
+    record_lines.append(
+        "\n如需清理此旧目录，确认新位置数据完好后手动删除即可。\n"
+    )
+
+    record_path = old_dir / "MIGRATED_TO_EXE.txt"
+    record_path.write_text("".join(record_lines), encoding="utf-8")
 
 
 def ensure_user_dirs():
