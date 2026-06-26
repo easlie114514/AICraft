@@ -17,7 +17,7 @@ interface Role {
   is_current?: boolean
 }
 
-export default function RolePage() {
+export default function RolePage({ isActive }: { isActive?: boolean }) {
   const [roles, setRoles] = useState<Role[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [showView, setShowView] = useState<Role | null>(null)
@@ -32,9 +32,14 @@ export default function RolePage() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { loadRoles() }, [loadRoles])
-
   const notify = () => window.dispatchEvent(new CustomEvent('roles-changed'))
+
+  useEffect(() => {
+    if (isActive) {
+      loadRoles()
+      notify()
+    }
+  }, [isActive, loadRoles])
 
   const handleAdd = async () => {
     if (!form.name.trim()) return
@@ -77,7 +82,7 @@ export default function RolePage() {
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-text-primary">角色管理</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={loadRoles}>
+          <Button variant="outline" size="icon" onClick={() => { loadRoles(); notify() }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button onClick={() => setShowAdd(true)}>

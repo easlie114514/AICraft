@@ -26,7 +26,7 @@ interface RoleOption {
   is_current?: boolean
 }
 
-export default function ChatPage() {
+export default function ChatPage({ isActive }: { isActive?: boolean }) {
   const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
@@ -56,20 +56,28 @@ export default function ChatPage() {
   }, [streaming])
 
   // Load models and roles (prepend Auto option)
+  const loadRoles = useCallback(() => {
+    api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
+  }, [])
+
   useEffect(() => {
     const loadModels = () => {
       api.get<ModelOption[]>('/models').then((data) => {
         setModels([{ name: '⚡ Auto（智能路由）', model_id: 'auto', is_current: false }, ...data])
       }).catch(() => {})
     }
-    const loadRoles = () => {
-      api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
-    }
     loadModels()
     loadRoles()
     window.addEventListener('roles-changed', loadRoles)
     return () => window.removeEventListener('roles-changed', loadRoles)
-  }, [])
+  }, [loadRoles])
+
+  // Re-fetch roles when tab becomes active (e.g. returning from RolePage after external changes)
+  useEffect(() => {
+    if (isActive) {
+      loadRoles()
+    }
+  }, [isActive, loadRoles])
 
   // Set defaults (Auto is default when no model selected)
   useEffect(() => {
