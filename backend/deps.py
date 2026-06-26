@@ -8,6 +8,7 @@ from src.core.memory import MemoryManager
 from src.core.role_loader import RoleLoader
 from src.core.skill_loader import SkillLoader
 from src.utils.config import (
+    APP_CONTEXT_DEFAULT, APP_CONTEXT_PATH,
     DEFAULTS_DIR, WORKSPACE_DIR,
     get_skills_dir, ensure_rag_config, ensure_user_dirs,
 )
@@ -31,6 +32,10 @@ def init_deps() -> AppDeps:
 
     # 首次启动：创建用户数据目录结构
     ensure_user_dirs()
+
+    # 首次启动：生成默认 app.md 全局上下文文件（如不存在）
+    if not APP_CONTEXT_PATH.exists():
+        APP_CONTEXT_PATH.write_text(APP_CONTEXT_DEFAULT, encoding="utf-8")
 
     mcp = MCPManager()
     mcp.load_connections()
