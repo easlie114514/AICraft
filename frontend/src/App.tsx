@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import NavBar from '@/components/NavBar'
 import ResizeHandles from '@/components/ResizeHandles'
 import ChatPage from '@/pages/ChatPage'
@@ -35,11 +35,14 @@ function App() {
           onTabChange={(key) => setActiveTab(key as TabKey)}
         />
         <main className="flex-1 overflow-hidden bg-background flex flex-col">
-          {PAGES.map(({ key, component: Page }) => (
-            <div key={key} className={key === activeTab ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'hidden'}>
-              <Page />
-            </div>
-          ))}
+          {PAGES.map(({ key, component }) => {
+            const Page = component as ComponentType<{ isActive?: boolean }>
+            return (
+              <div key={key} className={key === activeTab ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'hidden'}>
+                <Page isActive={key === activeTab} />
+              </div>
+            )
+          })}
         </main>
       </div>
     </ChatProvider>
