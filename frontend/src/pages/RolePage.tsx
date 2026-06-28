@@ -8,7 +8,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Separator } from '@/components/ui/separator'
+import EmotionSlotGrid, { type EmotionKey } from '@/components/EmotionSlotGrid'
+import EmotionCropModal from '@/components/EmotionCropModal'
 import { api } from '@/lib/api'
 
 interface Role {
@@ -24,6 +28,12 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
   const [showEdit, setShowEdit] = useState<Role | null>(null)
   const [form, setForm] = useState({ name: '', content: '' })
   const [editForm, setEditForm] = useState({ name: '', content: '' })
+  // 情绪画像状态
+  const [emotionEnabled, setEmotionEnabled] = useState(false)
+  const [emotionAvailable, setEmotionAvailable] = useState<string[]>([])
+  const [emotionVersion, setEmotionVersion] = useState(0)
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [cropEmotionKey, setCropEmotionKey] = useState<EmotionKey>('neutral')
 
   const loadRoles = useCallback(async () => {
     try {
@@ -126,6 +136,17 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                       <Button variant="outline" size="sm" onClick={() => {
                         setShowEdit(r)
                         setEditForm({ name: r.name, content: r.content })
+                        setEmotionVersion(0)
+                        // 加载情绪画像配置
+                        api.get<{ enabled: boolean; available: string[] }>(`/roles/${encodeURIComponent(r.name)}/emotion`)
+                          .then((data) => {
+                            setEmotionEnabled(data.enabled)
+                            setEmotionAvailable(data.available)
+                          })
+                          .catch(() => {
+                            setEmotionEnabled(false)
+                            setEmotionAvailable([])
+                          })
                       }}>
                         <Pencil className="h-4 w-4 mr-1" />
                         编辑
@@ -203,8 +224,8 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
       </Dialog>
 
       {/* Edit Role Dialog */}
-      <Dialog open={!!showEdit} onOpenChange={() => setShowEdit(null)}>
-        <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
+      <Dialog open={!!showEdit} onOpenChange={() => { setShowEdit(null); setEmotionEnabled(false); setEmotionAvailable([]) }}>
+        <DialogContent className="sm:max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>编辑角色</DialogTitle>
             <DialogDescription>修改角色名称和 System Prompt</DialogDescription>
@@ -228,6 +249,41 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                 placeholder="描述 AI 的角色和行为..."
               />
             </div>
+
+            {/* ── 情绪画像配置 ── */}
+            {showEdit && (
+              <>
+                <Separator className="my-2" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>情绪画像</Label>
+                    <Switch
+                      checked={emotionEnabled}
+                      onCheckedChange={async (v) => {
+                        setEmotionEnabled(v)
+                        await api.put(`/roles/${encodeURIComponent(showEdit.name)}/emotion`, { enabled: v })
+                        if (v) {
+                          const data = await api.get<{ enabled: boolean; available: string[] }>(`/roles/${encodeURIComponent(showEdit.name)}/emotion`)
+                          setEmotionAvailable(data.available)
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {emotionEnabled && (
+                    <EmotionSlotGrid
+                      roleName={showEdit.name}
+                      available={emotionAvailable}
+                      version={emotionVersion}
+                      onSlotClick={(key) => {
+                        setCropEmotionKey(key)
+                        setShowCropModal(true)
+                      }}
+                    />
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setShowEdit(null)} >取消</Button>
@@ -235,6 +291,23 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Emotion Crop Modal */}
+      {showEdit && (
+        <EmotionCropModal
+          open={showCropModal}
+          onOpenChange={setShowCropModal}
+          roleName={showEdit.name}
+          emotionKey={cropEmotionKey}
+          onSaved={async () => {
+            // 刷新可用列表，同时 bump 版本号破坏浏览器缓存
+            const data = await api.get<{ enabled: boolean; available: string[] }>(`/roles/${encodeURIComponent(showEdit.name)}/emotion`)
+            setEmotionAvailable(data.available)
+            setEmotionEnabled(data.enabled)
+            setEmotionVersion(v => v + 1)
+          }}
+        />
+      )}
     </div>
   )
 }

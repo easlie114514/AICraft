@@ -232,6 +232,9 @@ interface ChatContextValue {
   tokenStats: TokenStatsData | null
   permissionRequest: PermissionRequest | null
   respondPermission: (id: string, action: 'allow_once' | 'allow_always' | 'allow_session' | 'deny' | 'deny_always') => void
+  emotion: string | null
+  emotionConfig: { available: string[]; enabled: boolean } | null
+  setEmotionConfig: (config: { available: string[]; enabled: boolean } | null) => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -243,6 +246,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [toggles, setToggles] = useState<ChatToggles>({ rag: false, memory: true, thinking: false })
   const [tokenStats, setTokenStats] = useState<TokenStatsData | null>(null)
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
+  const [emotion, setEmotion] = useState<string | null>(null)
+  const [emotionConfig, setEmotionConfig] = useState<{ available: string[]; enabled: boolean } | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const convIdRef = useRef<string>(localStorage.getItem('aicraft_last_conv_id') || '')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -323,6 +328,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               risk: data.risk || 'low',
               preview: data.preview || '',
             })
+            break
+          case 'emotion':
+            setEmotion(data.key)
+            break
+          case 'emotion_config':
+            setEmotionConfig({ available: data.available, enabled: data.enabled })
+            setEmotion(null)
             break
           case 'error':
             dispatch({ type: 'SET_ERROR', content: data.content })
@@ -446,6 +458,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     <ChatContext.Provider value={{
       state, toggles, setToggles, sendMessage, stopStreaming, newScene,
       tokenStats, permissionRequest, respondPermission,
+      emotion, emotionConfig, setEmotionConfig,
     }}>
       {children}
     </ChatContext.Provider>
@@ -473,5 +486,8 @@ export function useChat() {
     tokenStats: ctx.tokenStats,
     permissionRequest: ctx.permissionRequest,
     respondPermission: ctx.respondPermission,
+    emotion: ctx.emotion,
+    emotionConfig: ctx.emotionConfig,
+    setEmotionConfig: ctx.setEmotionConfig,
   }
 }

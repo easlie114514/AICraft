@@ -16,6 +16,7 @@ VALID_THEMES = {"blue", "green", "purple", "orange", "rose", "teal", "amber", "p
 
 class SettingsUpdate(BaseModel):
     theme: str | None = None
+    show_emotion_portrait: bool | None = None
 
 
 def _read_config() -> dict:
@@ -44,6 +45,7 @@ async def get_settings():
     return {
         "theme": config.get("theme", "blue"),
         "language": config.get("language", "zh-CN"),
+        "show_emotion_portrait": config.get("show_emotion_portrait", True),
     }
 
 
@@ -56,5 +58,7 @@ async def update_settings(body: SettingsUpdate):
         if theme not in VALID_THEMES:
             return {"ok": False, "error": f"无效主题: {theme}"}
         config["theme"] = theme
+    if body.show_emotion_portrait is not None:
+        config["show_emotion_portrait"] = body.show_emotion_portrait
     _write_config(config)
     return {"ok": True, "theme": config.get("theme", "blue")}

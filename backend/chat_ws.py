@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
 from src.core.permission_guard import PermissionGuard
 from src.core.token_tracker import token_tracker
-from src.utils.config import get_context_config, load_app_context, NOTES_DIR
+from src.utils.config import get_context_config, load_app_context, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
 
 
 def _count_chars(messages: list[dict]) -> int:
@@ -41,6 +42,57 @@ def _trim_history(history: list[dict], max_chars: int) -> list[dict]:
             break
         kept.insert(0, m)
     return kept
+
+# ── 情绪画像工具函数 ──
+
+EMOTION_KEYS = {"neutral", "happy", "thinking", "confused", "working", "concerned"}
+EMOTION_ORDER = ["neutral", "happy", "thinking", "confused", "working", "concerned"]
+
+
+def _get_emotion_folder(role_name: str) -> Path | None:
+    """查找角色的情绪画像文件夹（用户目录优先）"""
+    for parent in [USER_ROLES_DIR, ROLES_DIR]:
+        folder = parent / role_name
+        if folder.is_dir():
+            return folder
+    return None
+
+
+def _read_emotion_config(folder: Path) -> dict:
+    """读取 emotion.json"""
+    path = folder / "emotion.json"
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"enabled": False}
+
+
+def _get_available_emotions(folder: Path) -> list[str]:
+    """扫描 emotion_*.png 获取已配置情绪"""
+    available: set[str] = set()
+    for f in folder.glob("emotion_*.png"):
+        key = f.stem[len("emotion_"):]
+        if key in EMOTION_KEYS:
+            available.add(key)
+    return [k for k in EMOTION_ORDER if k in available]
+
+
+def _build_emotion_instruction(folder: Path) -> str | None:
+    """根据已配置情绪动态生成 LLM 情绪指令，无可用情绪时返回 None"""
+    available = _get_available_emotions(folder)
+    if not available:
+        return None
+    keys_str = " / ".join(available)
+    return (
+        "# 情绪状态标记\n"
+        f"在每次回复的末尾，用 [EMOTION:xxx] 标记你当前的处理状态。\n"
+        f"可选值（仅限以下）：{keys_str}\n"
+        "选择最接近你当前状态的一个。此标记仅用于 UI 显示，不代表真实情感。\n"
+        "如果回复内容很短（如简单确认），可以不添加此标记。"
+    )
+
 
 async def _compact_current_scene(
     history: list[dict],
@@ -445,6 +497,17 @@ async def chat_websocket(ws: WebSocket):
 
                 current_role = new_role
 
+                # 首次消息时发送情绪画像配置（非角色切换路径也覆盖）
+                _em_folder = _get_emotion_folder(new_role)
+                if _em_folder:
+                    _em_avail = _get_available_emotions(_em_folder)
+                    _em_cfg = _read_emotion_config(_em_folder)
+                    await ws.send_json({
+                        "type": "emotion_config",
+                        "available": _em_avail,
+                        "enabled": _em_cfg.get("enabled", False),
+                    })
+
                 # 注入技能 prompt
                 skill_prompt = deps.skill_loader.build_skill_prompt()
                 if skill_prompt:
@@ -532,6 +595,15 @@ async def chat_websocket(ws: WebSocket):
                     "- 不知道权威源时，优先引用gov.cn/.edu.cn/官方域名的内容",
                     1
                 ))
+
+                # ── 情绪画像指令（角色已配置情绪时注入）──
+                emotion_folder = _get_emotion_folder(new_role)
+                if emotion_folder:
+                    ec = _read_emotion_config(emotion_folder)
+                    if ec.get("enabled", False):
+                        emotion_instruction = _build_emotion_instruction(emotion_folder)
+                        if emotion_instruction:
+                            system_pieces.append(("emotion_instruction", emotion_instruction, 2))
 
                 # ── 深度思考引导（thinking 开关开启时注入，与角色解耦）──
                 if thinking_enabled:
@@ -632,6 +704,18 @@ async def chat_websocket(ws: WebSocket):
                 all_tools = tools if tools else None  # None 表示无工具，减少 litellm 开销
 
                 try:
+                    captured_emotion: str | None = None
+                    # 缓冲区：处理 [EMOTION:xxx] 跨越两个流式事件被截断的情况
+                    text_buffer: str = ""
+
+                    # ── 开始生成时发送"思考"情绪 ──
+                    _em_start_folder = _get_emotion_folder(new_role)
+                    if _em_start_folder:
+                        _em_start_avail = _get_available_emotions(_em_start_folder)
+                        _em_start_cfg = _read_emotion_config(_em_start_folder)
+                        if _em_start_cfg.get("enabled", False) and "thinking" in _em_start_avail:
+                            await ws.send_json({"type": "emotion", "key": "thinking"})
+
                     async for event in agent_loop(
                         messages=messages,
                         tools=all_tools,
@@ -640,9 +724,51 @@ async def chat_websocket(ws: WebSocket):
                         thinking_enabled=thinking_enabled,
                         permission_guard=permission_guard,
                     ):
+                        # ── 实时过滤 [EMOTION:xxx]（含跨事件缓冲）──
+                        if event.get("type") == "text":
+                            content = event.get("content", "")
+                            # 拼接上次残留缓冲
+                            full_text = text_buffer + content
+
+                            # 检查是否有完整标记
+                            m = re.search(r'\[EMOTION:(\w+)\]', full_text)
+                            if m:
+                                captured_emotion = m.group(1)
+                                full_text = re.sub(r'\s*\[EMOTION:\w+\]\s*', '', full_text)
+
+                            # 检查末尾是否有未闭合的 [EMOTION:xxx 片段
+                            # 支持逐字符流式：[, [E, [EM, [EMO, ..., [EMOTION:thi 等截断
+                            partial_m = re.search(r'\[(?:E(?:M(?:O(?:T(?:I(?:O(?:N:?\w*)?)?)?)?)?)?)?$', full_text)
+                            if partial_m:
+                                # 截断的标记 → 保留到缓冲区，剩余部分先发送
+                                text_buffer = partial_m.group(0)
+                                full_text = full_text[:partial_m.start()]
+                            else:
+                                text_buffer = ""
+
+                            if not full_text.strip():
+                                continue
+                            event = {**event, "content": full_text}
                         await ws.send_json(event)
 
                     await ws.send_json({"type": "done"})
+
+                    # ── 情绪画像解析：校验并发送事件 ──
+                    if captured_emotion:
+                        _emotion_role = role_name or str(deps.role_loader.get_default_role())
+                        _em_folder = _get_emotion_folder(_emotion_role)
+                        if _em_folder:
+                            _em_avail = _get_available_emotions(_em_folder)
+                            _em_cfg = _read_emotion_config(_em_folder)
+                            if captured_emotion in _em_avail and _em_cfg.get("enabled", False):
+                                await ws.send_json({"type": "emotion", "key": captured_emotion})
+
+                    # ── 从 messages 中移除 [EMOTION:xxx]（存盘用）──
+                    for m in reversed(messages):
+                        if m.get("role") == "assistant":
+                            content = m.get("content", "") or ""
+                            m["content"] = re.sub(r'\s*\[EMOTION:\w+\]\s*$', '', content)
+                            break
 
                     # ── 更新会话历史（只追加本轮新消息，避免修复后重复）──
                     # messages = [system] + session_history_old + [本轮 user/assistant/tool]
