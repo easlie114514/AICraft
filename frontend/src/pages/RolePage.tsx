@@ -183,9 +183,9 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
             <DialogTitle>{showView?.name}</DialogTitle>
             <DialogDescription>角色 System Prompt 内容</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1 min-h-0 max-h-[50vh]">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-lg">{showView?.content}</pre>
-          </ScrollArea>
+          </div>
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => {
               if (showView) {
