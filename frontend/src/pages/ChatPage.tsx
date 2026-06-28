@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
+import EmotionPortrait from '@/components/EmotionPortrait'
 import PermissionDialog from '@/components/PermissionDialog'
 import TokenPanel from '@/components/TokenPanel'
 import { useChat } from '@/hooks/useChat'
@@ -27,7 +28,7 @@ interface RoleOption {
 }
 
 export default function ChatPage({ isActive }: { isActive?: boolean }) {
-  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
@@ -36,6 +37,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   const [selectedModel, setSelectedModel] = useState('')
   const [selectedRole, setSelectedRole] = useState('')
   const [tokenPanelOpen, setTokenPanelOpen] = useState(false)
+  const [showEmotionGlobal, setShowEmotionGlobal] = useState(true)
+  const [emotionVersion, setEmotionVersion] = useState(0)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [isNearBottom, setIsNearBottom] = useState(true)
 
@@ -72,10 +75,21 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     return () => window.removeEventListener('roles-changed', loadRoles)
   }, [loadRoles])
 
+  // Bump version whenever emotion changes → cache-bust portrait images
+  useEffect(() => {
+    if (emotion) {
+      setEmotionVersion(v => v + 1)
+    }
+  }, [emotion])
+
   // Re-fetch roles when tab becomes active (e.g. returning from RolePage after external changes)
   useEffect(() => {
     if (isActive) {
       loadRoles()
+      // 加载全局情绪画像开关
+      api.get<{ show_emotion_portrait?: boolean }>('/settings')
+        .then((data) => setShowEmotionGlobal(data.show_emotion_portrait ?? true))
+        .catch(() => {})
     }
   }, [isActive, loadRoles])
 
@@ -97,6 +111,15 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   useEffect(() => {
     if (selectedRole) {
       api.put('/roles/current', { name: selectedRole }).catch(() => {})
+      // 加载当前角色的情绪画像配置
+      ;(async () => {
+        const emotionData = await api.get<{ enabled: boolean; available: string[] }>(`/roles/${encodeURIComponent(selectedRole)}/emotion`).catch(() => null)
+        if (emotionData) {
+          setEmotionConfig({ available: emotionData.available, enabled: emotionData.enabled })
+        } else {
+          setEmotionConfig(null)
+        }
+      })()
     }
   }, [selectedRole])
 
@@ -209,7 +232,17 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
 
       {/* Input Area */}
       <div className="shrink-0 p-4">
-        <div className="bg-white border border-border rounded-xl shadow-card p-3 space-y-3">
+        <div className="flex gap-2">
+          {/* Emotion Portrait */}
+          <EmotionPortrait
+            roleName={selectedRole}
+            emotion={emotion}
+            available={emotionConfig?.available ?? []}
+            visible={showEmotionGlobal}
+            version={emotionVersion}
+          />
+
+          <div className="flex-1 bg-white border border-border rounded-xl shadow-card pl-2.5 pr-3 py-[10px] space-y-2">
         {/* Toggles */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
@@ -319,6 +352,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
               <Send className="h-4 w-4" />
             </Button>
           )}
+        </div>
         </div>
         </div>
       </div>

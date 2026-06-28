@@ -2,5 +2,6 @@
   "current_profile": "default",
   "theme": "purple",
   "language": "zh-CN",
-  "skills_dir": ""
+  "skills_dir": "",
+  "show_emotion_portrait": true
 }

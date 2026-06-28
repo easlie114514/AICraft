@@ -8,6 +8,7 @@ import SkillPage from '@/pages/SkillPage'
 import MCPPage from '@/pages/MCPPage'
 import RAGPage from '@/pages/RAGPage'
 import MemoryPage from '@/pages/MemoryPage'
+import SettingsPage from '@/pages/SettingsPage'
 import { ChatProvider } from '@/hooks/useChat'
 
 const PAGES = [
@@ -18,6 +19,7 @@ const PAGES = [
   { key: 'memory', label: '记忆', component: MemoryPage },
   { key: 'role', label: '角色', component: RolePage },
   { key: 'model', label: '模型', component: ModelPage },
+  { key: 'settings', label: '设置', component: SettingsPage },
 ] as const
 
 type TabKey = (typeof PAGES)[number]['key']
