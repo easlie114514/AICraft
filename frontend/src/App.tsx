@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react'
+import { useState, useEffect, type ComponentType } from 'react'
 import NavBar from '@/components/NavBar'
 import ResizeHandles from '@/components/ResizeHandles'
 import ChatPage from '@/pages/ChatPage'
@@ -9,6 +9,8 @@ import MCPPage from '@/pages/MCPPage'
 import RAGPage from '@/pages/RAGPage'
 import MemoryPage from '@/pages/MemoryPage'
 import SettingsPage from '@/pages/SettingsPage'
+import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
+import { api } from '@/lib/api'
 import { ChatProvider } from '@/hooks/useChat'
 
 const PAGES = [
@@ -26,6 +28,16 @@ type TabKey = (typeof PAGES)[number]['key']
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('chat')
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+
+  // 挂载时静默检查更新
+  useEffect(() => {
+    api.get<UpdateInfo>('/update/check')
+      .then((data) => {
+        if (data.has_update) setUpdateInfo(data)
+      })
+      .catch(() => {}) // 静默失败
+  }, [])
 
   return (
     <ChatProvider>
@@ -47,6 +59,13 @@ function App() {
           })}
         </main>
       </div>
+      {updateInfo && (
+        <UpdateDialog
+          open={true}
+          onClose={() => setUpdateInfo(null)}
+          info={updateInfo}
+        />
+      )}
     </ChatProvider>
   )
 }

@@ -1,45 +1,63 @@
-# ── Python ──
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.egg-info/
-/dist/
-*.egg
+*$py.class
 
-# ── 虚拟环境 ──
+# Distribution / packaging
+dist/
+build/
+*.spec
+!AICraft.spec
+*.exe
+release/
+
+# Virtual environments
 venv/
 .venv/
 env/
 
-# ── 角色软删除标记 ──
-roles/.trash/
-
-# ── 运行时数据（用户生成，首次启动自动创建） ──
-.version
-chroma_db/
-memory/
-workspace/
-# models/onnx 纳入版本管理
-config/profiles/
-config/app.json
-config/permissions.json
-config/rag_config.json
-rag/sources.json
-
-# ── 前端（dist 纳入版本管理，用户无需 Node.js）──
-frontend/node_modules/
-
-# ── IDE ──
-.idea/
+# IDE
 .vscode/
+.idea/
 *.swp
 *.swo
 
-# ── 打包产物 ──
-/build/
-*.spec
-!aicraft.spec
+# ChromaDB vector data
+chroma_db/
 
-# ── 系统文件 ──
-.DS_Store
+# Environment and secrets
+.env
+*.key
+api_keys*.json
+config/rag_config.json
+
+# OS files
 Thumbs.db
-desktop.ini
+.DS_Store
+
+# Flet build artifacts
+.flet/
+
+# Logs
+*.log
+
+# Runtime data
+.version
+/memory/conversations/
+/skills/toggles.json
+/models/*.json
+!/models/onnx/
+roles/.trash/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Temp scripts
+diag_rag.py
+fix_import.py
+fix_search.py
+fix_stats.py
+
+# ONNX models (downloaded at runtime)
+models/onnx/
