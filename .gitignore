@@ -42,6 +42,7 @@ Thumbs.db
 *.log
 
 # Runtime data
+.version
 /memory/conversations/
 /skills/toggles.json
 /models/*.json
