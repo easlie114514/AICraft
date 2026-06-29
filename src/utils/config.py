@@ -65,7 +65,7 @@ NOTES_DIR = MEMORY_DIR / "project-notes"
 
 # ── 版本号（用于首次启动/升级检测） ──
 VERSION_FILE = USER_DIR / ".version"
-CURRENT_VERSION = "1.1.0"
+CURRENT_VERSION = "1.0.4"
 
 
 def resolve_path(p: str | Path) -> Path:
@@ -176,6 +176,25 @@ def migrate_from_appdata() -> None:
     record_path.write_text("".join(record_lines), encoding="utf-8")
 
 
+def _check_version_upgrade() -> None:
+    """检测版本升级，执行必要的迁移逻辑
+
+    比较 .version 文件中存储的版本与 CURRENT_VERSION，
+    如果不同则执行升级钩子并更新存储的版本号。
+    """
+    stored = load_json(VERSION_FILE).get("version", "0.0.0")
+    if stored == CURRENT_VERSION:
+        return
+
+    # ── 版本升级钩子 ──
+    # 在此处按需添加各版本升级逻辑，例如：
+    # if stored < "1.2.0":
+    #     _migrate_to_1_2_0()
+
+    # 更新存储的版本号
+    save_json(VERSION_FILE, {"version": CURRENT_VERSION})
+
+
 def ensure_user_dirs():
     """首次启动：创建用户数据目录结构，从出厂配置复制初始文件
 
@@ -236,9 +255,11 @@ def ensure_user_dirs():
     if not any(USER_SKILLS_DIR.iterdir()) if USER_SKILLS_DIR.exists() else True:
         _copy_factory_skills()
 
-    # 标记版本
+    # 标记版本 / 版本升级检测
     if is_first_run:
         save_json(VERSION_FILE, {"version": CURRENT_VERSION})
+    else:
+        _check_version_upgrade()
 
 
 def _copy_factory_skills() -> None:

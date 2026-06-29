@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.deps import init_deps, get_deps
 from backend.routers import models, roles, skills, mcp, rag, memory, search, settings
 from backend.chat_ws import router as chat_ws_router
+from src.utils import config
 from src.utils.config import FRONTEND_DIST
 
 
@@ -35,7 +36,7 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="AICraft API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="AICraft API", version=config.CURRENT_VERSION, lifespan=lifespan)
 
 # CORS
 app.add_middleware(
