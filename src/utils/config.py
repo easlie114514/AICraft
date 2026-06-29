@@ -485,6 +485,9 @@ def get_context_config() -> dict[str, int | bool | str | float]:
         "context_window_override": int(ctx.get("context_window_override", 0)),
         "output_reserve_ratio": float(ctx.get("output_reserve_ratio", 0.20)),
         "budget_alert_threshold": float(ctx.get("budget_alert_threshold", 0.75)),
+
+        # ── Agent 循环 ──
+        "max_tool_rounds": int(ctx.get("max_tool_rounds", 25)),
     }
 
 

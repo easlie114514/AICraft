@@ -17,7 +17,7 @@ from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
 from src.core.permission_guard import PermissionGuard
 from src.core.token_tracker import token_tracker
-from src.utils.config import get_context_config, load_app_context, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
+from src.utils.config import get_context_config, load_app_context, load_json, CONFIG_DIR, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
 
 
 def _count_chars(messages: list[dict]) -> int:
@@ -29,19 +29,71 @@ def _count_chars(messages: list[dict]) -> int:
     return total
 
 
+def _has_tool_use(msg: dict) -> bool:
+    """检查消息是否包含 tool_use（同时支持 OpenAI tool_calls 和 Anthropic anthropic_content）"""
+    # OpenAI 格式
+    if msg.get("tool_calls"):
+        return True
+    # Anthropic 格式（存储在 anthropic_content 中）
+    ac = msg.get("anthropic_content")
+    if ac and isinstance(ac, list):
+        for block in ac:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                return True
+    return False
+
+
+def _group_messages(messages: list[dict]) -> list[list[dict]]:
+    """将消息列表分组为原子组，确保 tool_use 和对应的 tool_result 不被分离
+
+    一个组可以是：
+    - 单条非工具消息（user / 纯文本 assistant）
+    - 一条带 tool_use 的 assistant + 紧随其后的所有 tool 消息
+    """
+    groups: list[list[dict]] = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        role = msg.get("role", "")
+
+        if role == "assistant" and _has_tool_use(msg):
+            # assistant(tool_use) 与紧随其后的所有 tool 消息组成一个原子组
+            group = [msg]
+            i += 1
+            while i < len(messages) and messages[i].get("role") == "tool":
+                group.append(messages[i])
+                i += 1
+            groups.append(group)
+        else:
+            groups.append([msg])
+            i += 1
+
+    return groups
+
+
 def _trim_history(history: list[dict], max_chars: int) -> list[dict]:
-    """从旧到新保留消息，直到超出 max_chars，返回保留的部分"""
+    """从旧到新保留消息组，直到超出 max_chars，返回保留的部分
+
+    以消息组为单位裁剪，确保 tool_use 和 tool_result 消息不被分离。
+    """
     if not history:
         return history
-    kept: list[dict] = []
+
+    groups = _group_messages(history)
+
+    kept_groups: list[list[dict]] = []
     total = 0
-    for m in reversed(history):
-        content = m.get("content", "") or ""
-        total += len(content)
-        if total > max_chars and kept:
+    for g in reversed(groups):
+        total += _count_chars(g)
+        if total > max_chars and kept_groups:
             break
-        kept.insert(0, m)
-    return kept
+        kept_groups.insert(0, g)
+
+    # 展平
+    result: list[dict] = []
+    for g in kept_groups:
+        result.extend(g)
+    return result
 
 # ── 情绪画像工具函数 ──
 
@@ -392,6 +444,9 @@ async def chat_websocket(ws: WebSocket):
                 context_window_override = int(ctx_config["context_window_override"])
                 output_reserve_ratio = float(ctx_config["output_reserve_ratio"])
                 budget_alert_threshold = float(ctx_config["budget_alert_threshold"])
+                # max_tool_rounds: 优先读取 app.json（设置页可覆盖），其次 context config 默认值
+                app_config = load_json(CONFIG_DIR / "app.json") or {}
+                max_tool_rounds = int(app_config.get("max_tool_rounds", ctx_config["max_tool_rounds"]))
 
                 # ── 角色切换检测 ──
                 new_role = role_name or str(deps.role_loader.get_default_role())
@@ -665,9 +720,19 @@ async def chat_websocket(ws: WebSocket):
                         history_slice = next((s for s in budget.slices if s.name == "session_history"), None)
                         if history_slice and history_slice.trimmed:
                             # 按比例裁剪 session_history（保留最近的消息）
+                            # 以消息组为单位，确保不切断 tool_use/tool_result 配对
                             keep_ratio = max(len(history_slice.content) / max(len(history_text), 1), 0.25)
                             keep_count = max(int(len(session_history) * keep_ratio), 1)
-                            session_history = session_history[-keep_count:]
+
+                            groups = _group_messages(session_history)
+                            kept_groups: list[list[dict]] = []
+                            count = 0
+                            for g in reversed(groups):
+                                kept_groups.insert(0, g)
+                                count += len(g)
+                                if count >= keep_count:
+                                    break
+                            session_history = [m for g in kept_groups for m in g]
 
                     # 用裁剪后的内容重新组装 system_content
                     system_content = "\n\n".join(
@@ -721,6 +786,7 @@ async def chat_websocket(ws: WebSocket):
                         tools=all_tools,
                         model_config=model_config,
                         mcp_manager=deps.mcp_manager,
+                        max_rounds=max_tool_rounds,
                         thinking_enabled=thinking_enabled,
                         permission_guard=permission_guard,
                     ):

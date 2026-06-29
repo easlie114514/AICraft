@@ -17,6 +17,7 @@ VALID_THEMES = {"blue", "green", "purple", "orange", "rose", "teal", "amber", "p
 class SettingsUpdate(BaseModel):
     theme: str | None = None
     show_emotion_portrait: bool | None = None
+    max_tool_rounds: int | None = None
 
 
 def _read_config() -> dict:
@@ -46,6 +47,7 @@ async def get_settings():
         "theme": config.get("theme", "blue"),
         "language": config.get("language", "zh-CN"),
         "show_emotion_portrait": config.get("show_emotion_portrait", True),
+        "max_tool_rounds": config.get("max_tool_rounds", 25),
     }
 
 
@@ -60,5 +62,9 @@ async def update_settings(body: SettingsUpdate):
         config["theme"] = theme
     if body.show_emotion_portrait is not None:
         config["show_emotion_portrait"] = body.show_emotion_portrait
+    if body.max_tool_rounds is not None:
+        if body.max_tool_rounds < 1 or body.max_tool_rounds > 100:
+            return {"ok": False, "error": "最大工具轮次需在 1-100 之间"}
+        config["max_tool_rounds"] = body.max_tool_rounds
     _write_config(config)
     return {"ok": True, "theme": config.get("theme", "blue")}

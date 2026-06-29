@@ -116,16 +116,141 @@ def _convert_messages_to_anthropic(messages: list[dict]) -> tuple[str, list[dict
                 anthropic_messages.append({"role": "assistant", "content": content})
 
         elif role == "tool":
-            anthropic_messages.append({
-                "role": "user",
-                "content": [{
-                    "type": "tool_result",
-                    "tool_use_id": msg.get("tool_call_id", ""),
-                    "content": msg.get("content", ""),
-                }],
-            })
+            tool_result_block = {
+                "type": "tool_result",
+                "tool_use_id": msg.get("tool_call_id", ""),
+                "content": msg.get("content", ""),
+            }
+            # 多条连续的 tool 消息 → 合并到同一条 user 消息中
+            # Anthropic API 要求一个 assistant 的所有 tool_use 必须在紧跟的一条 user 消息中全部返回
+            if (anthropic_messages and
+                anthropic_messages[-1]["role"] == "user" and
+                isinstance(anthropic_messages[-1]["content"], list) and
+                anthropic_messages[-1]["content"] and
+                anthropic_messages[-1]["content"][0].get("type") == "tool_result"):
+                anthropic_messages[-1]["content"].append(tool_result_block)
+            else:
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": [tool_result_block],
+                })
 
     return system_text.strip(), anthropic_messages
+
+
+def _sanitize_anthropic_messages(messages: list[dict]) -> list[dict]:
+    """防御性修复：确保每个 assistant(tool_use) 紧跟着 user(tool_result)
+
+    在某些边界情况下（历史裁剪、上下文预算等），消息列表可能出现
+    assistant 含有 tool_use 但下一条消息不是对应 tool_result 的情况。
+    DeepSeek/Anthropic API 会拒绝这种消息序列。
+
+    此函数检测并修复：移除孤立的 tool_use 块（保留 text/thinking 块）。
+    同时 dump 完整消息结构到文件以便诊断。
+    """
+    import json
+    import logging
+    from pathlib import Path
+
+    logger = logging.getLogger("aicraft")
+
+    # 先扫描是否有问题，有则 dump 完整消息结构
+    has_orphan = False
+    orphan_details: list[dict] = []
+    for i, msg in enumerate(messages):
+        role = msg.get("role", "")
+        if role == "assistant":
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                tool_use_ids = [b.get("id", "") for b in content
+                                if isinstance(b, dict) and b.get("type") == "tool_use"]
+                if tool_use_ids:
+                    found_ids: set[str] = set()
+                    j = i + 1
+                    while j < len(messages) and messages[j].get("role") == "user":
+                        uc = messages[j].get("content", "")
+                        if isinstance(uc, list):
+                            for block in uc:
+                                if isinstance(block, dict) and block.get("type") == "tool_result":
+                                    found_ids.add(block.get("tool_use_id", ""))
+                        j += 1
+                    missing = [tid for tid in tool_use_ids if tid not in found_ids]
+                    if missing:
+                        has_orphan = True
+                        orphan_details.append({
+                            "msg_index": i,
+                            "tool_use_ids": tool_use_ids,
+                            "missing_ids": missing,
+                            "next_msg_role": messages[i+1].get("role") if i+1 < len(messages) else "(end)",
+                        })
+
+    if has_orphan:
+        # Dump 完整消息结构到文件
+        try:
+            import sys
+            if getattr(sys, 'frozen', False):
+                dump_dir = Path(sys.executable).parent
+            else:
+                dump_dir = Path(__file__).resolve().parent.parent.parent
+            dump_path = dump_dir / "aicraft_message_dump.json"
+            # 安全的序列化（截断大文本）
+            safe_messages = []
+            for m in messages:
+                sm = {"role": m.get("role", "?")}
+                c = m.get("content", "")
+                if isinstance(c, list):
+                    sm["content_blocks"] = [
+                        {"type": b.get("type", "?"), "id": b.get("id", ""),
+                         "tool_use_id": b.get("tool_use_id", ""),
+                         "text_len": len(str(b.get("text", ""))),
+                         "input_keys": list(b.get("input", {}).keys()) if b.get("input") else None,
+                         "content_len": len(str(b.get("content", "")))}
+                        for b in c if isinstance(b, dict)
+                    ]
+                elif isinstance(c, str):
+                    sm["content_len"] = len(c)
+                    sm["content_preview"] = c[:200]
+                else:
+                    sm["content_type"] = str(type(c))
+                safe_messages.append(sm)
+            dump_path.write_text(json.dumps({
+                "orphan_details": orphan_details,
+                "total_messages": len(messages),
+                "messages": safe_messages,
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.warning(f"[sanitize] 发现 {len(orphan_details)} 个孤立的 tool_use，消息结构已 dump 到 {dump_path}")
+        except Exception:
+            logger.exception("[sanitize] dump 消息结构失败")
+
+    # 执行修复
+    sanitized: list[dict] = []
+    for i, msg in enumerate(messages):
+        role = msg.get("role", "")
+        if role == "assistant":
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                tool_use_ids = [b.get("id", "") for b in content
+                                if isinstance(b, dict) and b.get("type") == "tool_use"]
+                if tool_use_ids:
+                    found_ids: set[str] = set()
+                    j = i + 1
+                    while j < len(messages) and messages[j].get("role") == "user":
+                        uc = messages[j].get("content", "")
+                        if isinstance(uc, list):
+                            for block in uc:
+                                if isinstance(block, dict) and block.get("type") == "tool_result":
+                                    found_ids.add(block.get("tool_use_id", ""))
+                        j += 1
+                    missing = [tid for tid in tool_use_ids if tid not in found_ids]
+                    if missing:
+                        fixed_content = [
+                            b for b in content
+                            if not (isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id") in missing)
+                        ]
+                        msg = {**msg, "content": fixed_content}
+        sanitized.append(msg)
+
+    return sanitized
 
 
 # ═══════════════════════════════════════════════════════════
@@ -161,6 +286,9 @@ async def _stream_via_anthropic(
 
     # ── 转换消息格式 ──
     system_text, anthropic_messages = _convert_messages_to_anthropic(messages)
+
+    # ── 防御性修复：合并孤立的 tool_use/tool_result，确保符合 Anthropic API 规范 ──
+    anthropic_messages = _sanitize_anthropic_messages(anthropic_messages)
 
     # ── 构建 tools 列表 ──
     tools: list[dict] = []
@@ -452,7 +580,7 @@ async def agent_loop(
     tools: list[dict] | None,
     model_config: dict | None = None,
     mcp_manager: Any | None = None,
-    max_rounds: int = 10,
+    max_rounds: int = 25,
     thinking_enabled: bool = False,
     search_enabled: bool = True,
     permission_guard: PermissionGuard | None = None,
@@ -737,7 +865,7 @@ async def agent_loop(
     else:
         yield {
             "type": "text",
-            "content": "\n\n[已达到最大工具调用轮次（10轮），停止执行]",
+            "content": f"\n\n[已达到最大工具调用轮次（{max_rounds}轮），停止执行]",
         }
 
 
