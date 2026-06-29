@@ -15,10 +15,43 @@ interface Props {
   content: string
 }
 
+/**
+ * 修复 LLM 输出中常见的 Markdown 语法不严谨问题，
+ * 避免 StreamMD 因严格解析而将表格/标题显示为纯文本。
+ */
+function normalizeMarkdown(text: string): string {
+  // 1. 修复标题标记后缺少空格：##text → ## text
+  text = text.replace(/^(#{1,6})([^\s#])/gm, '$1 $2')
+
+  // 2. 修复标题行与表格内容挤在同一行：
+  //    "## 标题| col1 | col2 |\n| --- | --- |" → "## 标题\n\n| col1 | col2 |\n| --- | --- |"
+  //    按行扫描，发现标题行内含有表格分隔符（|---|---）时拆分为独立行
+  const lines = text.split('\n')
+  const result: string[] = []
+  for (const line of lines) {
+    const headingMatch = line.match(/^(#{1,6}\s)(.+)$/)
+    if (headingMatch) {
+      const afterHeading = headingMatch[2]
+      // 标题文本后紧跟着表格内容（检测 GFM 表格分隔符 |---|）
+      if (/\|[-| :]+\|/.test(afterHeading)) {
+        const pipeIdx = afterHeading.indexOf('|')
+        if (pipeIdx > 0) {
+          result.push(headingMatch[1] + afterHeading.slice(0, pipeIdx).trimEnd())
+          result.push('')
+          result.push(afterHeading.slice(pipeIdx))
+          continue
+        }
+      }
+    }
+    result.push(line)
+  }
+  return result.join('\n')
+}
+
 export default function MarkdownRenderer({ content }: Props) {
   return (
     <StreamMD
-      text={content}
+      text={normalizeMarkdown(content)}
       theme="none"
       showCursor={false}
       components={{
