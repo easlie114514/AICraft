@@ -6,10 +6,32 @@
 """
 
 import ctypes
+import logging
 import os
 import sys
 import threading
 import time
+
+# ── 日志配置（写入文件，方便排查问题）──
+def _setup_logging():
+    """配置根日志：aictaft.log 写入 exe 同级目录"""
+    from pathlib import Path
+    if getattr(sys, 'frozen', False):
+        log_dir = Path(os.path.dirname(os.path.abspath(sys.executable)))
+    else:
+        log_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+    log_file = log_dir / "aicraft.log"
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(str(log_file), encoding="utf-8"),
+        ],
+    )
+    # 确保 aicraft logger 也传播到 root
+    logging.getLogger("aicraft").setLevel(logging.WARNING)
+
+_setup_logging()
 
 # 阻止 litellm 在 import 时同步拉取远程模型价格表（国内 GitHub 被墙会导致超时 30-60s）
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")

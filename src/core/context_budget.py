@@ -166,11 +166,14 @@ class ContextBudget:
         return trimmed
 
     def _trim_history_slice(self, slice_: ContextSlice) -> None:
-        """裁剪会话历史切片：从旧到新砍，保留最近的"""
+        """裁剪会话历史切片：从旧到新砍，保留最近的，对齐消息边界避免截断"""
         lines = slice_.content.split("\n")
-        # 每次砍掉1/4，直到预算够或只剩1/4
+        # 每次砍掉约1/4，直到预算够或只剩1/4
         while len(lines) > len(lines) // 4 and self.total_tokens > self.input_budget:
             remove_count = max(len(lines) // 4, 1)
+            # 调整到下一个消息边界（行首为 '['），避免从消息中间截断
+            while remove_count < len(lines) and not lines[remove_count].startswith("["):
+                remove_count += 1
             lines = lines[remove_count:]
             slice_.content = "\n".join(lines)
             slice_.tokens = estimate_tokens(slice_.content)

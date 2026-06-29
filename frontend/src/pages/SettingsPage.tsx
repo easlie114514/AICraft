@@ -9,6 +9,7 @@ import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
 
 export default function SettingsPage({ isActive }: { isActive?: boolean }) {
   const [showEmotion, setShowEmotion] = useState(true)
+  const [maxToolRounds, setMaxToolRounds] = useState(25)
   const [currentVersion, setCurrentVersion] = useState("")
   const [checking, setChecking] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
@@ -16,8 +17,11 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
 
   useEffect(() => {
     if (isActive) {
-      api.get<{ show_emotion_portrait?: boolean }>('/settings')
-        .then((data) => setShowEmotion(data.show_emotion_portrait ?? true))
+      api.get<{ show_emotion_portrait?: boolean; max_tool_rounds?: number }>('/settings')
+        .then((data) => {
+          setShowEmotion(data.show_emotion_portrait ?? true)
+          setMaxToolRounds(data.max_tool_rounds ?? 25)
+        })
         .catch(() => {})
       // 获取当前版本号
       api.get<{ current_version: string }>('/update/check')
@@ -31,6 +35,12 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
     await api.put('/settings', { show_emotion_portrait: v }).catch(() => {
       setShowEmotion(!v) // rollback on error
     })
+  }
+
+  const handleMaxToolRounds = async (v: number) => {
+    const clamped = Math.max(1, Math.min(100, v))
+    setMaxToolRounds(clamped)
+    await api.put('/settings', { max_tool_rounds: clamped }).catch(() => {})
   }
 
   const handleCheckUpdate = useCallback(async () => {
@@ -64,6 +74,47 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
             </p>
           </div>
           <Switch checked={showEmotion} onCheckedChange={handleToggle} />
+        </div>
+
+        {/* Max Tool Rounds */}
+        <div className="flex items-center justify-between bg-card border border-border rounded-xl p-4">
+          <div className="flex-1 min-w-0 mr-4">
+            <Label className="text-sm font-medium">最大工具调用轮次</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              LLM 连续调用工具的最大轮次，超过后自动停止（1-100）
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={maxToolRounds <= 1}
+              onClick={() => handleMaxToolRounds(maxToolRounds - 1)}
+            >
+              −
+            </Button>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={maxToolRounds}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                if (!isNaN(v)) handleMaxToolRounds(v)
+              }}
+              className="h-8 w-14 text-center text-sm border border-border rounded-md bg-background text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={maxToolRounds >= 100}
+              onClick={() => handleMaxToolRounds(maxToolRounds + 1)}
+            >
+              +
+            </Button>
+          </div>
         </div>
 
         {/* Version & Update Check */}
