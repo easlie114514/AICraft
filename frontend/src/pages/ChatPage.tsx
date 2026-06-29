@@ -63,17 +63,18 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
   }, [])
 
+  const loadModels = useCallback(() => {
+    api.get<ModelOption[]>('/models').then((data) => {
+      setModels([{ name: '⚡ Auto（智能路由）', model_id: 'auto', is_current: false }, ...data])
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
-    const loadModels = () => {
-      api.get<ModelOption[]>('/models').then((data) => {
-        setModels([{ name: '⚡ Auto（智能路由）', model_id: 'auto', is_current: false }, ...data])
-      }).catch(() => {})
-    }
     loadModels()
     loadRoles()
     window.addEventListener('roles-changed', loadRoles)
     return () => window.removeEventListener('roles-changed', loadRoles)
-  }, [loadRoles])
+  }, [loadModels, loadRoles])
 
   // Bump version whenever emotion changes → cache-bust portrait images
   useEffect(() => {
@@ -85,13 +86,14 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   // Re-fetch roles when tab becomes active (e.g. returning from RolePage after external changes)
   useEffect(() => {
     if (isActive) {
+      loadModels()
       loadRoles()
       // 加载全局情绪画像开关
       api.get<{ show_emotion_portrait?: boolean }>('/settings')
         .then((data) => setShowEmotionGlobal(data.show_emotion_portrait ?? true))
         .catch(() => {})
     }
-  }, [isActive, loadRoles])
+  }, [isActive, loadModels, loadRoles])
 
   // Set defaults (Auto is default when no model selected)
   useEffect(() => {
