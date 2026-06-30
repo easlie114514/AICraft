@@ -226,6 +226,7 @@ async def chat_websocket(ws: WebSocket):
     # 可能在 agent_loop 中阻塞等待权限 future，无法回到 while 顶部接收消息。
     message_queue: asyncio.Queue = asyncio.Queue()
     _stop_event = asyncio.Event()
+    _cancel_generation = asyncio.Event()  # 用户点击停止时设置
 
     async def ws_reader():
         """后台任务：持续读取 WebSocket 消息"""
@@ -247,6 +248,12 @@ async def chat_websocket(ws: WebSocket):
                         })
                     continue
 
+                # 停止生成 → 立即处理，不进入队列（主循环可能阻塞在 agent_loop 中）
+                if msg_type == "stop":
+                    _cancel_generation.set()
+                    await ws.send_json({"type": "done"})
+                    continue
+
                 await message_queue.put(data)
         except WebSocketDisconnect:
             await message_queue.put({"type": "_disconnect"})
@@ -262,10 +269,6 @@ async def chat_websocket(ws: WebSocket):
 
             if msg_type == "_disconnect":
                 break
-
-            if msg_type == "stop":
-                await ws.send_json({"type": "done"})
-                continue
 
             if msg_type == "new_scene":
                 # 场景切换：全量压缩当前对话 → 清空上下文 → 新 conv_id
@@ -781,6 +784,9 @@ async def chat_websocket(ws: WebSocket):
                         if _em_start_cfg.get("enabled", False) and "thinking" in _em_start_avail:
                             await ws.send_json({"type": "emotion", "key": "thinking"})
 
+                    # ── 开始生成前重置取消标志 ──
+                    _cancel_generation.clear()
+
                     async for event in agent_loop(
                         messages=messages,
                         tools=all_tools,
@@ -816,6 +822,14 @@ async def chat_websocket(ws: WebSocket):
                                 continue
                             event = {**event, "content": full_text}
                         await ws.send_json(event)
+
+                        # 用户点击停止 → 立即中断生成
+                        if _cancel_generation.is_set():
+                            break
+
+                    # 如果被取消，跳过 done（ws_reader 已发送）和后续处理
+                    if _cancel_generation.is_set():
+                        continue
 
                     await ws.send_json({"type": "done"})
 
