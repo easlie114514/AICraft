@@ -274,14 +274,16 @@ async def _stream_via_anthropic(
     api_base = model_config.get("api_base", "")
 
     # ── 确定 base_url ──
+    # 优先使用用户配置的 api_base，仅在未配置时回退到 provider 默认值
     if provider == "deepseek":
-        base_url = "https://api.deepseek.com/anthropic"
+        base_url = api_base or "https://api.deepseek.com/anthropic"
         actual_model = model_id.split("/", 1)[1] if "/" in model_id else model_id
     elif provider == "anthropic":
         base_url = api_base or "https://api.anthropic.com"
         actual_model = model_id.split("/", 1)[1] if "/" in model_id else model_id
     else:
-        actual_model = model_id
+        # 其他 provider 但 protocol=anthropic 的自定义模型（如中转站）
+        actual_model = model_id.split("/", 1)[1] if "/" in model_id else model_id
         base_url = api_base or "https://api.anthropic.com"
 
     # ── 转换消息格式 ──
@@ -570,7 +572,15 @@ async def _build_llm_kwargs(
 
 
 def _is_anthropic_provider(model_config: dict) -> bool:
-    """判断模型是否应走 Anthropic SDK 路径"""
+    """判断模型是否应走 Anthropic SDK 路径
+
+    优先看 protocol 字段（显式声明），其次看 provider 名称。
+    protocol="anthropic" → Anthropic SDK
+    provider in ("deepseek", "anthropic") → Anthropic SDK（向后兼容，这些 provider 默认 protocol=anthropic）
+    """
+    protocol = model_config.get("protocol", "").lower()
+    if protocol == "anthropic":
+        return True
     provider = model_config.get("provider", "").lower()
     return provider in ("deepseek", "anthropic")
 

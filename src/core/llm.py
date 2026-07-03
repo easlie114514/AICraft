@@ -159,7 +159,7 @@ async def simple_completion(
     messages: list[dict],
     max_tokens: int = 500,
 ) -> str:
-    """协议感知的非流式简单完成 — 根据 protocol 自动选择 Anthropic SDK 或 openai_completion
+    """协议感知的非流式简单完成 — 根据 protocol/provider 自动选择 Anthropic SDK 或 openai_completion
 
     Args:
         model_config: 模型配置 dict
@@ -170,18 +170,24 @@ async def simple_completion(
         模型返回的文本内容
     """
     protocol = model_config.get("protocol", "").lower()
+    provider = model_config.get("provider", "").lower()
     api_key = model_config.get("api_key", "")
     api_base = model_config.get("api_base", "")
     model_id = model_config.get("model_id", "")
 
-    # ── Anthropic 协议（DeepSeek / Claude）──
-    if protocol == "anthropic":
+    # ── 判断是否走 Anthropic 协议路径 ──
+    # 优先看 protocol 字段，其次看 provider（DeepSeek/Anthropic 默认走 Anthropic 协议）
+    use_anthropic = (
+        protocol == "anthropic"
+        or (not protocol and provider in ("deepseek", "anthropic"))
+    )
+
+    if use_anthropic:
         from anthropic import AsyncAnthropic
 
         if api_base:
             base_url = api_base
         else:
-            provider = model_config.get("provider", "").lower()
             if provider == "deepseek":
                 base_url = "https://api.deepseek.com/anthropic"
             else:
