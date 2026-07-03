@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -45,7 +46,17 @@ export default function ModelPage() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
   // 手动添加表单
-  const [form, setForm] = useState({ name: '', provider: 'deepseek', model_id: '', api_key: '', api_base: '' })
+  const [form, setForm] = useState({
+    name: '',
+    provider: 'deepseek',
+    model_id: '',
+    api_key: '',
+    api_base: '',
+    protocol: '',
+    tier: '',
+    supports_thinking: false,
+    supports_web_search: false,
+  })
 
   // 通道表单（仅 DeepSeek）
   const [channelApiKey, setChannelApiKey] = useState('')
@@ -70,7 +81,7 @@ export default function ModelPage() {
     if (!form.name || !form.model_id) return
     await api.post('/models', form)
     setShowAdd(false)
-    setForm({ name: '', provider: 'deepseek', model_id: '', api_key: '', api_base: '' })
+    setForm({ name: '', provider: 'deepseek', model_id: '', api_key: '', api_base: '', protocol: '', tier: '', supports_thinking: false, supports_web_search: false })
     loadModels()
   }
 
@@ -280,64 +291,123 @@ export default function ModelPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── 自定义模型 Dialog（保留原有手动添加功能）── */}
+      {/* ── 自定义模型 Dialog ── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>自定义模型</DialogTitle>
             <DialogDescription>手动配置 LLM API 连接信息</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>模型名称</Label>
+          <div className="space-y-3 py-2">
+            {/* 模型名称 — 独占一行 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">模型名称</Label>
               <Input
-                placeholder="例如: DeepSeek-V4"
+                placeholder="例如: DeepSeek V4、GPT-4o"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                
+                className="h-8 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select value={form.provider} onValueChange={(v) => setForm({ ...form, provider: v ?? 'deepseek' })}>
-                <SelectTrigger >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="deepseek">DeepSeek</SelectItem>
-                  <SelectItem value="anthropic">Anthropic</SelectItem>
-                  <SelectItem value="other">其他</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Provider + Model ID — 双列 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Provider</Label>
+                <Select value={form.provider} onValueChange={(v) => setForm({ ...form, provider: v ?? 'deepseek' })}>
+                  <SelectTrigger className="w-full h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="deepseek">DeepSeek</SelectItem>
+                    <SelectItem value="anthropic">Anthropic</SelectItem>
+                    <SelectItem value="other">其他 / 中转站</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Model ID</Label>
+                <Input
+                  placeholder="deepseek-chat"
+                  value={form.model_id}
+                  onChange={(e) => setForm({ ...form, model_id: e.target.value })}
+                  className="h-8 text-sm"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Model ID</Label>
-              <Input
-                placeholder="例如: deepseek/deepseek-chat"
-                value={form.model_id}
-                onChange={(e) => setForm({ ...form, model_id: e.target.value })}
-                
-              />
+
+            {/* API 协议 + 模型层级 — 双列 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">API 协议</Label>
+                <Select value={form.protocol} onValueChange={(v) => setForm({ ...form, protocol: v ?? '' })}>
+                  <SelectTrigger className="w-full h-8 text-sm">
+                    <SelectValue placeholder="自动推断" />
+                  </SelectTrigger>
+                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
+                    <SelectItem value="">自动推断</SelectItem>
+                    <SelectItem value="anthropic">Anthropic Messages</SelectItem>
+                    <SelectItem value="openai">OpenAI Completions</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">模型层级</Label>
+                <Select value={form.tier} onValueChange={(v) => setForm({ ...form, tier: v ?? '' })}>
+                  <SelectTrigger className="w-full h-8 text-sm">
+                    <SelectValue placeholder="不参与 Auto 路由" />
+                  </SelectTrigger>
+                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
+                    <SelectItem value="">无</SelectItem>
+                    <SelectItem value="pro">Pro（主力推理）</SelectItem>
+                    <SelectItem value="flash">Flash（快速轻量）</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>API Key</Label>
+
+            {/* API Key — 独占一行 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">API Key</Label>
               <Input
                 type="password"
                 placeholder="sk-..."
                 value={form.api_key}
                 onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-                
+                className="h-8 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>API Base (可选)</Label>
+
+            {/* API Base — 独占一行 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">API Base</Label>
               <Input
-                placeholder="https://api.example.com/v1"
+                placeholder="https://api.openai.com/v1"
                 value={form.api_base}
                 onChange={(e) => setForm({ ...form, api_base: e.target.value })}
-                
+                className="h-8 text-sm font-mono"
               />
+            </div>
+
+            {/* 深度思考 + 联网搜索 — 双列开关 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2">
+                <Label className="text-xs cursor-pointer" htmlFor="sw-thinking">深度思考</Label>
+                <Switch
+                  id="sw-thinking"
+                  checked={form.supports_thinking}
+                  onCheckedChange={(v) => setForm({ ...form, supports_thinking: v })}
+                />
+              </div>
+              <div className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2">
+                <Label className="text-xs cursor-pointer" htmlFor="sw-search">联网搜索</Label>
+                <Switch
+                  id="sw-search"
+                  checked={form.supports_web_search}
+                  onCheckedChange={(v) => setForm({ ...form, supports_web_search: v })}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
