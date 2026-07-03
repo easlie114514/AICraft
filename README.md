@@ -1,6 +1,12 @@
 <div align="center">
-  <img src="README_logo.png" width="300"><br><br>
-  <b><font size="4">Load your AI agent like Minecraft mods</font></b><br><br>
+  <img src="README_logo.png" width="280">
+
+  <h1>AICraft</h1>
+
+  <h3>🧩 像玩 Minecraft 一样组装你的 AI 助手</h3>
+
+  <p><em>Skill 即 Mod · 角色即皮肤 · MCP 即工具 · 装好即玩</em></p>
+
   <p>
     <img src="https://img.shields.io/badge/Python-3.7+-3776AB?logo=python&logoColor=white">
     <img src="https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white">
@@ -8,84 +14,109 @@
     <img src="https://img.shields.io/badge/License-Apache_2.0-blue">
     <img src="https://img.shields.io/badge/DeepSeek-Supported-4D6BFE">
   </p>
+
+  <p>
+    <a href="https://github.com/Easlie114514/AICraft/releases"><img src="https://img.shields.io/badge/⬇️_下载最新版-Releases-brightgreen?style=for-the-badge"></a>
+    <a href="#-快速开始"><img src="https://img.shields.io/badge/⚡_3_分钟上手-Quick_Start-orange?style=for-the-badge"></a>
+  </p>
 </div>
 
 ---
 
-## 🎮 AICraft 是什么？
+## 💡 一句话说清楚
 
-AICraft 是一个**桌面 AI 能力启动器**——就像 PCL 启动器管理 Minecraft 的 mod 一样，AICraft 让你用可视化界面管理 LLM 的 Skill、MCP、RAG、记忆等能力模块。
+> **AICraft = 桌面 AI 启动器。** 不需要 Python 环境，不需要手写配置，不需要敲命令行。打开 exe → 填 Key → 开聊。Skill、MCP、RAG、记忆、角色 —— 全部可视化，热插拔。
 
-装好就能用，不用亲自预安装任何环境。填入 API Key，开聊。
+---
 
-<p align="center">
-  <img src="docs/screenshots/chat.png"><br>
-  <i>对话界面：RAG / 记忆 / 深度思考 / Auto路由 / Token计费，开箱即用</i>
-</p>
+## 🎮 预览
 
-## ✨ 功能特性
+<div align="center">
+  <table><tr>
+    <td><img src="docs/screenshots/aicraft_chat.png" width="420"><br><sub><i>💬 对话界面：RAG / 记忆 / 深度思考 / Token计费，开箱即用</i></sub></td>
+    <td><img src="docs/screenshots/aicraft_deepseek.png" width="420"><br><sub><i>🔧 DeepSeek 一键接入，无需手动配置模型参数</i></sub></td>
+  </tr></table>
+</div>
 
-1. 🚀 **DeepSeek 一键接入** — 填入 Key，自动创建 V4 Pro + Flash 双模型配置
+---
 
-<p align="center">
-  <img src="docs/screenshots/deepseek.png"><br>
-  <i>一键接入 DeepSeek，无需手动配置模型参数</i>
-</p>
+## ✨ 功能
 
-2. 🎭 **角色快切** — 一键切换预设角色，内置 Diana、绫里真宵等角色模板，支持自定义创建
-3. 🧩 **Skill 管理** — 可视化管理 Skill 模块，热插拔式加载，含角色设计师等 5 个出厂 Skill
-4. 🔧 **MCP 管理** — 文件管理 + Python 执行，Agent 真正能动手；权限审批开关 + 代码执行弹窗确认
-5. 📚 **本地 RAG** — 构建自己的本地知识库，ChromaDB 向量检索，数据不出本机
-6. 🧠 **三层记忆** — 实时 / 短期 / 长期，跨会话记忆持久化
-7. 💭 **深度思考** — 支持 DeepSeek 深度思考模式，推理更深入
-8. 💰 **实时 Token 计费面板** — 实时统计用量与费用，缓存命中单独展示
-9. 🤖 **上下文预算管理** — 6 级优先级裁剪，1M 上下文不浪费
-10. 🎨 **9 套主题色卡** — 一键切换界面主题风格
-11. 📂 **便携运行** — 数据全部存 exe 同级目录，解压即用，无需安装
+<!-- 卡片式网格：用 HTML table 在 GitHub 也能出效果 -->
 
-## 🚀 快速开始
+<div align="center">
 
-### 1. 下载安装
+| 🚀 | 🎭 | 🧩 | 🔧 |
+|:--:|:--:|:--:|:--:|
+| **DeepSeek 一键接入** | **角色快切** | **Skill 热插拔** | **MCP 工具管理** |
+| 填入 Key 自动创建<br>V4 Pro + Flash 双模型 | 一键切换预设角色<br>Diana · 绫里真宵等模板 | 可视化加载/卸载<br>5 个出厂 Skill | 文件管理 + Python 执行<br>Agent 真正能动手 |
 
-从 [Releases](https://github.com/Easlie114514/AICraft/releases) 下载最新版，解压运行 `AICraft.exe`
+| 📚 | 🧠 | 💭 | 💰 |
+|:--:|:--:|:--:|:--:|
+| **本地 RAG** | **三层记忆** | **深度思考** | **实时 Token 计费** |
+| ChromaDB 向量检索<br>数据不出本机 | L0 实时 → L1 短期<br>→ L2 长期持久化 | DeepSeek 深度思考<br>推理更深入 | 用量 & 费用实时统计<br>缓存命中单独展示 |
 
-### 2. 一键接入 DeepSeek
+| 🤖 | 🎨 | 📂 | |
+|:--:|:--:|:--:|:--:|
+| **上下文预算管理** | **9 套主题色卡** | **便携运行** | |
+| 6 级优先级裁剪<br>1M 上下文不浪费 | 一键切换界面主题 | 数据存 exe 同级目录<br>解压即用，无需安装 | |
 
-首次打开 → 点击「模型」→ 点击「DeepSeek 一键接入」→ 粘贴 API Key → 保存
+</div>
 
-### 3. 开聊
+---
 
-就这样，你已经拥有一个带搜索、文件管理、RAG、记忆的桌面 Agent 了。
+## 🧩 能力模块一览
 
-## 🧩 能力模块
+| 模块 | 做什么 | 出厂自带 |
+|:-----|:-------|:---------|
+| 🧩 **Skill** | 角色风格 prompt 注入，一键切换对话风格 | 5 个：通用 / 技术 / 创作 / 分析 / 角色设计师 |
+| 🔧 **MCP** | 可执行工具，Agent 能读写文件、运行代码 | 2 个：filesystem / code_executor |
+| 📚 **RAG** | 本地向量检索，构建私有知识库 | 3 篇：使用手册 / 开发指南 / FAQ |
+| 🧠 **记忆** | 三层架构，跨会话记住你 | 自动运转，无需配置 |
+| 🎭 **角色** | 预设人格模板，保留记忆同时无痕切换 | Diana · 绫里真宵等，支持自定义 |
 
-| 模块 | 说明 | 出厂预置 |
-|------|------|---------|
-| **Skill** | 角色风格 prompt 注入 | 5 个：通用 / 技术 / 创作 / 分析 / 角色设计师 |
-| **MCP** | 可执行工具（文件管理 + Python 执行） | 2 个：filesystem / code_executor |
-| **RAG** | 本地向量检索（ChromaDB） | 3 篇：使用手册 / 开发指南 / FAQ |
-| **记忆** | 三层架构（L0 实时 → L1 短期 → L2 长期） | 自动运行 |
-| **角色** | 预设人格模板 | 内置 Diana、绫里真宵等模板，支持自定义 |
+---
+
+## 🚀 3 分钟上手
+
+```bash
+# ①  下载
+从 Releases 下载最新版 → 解压 → 运行 AICraft.exe
+
+# ②  接入
+模型 → DeepSeek 一键接入 → 粘贴 API Key → 保存
+
+# ③  开聊
+搞定。你现在拥有一个带搜索、文件管理、RAG、记忆的桌面 Agent。
+```
+
+---
 
 ## 🛠️ 技术栈
 
-**后端** — Python · FastAPI · ChromaDB · httpx  
-**前端** — React 19 · Vite 8 · TailwindCSS 4 · Shadcn UI  
-**打包** — PyInstaller onedir · 316 MB
+| 层 | 技术 |
+|:---|:-----|
+| 🐍 后端 | Python · FastAPI · ChromaDB · httpx · sentence-transformers |
+| ⚛️ 前端 | React 19 · Vite 8 · TailwindCSS 4 · Shadcn UI |
+| 📦 打包 | PyInstaller onedir · 316 MB |
 
-## 🗺️ 后续计划
+---
 
-- [ ] 多模态输入（文件 + 图片上传）
-- [ ] AI 返回文件（工具产出 CSV 等文件）
-- [ ] SkillHub 社区市场
-- [ ] Token 计费增强（历史可查、导出）
+## 🗺️ 路线图
+
+- [ ] 多模态输入 — 文件 + 图片拖拽上传
+- [ ] AI 返回文件 — 工具产出 CSV、图片等直接下载
+- [ ] SkillHub — 社区市场，分享和安装 Skill
+- [ ] Token 统计增强 — 历史可查、数据导出
+
+---
 
 ## 📄 License
 
-[Apache 2.0](LICENSE)
+[Apache 2.0](LICENSE) · Free to use, modify, and distribute.
 
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/Easlie114514">Easlie</a></sub>
+  <sub>❤️ Built by <a href="https://github.com/Easlie114514">Easlie</a></sub>
 </p>
