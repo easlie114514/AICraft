@@ -30,11 +30,14 @@
 ---
 
 ## 🎮 预览
-
 <div align="center">
   <table><tr>
-    <td><img src="docs/screenshots/chat.png" width="420"><br><sub><i>💬 对话界面：RAG / 记忆 / 深度思考 / Token计费，开箱即用</i></sub></td>
-    <td><img src="docs/screenshots/deepseek.png" width="420"><br><sub><i>🔧 DeepSeek 一键接入，无需手动配置模型参数</i></sub></td>
+    <td><img src="docs/screenshots/chat.png" width="900"><br><sub><i>💬 对话界面：RAG / 记忆 / 深度思考 / Token计费，开箱即用</i></sub></td>
+  </tr></table>
+</div>
+<div align="center">
+  <table><tr>
+    <td><img src="docs/screenshots/deepseek.png" width="800"><br><sub><i>🔧 DeepSeek 一键接入，无需手动配置模型参数</i></sub></td>
   </tr></table>
 </div>
 
@@ -56,10 +59,10 @@
 | **本地 RAG** | **三层记忆** | **深度思考** | **实时 Token 计费** |
 | ChromaDB 向量检索<br>数据不出本机 | L0 实时 → L1 短期<br>→ L2 长期持久化 | DeepSeek 深度思考<br>推理更深入 | 用量 & 费用实时统计<br>缓存命中单独展示 |
 
-| 🤖 | 🎨 | 📂 | |
-|:--:|:--:|:--:|:--:|
-| **上下文预算管理** | **9 套主题色卡** | **便携运行** | |
-| 6 级优先级裁剪<br>1M 上下文不浪费 | 一键切换界面主题 | 数据存 exe 同级目录<br>解压即用，无需安装 | |
+| 🤖 | 🎨 | 📂 | 
+|:--:|:--:|:--:|
+| **上下文预算管理** | **9 套主题色卡** | **便携运行** | 
+| 6 级优先级裁剪<br>1M 上下文不浪费 | 一键切换界面主题 | 数据存 exe 同级目录<br>解压即用，无需安装 | 
 
 </div>
 
