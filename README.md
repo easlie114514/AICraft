@@ -3,7 +3,7 @@
 
   <h1>AICraft</h1>
 
-  <h3>🧩 像玩 Minecraft 一样组装你的 AI 助手</h3>
+  <h3>🧩 像给游戏添加 mods 一样组装你的 AI 助手</h3>
 
   <p><em>Skill 即 Mod · 角色即皮肤 · MCP 即工具 · 装好即玩</em></p>
 
