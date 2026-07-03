@@ -33,8 +33,8 @@
 
 <div align="center">
   <table><tr>
-    <td><img src="docs/screenshots/aicraft_chat.png" width="420"><br><sub><i>💬 对话界面：RAG / 记忆 / 深度思考 / Token计费，开箱即用</i></sub></td>
-    <td><img src="docs/screenshots/aicraft_deepseek.png" width="420"><br><sub><i>🔧 DeepSeek 一键接入，无需手动配置模型参数</i></sub></td>
+    <td><img src="docs/screenshots/chat.png" width="420"><br><sub><i>💬 对话界面：RAG / 记忆 / 深度思考 / Token计费，开箱即用</i></sub></td>
+    <td><img src="docs/screenshots/deepseek.png" width="420"><br><sub><i>🔧 DeepSeek 一键接入，无需手动配置模型参数</i></sub></td>
   </tr></table>
 </div>
 
