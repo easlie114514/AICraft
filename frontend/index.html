@@ -10,24 +10,26 @@
       (function() {
         try {
           var THEMES = {
-            blue:   { primary: '#165DFF', hover: '#0E42D2', light: '#E8F3FF', nav: '#1E3A74', input: '#E4E8F0' },
-            green:  { primary: '#16A34A', hover: '#15803D', light: '#F0FDF4', nav: '#184A2C', input: '#E2EBE5' },
-            purple: { primary: '#7C3AED', hover: '#6D28D9', light: '#F5F3FF', nav: '#36285E', input: '#E9E5F0' },
-            orange: { primary: '#EA580C', hover: '#C2410C', light: '#FFF7ED', nav: '#4C2A12', input: '#EDE7E1' },
-            rose:   { primary: '#DC2626', hover: '#B91C1C', light: '#FEF2F2', nav: '#5C1E26', input: '#F0E6E7' },
-            teal:   { primary: '#0D9488', hover: '#0F766E', light: '#F0FDFA', nav: '#184A40', input: '#E4EDEB' },
-            amber:  { primary: '#F59E0B', hover: '#D97706', light: '#FFFBEB', nav: '#4C3614', input: '#EDEAE2' },
-            pink:   { primary: '#DB2777', hover: '#BE185D', light: '#FDF2F8', nav: '#581A3E', input: '#F0E4EC' },
-            slate:  { primary: '#475569', hover: '#334155', light: '#F8FAFC', nav: '#384250', input: '#E5E8EC' },
+            blue:   { primary: '#165DFF', hover: '#0E42D2', light: '#E8F3FF', lighter: '#F2F7FF', ring: '#165DFF', nav: '#1E3A74', input: '#E4E8F0' },
+            green:  { primary: '#16A34A', hover: '#15803D', light: '#F0FDF4', lighter: '#F7FEF9', ring: '#16A34A', nav: '#184A2C', input: '#E2EBE5' },
+            purple: { primary: '#7C3AED', hover: '#6D28D9', light: '#F5F3FF', lighter: '#FAF9FF', ring: '#7C3AED', nav: '#36285E', input: '#E9E5F0' },
+            orange: { primary: '#EA580C', hover: '#C2410C', light: '#FFF7ED', lighter: '#FFFBEB', ring: '#EA580C', nav: '#4C2A12', input: '#EDE7E1' },
+            rose:   { primary: '#DC2626', hover: '#B91C1C', light: '#FEF2F2', lighter: '#FFF7F7', ring: '#DC2626', nav: '#5C1E26', input: '#F0E6E7' },
+            teal:   { primary: '#0D9488', hover: '#0F766E', light: '#F0FDFA', lighter: '#F6FEFC', ring: '#0D9488', nav: '#184A40', input: '#E4EDEB' },
+            amber:  { primary: '#F59E0B', hover: '#D97706', light: '#FFFCEB', lighter: '#FFFEF5', ring: '#F59E0B', nav: '#4C3614', input: '#EDEAE2' },
+            pink:   { primary: '#DB2777', hover: '#BE185D', light: '#FDF2F8', lighter: '#FFF7FB', ring: '#DB2777', nav: '#581A3E', input: '#F0E4EC' },
+            slate:  { primary: '#475569', hover: '#334155', light: '#F1F5F9', lighter: '#F8FAFC', ring: '#475569', nav: '#384250', input: '#E5E8EC' },
           };
           var t = localStorage.getItem('aicraft_theme');
           var c = THEMES[t] || THEMES.blue;
           var s = document.documentElement.style;
-          s.setProperty('--theme-primary', c.primary);
-          s.setProperty('--theme-primary-hover', c.hover);
-          s.setProperty('--theme-primary-light', c.light);
-          s.setProperty('--theme-nav-bg', c.nav);
-          s.setProperty('--theme-input', c.input);
+          s.setProperty('--theme-primary', c.primary, 'important');
+          s.setProperty('--theme-primary-hover', c.hover, 'important');
+          s.setProperty('--theme-primary-light', c.light, 'important');
+          s.setProperty('--theme-primary-lighter', c.lighter, 'important');
+          s.setProperty('--theme-ring', c.ring, 'important');
+          s.setProperty('--theme-nav-bg', c.nav, 'important');
+          s.setProperty('--theme-input', c.input, 'important');
           document.documentElement.classList.add('theme-' + (THEMES[t] ? t : 'blue'));
         } catch(e) {}
       })();
