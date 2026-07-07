@@ -170,7 +170,7 @@ def main():
     user32 = ctypes.windll.user32
     screen_w = user32.GetSystemMetrics(0)
     screen_h = user32.GetSystemMetrics(1)
-    win_w, win_h = 1280, 800
+    win_w, win_h = 1664, 1040
     x = (screen_w - win_w) // 2
     y = (screen_h - win_h) // 2
 
