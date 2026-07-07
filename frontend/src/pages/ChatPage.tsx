@@ -60,7 +60,14 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
 
   // Load models and roles (prepend Auto option)
   const loadRoles = useCallback(() => {
-    api.get<RoleOption[]>('/roles').then(setRoles).catch(() => {})
+    api.get<RoleOption[]>('/roles').then((data) => {
+      setRoles(data)
+      // Sync selectedRole when current role is changed externally (e.g. from RolePage)
+      const cur = data.find((r) => r.is_current)
+      if (cur) {
+        setSelectedRole((prev) => (!prev || prev !== cur.name) ? cur.name : prev)
+      }
+    }).catch(() => {})
   }, [])
 
   const loadModels = useCallback(() => {
