@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Square, RefreshCw, ArrowDown, Plus } from 'lucide-react'
+import { Send, Square, RefreshCw, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -236,7 +236,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       <div className="shrink-0 p-4 space-y-2">
 
         {/* ── 工具栏行：开关 + 选择器 ── */}
-        <div className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-1.5">
+        <div className="flex items-center justify-between bg-muted rounded-lg px-3 py-1.5">
           {/* 左：功能开关 */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -284,12 +284,12 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           {/* 右：模型 / 角色 / Token / 新场景 */}
           <div className="flex items-center gap-1.5">
             <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? '')}>
-              <SelectTrigger className="w-[130px] !h-auto text-xs">
+              <SelectTrigger className="w-[160px] h-8 text-sm">
                 <SelectValue placeholder="模型" />
               </SelectTrigger>
-              <SelectContent align="end" sideOffset={6}>
+              <SelectContent side="top" sideOffset={6} alignItemWithTrigger={false}>
                 {models.map((m) => (
-                  <SelectItem key={m.model_id} value={m.model_id} className="text-xs">
+                  <SelectItem key={m.model_id} value={m.model_id}>
                     {m.name}
                   </SelectItem>
                 ))}
@@ -297,12 +297,12 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             </Select>
 
             <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v ?? '')}>
-              <SelectTrigger className="w-[90px] !h-auto text-xs">
+              <SelectTrigger className="w-[160px] h-8 text-sm">
                 <SelectValue placeholder="角色" />
               </SelectTrigger>
-              <SelectContent align="end" sideOffset={6}>
+              <SelectContent side="top" sideOffset={6} alignItemWithTrigger={false}>
                 {roles.map((r) => (
-                  <SelectItem key={r.name} value={r.name} className="text-xs">
+                  <SelectItem key={r.name} value={r.name}>
                     {r.name}
                   </SelectItem>
                 ))}
@@ -320,9 +320,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
               size="sm"
               onClick={newScene}
               disabled={streaming || !hasMessages}
-              className="rounded-lg h-7 text-xs"
+              className="rounded-lg h-8 text-xs"
             >
-              <Plus className="h-3 w-3 mr-1" />
               新场景
             </Button>
           </div>
@@ -352,11 +351,11 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             />
 
             {streaming ? (
-              <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
+              <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-20 w-10 rounded-lg shrink-0">
                 <Square className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleSend} disabled={!input.trim()} className="h-10 min-w-[86px] rounded-lg shrink-0">
+              <Button onClick={handleSend} disabled={!input.trim()} size="icon" className="h-20 w-10 rounded-lg shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
             )}

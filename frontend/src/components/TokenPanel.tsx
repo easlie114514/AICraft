@@ -55,7 +55,7 @@ export default function TokenPanel({ stats, isOpen, onToggle }: TokenPanelProps)
       <button
         onClick={onToggle}
         className={cn(
-          'h-10 w-12 rounded-lg flex items-center justify-center transition-colors shrink-0',
+          'h-8 w-12 rounded-lg flex items-center justify-center transition-colors shrink-0',
           isOpen
             ? 'bg-primary text-white'
             : 'bg-secondary text-text-secondary hover:text-primary hover:bg-primary-light'
