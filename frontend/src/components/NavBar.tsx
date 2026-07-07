@@ -31,7 +31,7 @@ export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
               className={cn(
                 'px-4 h-full text-sm font-medium transition-all duration-200 border-b-2 app-region-no-drag',
                 activeTab === tab.key
-                  ? 'text-white border-white'
+                  ? 'text-white border-white bg-[linear-gradient(to_top,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.04)_40%,transparent_60%)]'
                   : 'text-white/60 hover:text-white/80 border-transparent'
               )}
             >
