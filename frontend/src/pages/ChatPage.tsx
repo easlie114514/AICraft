@@ -233,9 +233,104 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       <Separator />
 
       {/* Input Area */}
-      <div className="shrink-0 p-4">
+      <div className="shrink-0 p-4 space-y-2">
+
+        {/* ── 工具栏行：开关 + 选择器 ── */}
+        <div className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-1.5">
+          {/* 左：功能开关 */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="toggle-memory"
+                checked={toggles.memory}
+                onCheckedChange={(v) => setToggles({ ...toggles, memory: v })}
+              />
+              <Label htmlFor="toggle-memory" className="text-xs text-text-secondary cursor-pointer">记忆注入</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="toggle-rag"
+                checked={toggles.rag}
+                onCheckedChange={(v) => setToggles({ ...toggles, rag: v })}
+              />
+              <Label htmlFor="toggle-rag" className="text-xs text-text-secondary cursor-pointer">RAG检索</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="toggle-thinking"
+                checked={toggles.thinking}
+                onCheckedChange={(v) => setToggles({ ...toggles, thinking: v })}
+              />
+              <Label htmlFor="toggle-thinking" className="text-xs text-text-secondary cursor-pointer">深度思考</Label>
+            </div>
+
+            {/* Context Budget Indicator */}
+            {contextInfo && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  contextInfo.pct >= 90
+                    ? 'bg-danger-light text-danger'
+                    : contextInfo.pct >= 75
+                    ? 'bg-warning-light text-warning'
+                    : 'bg-muted text-text-secondary'
+                }`}
+                title={`已用 ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.inputBudget.toLocaleString()} tokens`}
+              >
+                📊 {contextInfo.pct}%
+              </span>
+            )}
+          </div>
+
+          {/* 右：模型 / 角色 / Token / 新场景 */}
+          <div className="flex items-center gap-1.5">
+            <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? '')}>
+              <SelectTrigger className="w-[130px] !h-auto text-xs">
+                <SelectValue placeholder="模型" />
+              </SelectTrigger>
+              <SelectContent align="end" sideOffset={6}>
+                {models.map((m) => (
+                  <SelectItem key={m.model_id} value={m.model_id} className="text-xs">
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v ?? '')}>
+              <SelectTrigger className="w-[90px] !h-auto text-xs">
+                <SelectValue placeholder="角色" />
+              </SelectTrigger>
+              <SelectContent align="end" sideOffset={6}>
+                {roles.map((r) => (
+                  <SelectItem key={r.name} value={r.name} className="text-xs">
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <TokenPanel
+              stats={tokenStats}
+              isOpen={tokenPanelOpen}
+              onToggle={() => setTokenPanelOpen((v) => !v)}
+            />
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={newScene}
+              disabled={streaming || !hasMessages}
+              className="rounded-lg h-7 text-xs"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              新场景
+            </Button>
+          </div>
+        </div>
+
+        {/* ── 输入行：情绪画像 + 输入面板 ── */}
         <div className="flex gap-2">
-          {/* Emotion Portrait */}
+          {/* Emotion Portrait — 保持不变 */}
           <EmotionPortrait
             roleName={selectedRole}
             emotion={emotion}
@@ -244,118 +339,28 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             version={emotionVersion}
           />
 
-          <div className="flex-1 bg-white border border-border rounded-xl shadow-card pl-2.5 pr-3 py-[10px] space-y-2">
-        {/* Toggles */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="toggle-rag"
-              checked={toggles.rag}
-              onCheckedChange={(v) => setToggles({ ...toggles, rag: v })}
+          {/* 输入面板：Textarea + 发送 */}
+          <div className="flex-1 bg-white border border-border rounded-xl shadow-card p-2 flex items-end gap-2">
+            <Textarea
+              placeholder="输入消息... (Shift+Enter 换行)"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="flex-1 h-20 resize-none overflow-y-auto"
+              rows={1}
+              disabled={streaming}
             />
-            <Label htmlFor="toggle-rag" className="text-xs text-text-secondary cursor-pointer">RAG检索</Label>
+
+            {streaming ? (
+              <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button onClick={handleSend} disabled={!input.trim()} className="h-10 min-w-[86px] rounded-lg shrink-0">
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="toggle-memory"
-              checked={toggles.memory}
-              onCheckedChange={(v) => setToggles({ ...toggles, memory: v })}
-            />
-            <Label htmlFor="toggle-memory" className="text-xs text-text-secondary cursor-pointer">记忆注入</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="toggle-thinking"
-              checked={toggles.thinking}
-              onCheckedChange={(v) => setToggles({ ...toggles, thinking: v })}
-            />
-            <Label htmlFor="toggle-thinking" className="text-xs text-text-secondary cursor-pointer">深度思考</Label>
-          </div>
-
-          {/* Context Budget Indicator */}
-          {contextInfo && (
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                contextInfo.pct >= 90
-                  ? 'bg-danger-light text-danger'
-                  : contextInfo.pct >= 75
-                  ? 'bg-warning-light text-warning'
-                  : 'bg-muted text-text-secondary'
-              }`}
-              title={`已用 ${contextInfo.totalTokens.toLocaleString()} / ${contextInfo.inputBudget.toLocaleString()} tokens`}
-            >
-              📊 {contextInfo.pct}%
-            </span>
-          )}
-
-          {/* 新场景按钮 */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={newScene}
-            disabled={streaming || !hasMessages}
-            className="rounded-lg h-7 text-xs ml-auto"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            新场景
-          </Button>
-        </div>
-
-        {/* Input Row */}
-        <div className="flex items-end gap-2">
-          <Textarea
-            placeholder="输入消息... (Shift+Enter 换行)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 min-h-[40px] max-h-[120px] resize-none"
-            rows={1}
-            disabled={streaming}
-          />
-
-          <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? '')}>
-            <SelectTrigger className="w-[150px] !h-auto self-stretch text-xs">
-              <SelectValue placeholder="模型" />
-            </SelectTrigger>
-            <SelectContent sideOffset={6}>
-              {models.map((m) => (
-                <SelectItem key={m.model_id} value={m.model_id} className="text-xs">
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v ?? '')}>
-            <SelectTrigger className="w-[90px] !h-auto self-stretch text-xs">
-              <SelectValue placeholder="角色" />
-            </SelectTrigger>
-            <SelectContent sideOffset={6}>
-              {roles.map((r) => (
-                <SelectItem key={r.name} value={r.name} className="text-xs">
-                  {r.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <TokenPanel
-            stats={tokenStats}
-            isOpen={tokenPanelOpen}
-            onToggle={() => setTokenPanelOpen((v) => !v)}
-          />
-
-          {streaming ? (
-            <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-10 min-w-[56px] px-3 rounded-lg shrink-0">
-              <Square className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button onClick={handleSend} disabled={!input.trim()} className="h-10 min-w-[86px] rounded-lg shrink-0">
-              <Send className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        </div>
         </div>
       </div>
 
