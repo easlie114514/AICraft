@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Zap, ChevronDown, RefreshCw, Shield, Lock } from 'lucide-react'
+import { Plus, Trash2, Zap, ChevronDown, RefreshCw, Shield, Lock, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -48,6 +48,7 @@ interface PermissionConfig {
 
 export default function MCPPage() {
   const [connections, setConnections] = useState<MCPConnection[]>([])
+  const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [envStatus, setEnvStatus] = useState<{ available: boolean; path: string | null; version: string | null } | null>(null)
   const [permConfig, setPermConfig] = useState<PermissionConfig | null>(null)
@@ -58,10 +59,12 @@ export default function MCPPage() {
   })
 
   const loadConnections = useCallback(async () => {
+    setLoading(true)
     try {
       const data = await api.get<MCPConnection[]>('/mcp')
       setConnections(data)
     } catch { /* ignore */ }
+    finally { setLoading(false) }
   }, [])
 
   const loadEnvStatus = useCallback(async () => {
@@ -121,7 +124,7 @@ export default function MCPPage() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-text-primary">MCP 连接</h2>
         <div className="flex items-center gap-2">
@@ -136,7 +139,32 @@ export default function MCPPage() {
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        {connections.length === 0 ? (
+        {loading ? (
+          <div className="grid gap-4 pr-1">
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4 animate-pulse">
+                    <div className="h-10 w-10 rounded-full bg-muted/70 shrink-0" />
+                    <div className="flex-1 space-y-2.5 py-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-20 bg-muted/70 rounded" />
+                        <div className="h-4 w-10 bg-muted/50 rounded-lg" />
+                        <div className="h-4 w-12 bg-muted/50 rounded-lg" />
+                      </div>
+                      <div className="h-3 w-48 bg-muted/50 rounded font-mono" />
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="h-5 w-10 bg-muted/70 rounded-full" />
+                      <div className="h-5 w-10 bg-muted/70 rounded-full" />
+                      <div className="h-8 w-8 bg-muted/50 rounded" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : connections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Zap className="w-16 h-16 text-text-disabled mb-4" />
             <p className="text-sm text-text-secondary">暂无 MCP 连接</p>
@@ -163,12 +191,14 @@ export default function MCPPage() {
                           {envStatus && FACTORY_MCP_NAMES.includes(conn.name) && (
                             envStatus.available ? (
                               <Badge className="rounded-lg text-xs bg-success-light text-success border border-success/30 hover:bg-success-light">
-                                {'✅'} 环境就绪
+                                <CheckCircle2 className="h-3 w-3 mr-0.5" />
+                                环境就绪
                               </Badge>
                             ) : (
                               <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">
                                 <Badge className="rounded-lg text-xs bg-danger-light text-danger border border-danger/30 hover:bg-danger-light cursor-pointer">
-                                  {'⚠️'} 需要Node.js
+                                  <AlertTriangle className="h-3 w-3 mr-0.5" />
+                                  需要Node.js
                                 </Badge>
                               </a>
                             )
@@ -185,7 +215,7 @@ export default function MCPPage() {
                         <div className="flex flex-col gap-2">
                           <div className="flex flex-col items-center gap-0.5">
                             <Switch checked={conn.enabled} onCheckedChange={(v) => handleToggle(conn.name, v)} />
-                            <span className="text-[9px] text-text-tertiary/60 leading-none">启用</span>
+                            <span className="text-[10px] text-text-tertiary/60 leading-none">启用</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <Switch
@@ -193,7 +223,7 @@ export default function MCPPage() {
                               onCheckedChange={(v) => handleToggleApproval(conn.name, v)}
                               disabled={!conn.enabled}
                             />
-                            <span className="text-[9px] text-text-tertiary/60 leading-none">自动授权</span>
+                            <span className="text-[10px] text-text-tertiary/60 leading-none">自动授权</span>
                           </div>
                         </div>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(conn.name)} className="text-muted-foreground hover:text-destructive">
@@ -256,13 +286,13 @@ export default function MCPPage() {
                         <span className="flex-1 truncate">{p}</span>
                         <Button
                           variant="ghost" size="icon"
-                          className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                          className="h-5 w-5 text-muted-foreground hover:text-destructive shrink-0"
                           onClick={() => {
                             const updated = { ...permConfig, trusted_paths: permConfig.trusted_paths.filter((x) => x !== p) }
                             savePermissions(updated)
                           }}
                         >
-                          <Trash2 className="h-2.5 w-2.5" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     ))}
@@ -311,13 +341,13 @@ export default function MCPPage() {
                         <span className="flex-1 truncate">{p}</span>
                         <Button
                           variant="ghost" size="icon"
-                          className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                          className="h-5 w-5 text-muted-foreground hover:text-destructive shrink-0"
                           onClick={() => {
                             const updated = { ...permConfig, denied_paths: permConfig.denied_paths.filter((x) => x !== p) }
                             savePermissions(updated)
                           }}
                         >
-                          <Trash2 className="h-2.5 w-2.5" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     ))}

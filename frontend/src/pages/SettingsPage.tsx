@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -61,7 +62,7 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
   }, [])
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
       <h2 className="text-xl font-semibold text-text-primary mb-6">设置</h2>
 
       <div className="space-y-6 max-w-lg">
@@ -137,7 +138,12 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
               onClick={handleCheckUpdate}
               disabled={checking}
             >
-              {checking ? "检查中..." : "检查更新"}
+              {checking ? (
+                <span className="inline-flex items-center gap-1">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  检查中...
+                </span>
+              ) : "检查更新"}
             </Button>
           </div>
         </div>
