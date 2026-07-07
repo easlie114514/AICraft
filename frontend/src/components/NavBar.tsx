@@ -16,13 +16,35 @@ interface NavBarProps {
 export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
   return (
     <div className="flex items-center justify-between h-14 select-none shrink-0 bg-nav-bg border-b border-white/5 pl-3 pr-1 app-region-drag relative z-40">
+      {/* 导航栏水平渐变覆盖：左侧微亮增强层次 */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'linear-gradient(to right, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 15%, transparent 40%)',
+        }}
+      />
+
       {/* 左侧：Logo + 品牌名 */}
-      <div className="flex items-center gap-2 mr-4 app-region-drag">
-        <img src="/logo_craft.png" alt="AICraft" className="h-9 w-auto" />
+      <div className="flex items-center gap-2 mr-4 app-region-drag relative">
+        {/* 背衬光晕 — 让暗色 Logo 在深色导航栏上可见 */}
+        <div
+          className="absolute inset-0 w-28 -left-3 h-full pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse at 30% 50%, rgba(255,255,255,0.10) 0%, transparent 70%)',
+          }}
+        />
+        <img
+          src="/logo_craft.png"
+          alt="AICraft"
+          className="h-9 w-auto relative"
+          style={{
+            filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.30)) drop-shadow(0 0 2px rgba(255,255,255,0.15))',
+          }}
+        />
       </div>
 
       {/* 中间：Tab 列表 + 主题切换 */}
-      <div className="flex items-center h-full">
+      <div className="flex items-center h-full relative">
         <nav className="flex items-center h-full">
           {tabs.map((tab) => (
             <button
@@ -45,7 +67,7 @@ export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
       </div>
 
       {/* 右侧：窗口控制 */}
-      <div className="app-region-no-drag">
+      <div className="app-region-no-drag relative">
         <WindowControls />
       </div>
     </div>
