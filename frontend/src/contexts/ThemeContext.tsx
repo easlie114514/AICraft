@@ -6,18 +6,20 @@ interface ThemeInfo {
   name: ThemeName
   label: string
   color: string
+  colorLight: string
+  colorDark: string
 }
 
 export const THEMES: ThemeInfo[] = [
-  { name: 'blue',   label: '字节蓝', color: '#165DFF' },
-  { name: 'green',  label: '竹叶绿', color: '#16A34A' },
-  { name: 'purple', label: '暮光紫', color: '#7C3AED' },
-  { name: 'orange', label: '日落橙', color: '#EA580C' },
-  { name: 'rose',   label: '玫瑰红', color: '#DC2626' },
-  { name: 'teal',   label: '青碧色', color: '#0D9488' },
-  { name: 'amber',  label: '琥珀金', color: '#F59E0B' },
-  { name: 'pink',   label: '樱花粉', color: '#DB2777' },
-  { name: 'slate',  label: '石墨灰', color: '#475569' },
+  { name: 'blue',   label: '字节蓝', color: '#165DFF', colorLight: '#5C8CFF', colorDark: '#0E42D2' },
+  { name: 'green',  label: '竹叶绿', color: '#16A34A', colorLight: '#4ADE80', colorDark: '#15803D' },
+  { name: 'purple', label: '暮光紫', color: '#7C3AED', colorLight: '#A78BFA', colorDark: '#6D28D9' },
+  { name: 'orange', label: '日落橙', color: '#EA580C', colorLight: '#FB923C', colorDark: '#C2410C' },
+  { name: 'rose',   label: '玫瑰红', color: '#DC2626', colorLight: '#F87171', colorDark: '#B91C1C' },
+  { name: 'teal',   label: '青碧色', color: '#0D9488', colorLight: '#2DD4BF', colorDark: '#0F766E' },
+  { name: 'amber',  label: '琥珀金', color: '#F59E0B', colorLight: '#FBBF24', colorDark: '#D97706' },
+  { name: 'pink',   label: '樱花粉', color: '#DB2777', colorLight: '#F472B6', colorDark: '#BE185D' },
+  { name: 'slate',  label: '石墨灰', color: '#475569', colorLight: '#64748B', colorDark: '#334155' },
 ]
 
 const THEME_CLASS_PREFIX = 'theme-'

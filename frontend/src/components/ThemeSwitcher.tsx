@@ -27,7 +27,9 @@ export default function ThemeSwitcher() {
       <button
         onClick={() => setOpen(!open)}
         className="w-6 h-6 rounded-full border-2 border-white/30 hover:border-white/60 transition-colors cursor-pointer shrink-0"
-        style={{ backgroundColor: current.color }}
+        style={{
+          background: `radial-gradient(circle at 35% 35%, ${current.colorLight}, ${current.color} 60%, ${current.colorDark})`,
+        }}
         title={`主题: ${current.label}`}
       />
 
@@ -39,7 +41,7 @@ export default function ThemeSwitcher() {
               onClick={() => { setTheme(t.name as ThemeName); setOpen(false) }}
               className="relative w-7 h-7 rounded-full border-2 transition-all cursor-pointer hover:scale-110 flex items-center justify-center"
               style={{
-                backgroundColor: t.color,
+                background: `radial-gradient(circle at 35% 35%, ${t.colorLight}, ${t.color} 55%, ${t.colorDark})`,
                 borderColor: theme === t.name ? t.color : 'transparent',
                 boxShadow: theme === t.name ? `0 0 0 2px #fff, 0 0 0 4px ${t.color}` : undefined,
               }}
