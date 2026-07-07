@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Eye, Trash2, Search, RefreshCw, FileText, MessageSquare, Settings2, Merge, RotateCcw } from 'lucide-react'
+import { Eye, Trash2, Search, RefreshCw, FileText, MessageSquare, Settings2, Merge, RotateCcw, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { api } from '@/lib/api'
 
 interface Conversation {
@@ -91,12 +92,16 @@ export default function MemoryPage() {
   const [config, setConfig] = useState<MemoryConfig>(DEFAULT_CONFIG)
   const [stats, setStats] = useState<MemoryStats>({ compact_count: 0, compact_total_chars: 0, compact_total_tokens: 0, long_term_size: 0, long_term_tokens: 0 })
   const [configLoaded, setConfigLoaded] = useState(false)
+  const [convsLoading, setConvsLoading] = useState(true)
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const loadConversations = useCallback(async () => {
+    setConvsLoading(true)
     try {
       const data = await api.get<Conversation[]>('/memory/conversations')
       setConversations(data)
     } catch { /* ignore */ }
+    finally { setConvsLoading(false) }
   }, [])
 
   const loadNotes = useCallback(async () => {
@@ -174,7 +179,8 @@ export default function MemoryPage() {
         loadNotes()
         loadStats()
       }
-      alert(result.message || (result.ok ? '合并完成' : '合并失败'))
+      setNotification({ type: result.ok ? 'success' : 'error', message: result.message || (result.ok ? '合并完成' : '合并失败') })
+      setTimeout(() => setNotification(null), 3000)
     } catch { /* ignore */ }
   }
 
@@ -183,7 +189,7 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-text-primary">记忆</h2>
         <Button variant="outline" size="icon" onClick={() => { loadConversations(); loadNotes(); loadStats() }}>
@@ -192,7 +198,7 @@ export default function MemoryPage() {
       </div>
 
       {/* Search */}
-      <div className="shrink-0 flex items-center gap-2 mb-4">
+      <div className="shrink-0 relative flex items-center gap-2 mb-4">
         <Input
           placeholder="搜索记忆..."
           value={searchQuery}
@@ -203,20 +209,21 @@ export default function MemoryPage() {
         <Button variant="outline" size="icon" onClick={handleSearch} className="shrink-0">
           <Search className="h-4 w-4" />
         </Button>
-      </div>
 
-      {searchResults.length > 0 && (
-        <div className="shrink-0 mb-4">
-          <p className="text-xs font-medium text-muted-foreground mb-2">搜索结果</p>
-          <ScrollArea className="max-h-40">
-            <div className="space-y-2">
+        {/* 搜索结果下拉浮层 */}
+        {searchResults.length > 0 && (
+          <Card className="absolute top-full left-0 right-0 mt-1 z-10 shadow-dropdown max-h-48 overflow-y-auto">
+            <CardContent className="p-2 space-y-1">
+              <p className="text-[10px] font-medium text-text-tertiary px-2 pt-1">搜索结果</p>
               {searchResults.map((r, i) => (
-                <div key={i} className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap break-all">{r}</div>
+                <div key={i} className="text-xs p-2 rounded-md hover:bg-muted cursor-pointer whitespace-pre-wrap break-all">
+                  {r}
+                </div>
               ))}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-fit mb-4" variant="line">
@@ -237,7 +244,29 @@ export default function MemoryPage() {
         {/* ── 对话历史 Tab ── */}
         <TabsContent value="conversations" className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {conversations.length === 0 ? (
+            {convsLoading ? (
+              <div className="grid gap-3 pr-1">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between animate-pulse">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-48 bg-muted/70 rounded font-mono" />
+                            <div className="h-4 w-14 bg-muted/50 rounded-lg" />
+                          </div>
+                          <div className="h-3 w-40 bg-muted/50 rounded" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="h-8 w-8 bg-muted/50 rounded" />
+                          <div className="h-8 w-8 bg-muted/50 rounded" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mb-2 text-text-disabled" />
                 <p className="text-sm text-text-secondary">暂无对话历史</p>
@@ -336,9 +365,14 @@ export default function MemoryPage() {
               </Card>
 
               {/* 触发条件 */}
-              <Card className="hover:shadow-card-hover transition-shadow duration-200">
-                <CardContent className="p-4 space-y-3">
-                  <p className="text-sm font-medium">触发条件</p>
+              <Collapsible defaultOpen={true}>
+                <Card className="hover:shadow-card-hover transition-shadow duration-200">
+                  <CardContent className="p-4 space-y-3">
+                    <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors">
+                      <ChevronDown className="h-4 w-4" />
+                      <span className="text-sm font-medium">触发条件</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 data-[open]:mt-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-muted-foreground">触发方式</Label>
                     <Select
@@ -409,8 +443,10 @@ export default function MemoryPage() {
                       <span className="text-xs text-muted-foreground">tokens</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                    </CollapsibleContent>
+                  </CardContent>
+                </Card>
+              </Collapsible>
 
               {/* 长期记忆 */}
               <Card className="hover:shadow-card-hover transition-shadow duration-200">
@@ -434,9 +470,14 @@ export default function MemoryPage() {
               </Card>
 
               {/* 注入控制 */}
-              <Card className="hover:shadow-card-hover transition-shadow duration-200">
-                <CardContent className="p-4 space-y-3">
-                  <p className="text-sm font-medium">注入控制</p>
+              <Collapsible defaultOpen={true}>
+                <Card className="hover:shadow-card-hover transition-shadow duration-200">
+                  <CardContent className="p-4 space-y-3">
+                    <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors">
+                      <ChevronDown className="h-4 w-4" />
+                      <span className="text-sm font-medium">注入控制</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 data-[open]:mt-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-muted-foreground">注入上限</Label>
                     <div className="flex items-center gap-1">
@@ -480,25 +521,29 @@ export default function MemoryPage() {
                       <span className="text-xs text-muted-foreground">条</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                    </CollapsibleContent>
+                  </CardContent>
+                </Card>
+              </Collapsible>
 
               {/* 上下文预算 */}
-              <Card className="hover:shadow-card-hover transition-shadow duration-200">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">上下文预算</p>
-                      <p className="text-xs text-muted-foreground">统筹所有注入内容，防止超出模型窗口</p>
+              <Collapsible defaultOpen={true}>
+                <Card className="hover:shadow-card-hover transition-shadow duration-200">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors">
+                        <ChevronDown className="h-4 w-4" />
+                        <span className="text-sm font-medium">上下文预算</span>
+                      </CollapsibleTrigger>
+                      <p className="text-xs text-muted-foreground flex-1 ml-4">统筹所有注入内容，防止超出模型窗口</p>
+                      <Switch
+                        id="budget-enabled"
+                        checked={config.context_budget_enabled}
+                        onCheckedChange={(v) => updateConfig('context_budget_enabled', v)}
+                      />
                     </div>
-                    <Switch
-                      id="budget-enabled"
-                      checked={config.context_budget_enabled}
-                      onCheckedChange={(v) => updateConfig('context_budget_enabled', v)}
-                    />
-                  </div>
-                  {config.context_budget_enabled && (
-                    <>
+                    {config.context_budget_enabled && (
+                      <CollapsibleContent className="space-y-3 data-[open]:mt-3">
                       <Separator />
                       <div className="flex items-center justify-between">
                         <Label className="text-xs text-muted-foreground">窗口覆盖 (0=自动)</Label>
@@ -545,10 +590,11 @@ export default function MemoryPage() {
                           <span className="text-xs text-muted-foreground">{(config.budget_alert_threshold * 100).toFixed(0)}%</span>
                         </div>
                       </div>
-                    </>
+                      </CollapsibleContent>
                   )}
                 </CardContent>
               </Card>
+              </Collapsible>
 
               {/* 状态 */}
               <Card className="hover:shadow-card-hover transition-shadow duration-200">
@@ -582,6 +628,17 @@ export default function MemoryPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* 通知 */}
+              {notification && (
+                <div className={`text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 ${notification.type === 'success' ? 'bg-success-light text-success' : 'bg-danger-light text-danger'}`}>
+                  {notification.type === 'success'
+                    ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    : <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  }
+                  {notification.message}
+                </div>
+              )}
 
               {/* 操作按钮 */}
               <div className="flex gap-2">

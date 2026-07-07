@@ -45,6 +45,7 @@ const EMBEDDING_MODELS = [
 
 export default function RAGPage() {
   const [sources, setSources] = useState<RAGSource[]>([])
+  const [sourcesLoading, setSourcesLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [indexing, setIndexing] = useState<Record<string, boolean>>({})
   const [form, setForm] = useState({ name: '', path: '' })
@@ -71,10 +72,12 @@ export default function RAGPage() {
   }, [apiKey])
 
   const loadSources = useCallback(async () => {
+    setSourcesLoading(true)
     try {
       const data = await api.get<RAGSource[]>('/rag')
       setSources(data)
     } catch { /* ignore */ }
+    finally { setSourcesLoading(false) }
   }, [])
 
   const loadRagConfig = useCallback(async () => {
@@ -181,7 +184,7 @@ export default function RAGPage() {
   const isLocalMode = embedMode === 'local'
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
       <div className="shrink-0 flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-text-primary">RAG 数据源</h2>
         <div className="flex items-center gap-2">
@@ -327,7 +330,31 @@ export default function RAGPage() {
         </Card>
 
         {/* ── 数据源列表 ── */}
-        {sources.length === 0 && !configLoading ? (
+        {sourcesLoading ? (
+          <div className="grid gap-4 pr-1">
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4 animate-pulse">
+                    <div className="h-10 w-10 rounded-full bg-muted/70 shrink-0" />
+                    <div className="flex-1 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-20 bg-muted/70 rounded" />
+                        <div className="h-4 w-12 bg-muted/50 rounded-lg" />
+                      </div>
+                      <div className="h-3 w-48 bg-muted/50 rounded font-mono" />
+                      <div className="h-3 w-32 bg-muted/50 rounded" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 bg-muted/50 rounded" />
+                      <div className="h-8 w-8 bg-muted/50 rounded" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : sources.length === 0 && !configLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
             <Database className="w-16 h-16 text-text-disabled mb-4" />
             <p className="text-base font-medium text-text-primary mb-1">RAG 知识库</p>
