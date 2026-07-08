@@ -32,13 +32,13 @@
 
 <div align="center">
   <table><tr>
-    <td><img src="docs/screenshots/chat.png" width="900"><br><sub><i>💬 对话：RAG · 记忆 · 深度思考 · Token 计费 · 项目上下文，开箱即用</i></sub></td>
+    <td><img src="docs/screenshots/chat.png?v=2" width="900"><br><sub><i>💬 对话：RAG · 记忆 · 深度思考 · Token 计费 · 项目上下文，开箱即用</i></sub></td>
   </tr></table>
 </div>
 
 <div align="center">
   <table><tr>
-    <td><img src="docs/screenshots/deepseek.png" width="900"><br><sub><i>🔧 DeepSeek 一键接入，自动创建 V4 Pro + Flash 双模型</i></sub></td>
+    <td><img src="docs/screenshots/deepseek.png?v=2" width="900"><br><sub><i>🔧 DeepSeek 一键接入，自动创建 V4 Pro + Flash 双模型</i></sub></td>
   </tr></table>
 </div>
 
