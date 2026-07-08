@@ -226,7 +226,7 @@ interface ChatContextValue {
   state: ChatState
   toggles: ChatToggles
   setToggles: (toggles: ChatToggles) => void
-  sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles) => void
+  sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles, retry?: boolean) => void
   stopStreaming: () => void
   newScene: () => void
   tokenStats: TokenStatsData | null
