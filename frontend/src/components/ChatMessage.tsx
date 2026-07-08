@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Brain, ChevronDown, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Brain, ChevronDown, Copy, Check, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
@@ -32,9 +32,10 @@ interface Props {
   message: ChatMessageType
   convId?: string
   userMessage?: string
+  onRetry?: () => void
 }
 
-export default function ChatMessage({ message, convId, userMessage }: Props) {
+export default function ChatMessage({ message, convId, userMessage, onRetry }: Props) {
   const { id, role, content, timestamp, thinking, thinkingDuration } = message
   const isThinkingStreaming = thinking && thinking.trim() && thinkingDuration === undefined
   const hasThinking = thinking && thinking.trim()
@@ -217,6 +218,16 @@ export default function ChatMessage({ message, convId, userMessage }: Props) {
               >
                 <ThumbsDown className="h-3 w-3" />
               </button>
+              {/* 点踩后显示"重新回答" */}
+              {feedback === 'down' && onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-orange-500 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span>换种方式</span>
+                </button>
+              )}
             </>
           )}
         </div>

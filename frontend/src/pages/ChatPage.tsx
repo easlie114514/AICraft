@@ -172,21 +172,27 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     }
   }, [streaming, isNearBottom, scrollToBottom])
 
-  const handleSend = () => {
-    const text = input.trim()
+  // 记住最后一条用户消息（用于重试）
+  const lastUserMessageRef = useRef('')
+
+  const handleSend = (retry: boolean = false) => {
+    const text = retry ? lastUserMessageRef.current : input.trim()
     if (!text || streaming) return
-    setInput('')
+    if (!retry) {
+      setInput('')
+      lastUserMessageRef.current = text
+    }
     // Reset pause and force scroll to bottom when user sends a message
     userPausedScrollRef.current = false
     setIsNearBottom(true)
     scrollToBottom()
-    sendMessage(text, selectedModel, selectedRole, toggles)
+    sendMessage(text, selectedModel, selectedRole, toggles, retry)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      handleSend(false)
     }
   }
 
@@ -222,6 +228,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                     message={msg}
                     convId={localStorage.getItem('aicraft_last_conv_id') || ''}
                     userMessage={prevUser?.content || ''}
+                    onRetry={() => handleSend(true)}
                   />
                 )
               })}
@@ -386,7 +393,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                 <Square className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleSend} disabled={!input.trim()} size="icon" className="h-20 w-10 rounded-lg shrink-0">
+              <Button onClick={() => handleSend(false)} disabled={!input.trim()} size="icon" className="h-20 w-10 rounded-lg shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
             )}

@@ -369,6 +369,7 @@ async def chat_websocket(ws: WebSocket):
                 toggles = data.get("toggles", {})
                 thinking_enabled = toggles.get("thinking", False)
                 conv_id = data.get("conversation_id", "")
+                is_retry = data.get("retry", False)
 
                 if not user_text.strip():
                     continue
@@ -629,6 +630,21 @@ async def chat_websocket(ws: WebSocket):
                             inject_items.append("记忆: 已注入项目笔记")
                     except Exception as e:
                         inject_items.append(f"记忆注入失败: {e}")
+
+                # ── 重试提示（用户点踩后自动重试）──
+                if is_retry:
+                    system_pieces.append((
+                        "retry_hint",
+                        "# 重试提示\n"
+                        "用户对上次的回答不满意，点击了「换种方式」。\n"
+                        "请换一种完全不同的角度或结构来重新回答这个问题：\n"
+                        "- 如果上次太简短，这次给出详细解释\n"
+                        "- 如果上次是列表，这次试试段落叙述\n"
+                        "- 如果上次缺少例子，这次加上具体示例\n"
+                        "- 如果上次没有直接回答问题，这次先给结论再解释\n"
+                        "不要重复上次的回答方式。",
+                        1
+                    ))
 
                 # ── PEV 工作模式引导（Plan→Execute→Verify，提升复杂任务完成质量）──
                 system_pieces.append((
