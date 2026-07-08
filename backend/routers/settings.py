@@ -18,6 +18,7 @@ class SettingsUpdate(BaseModel):
     theme: str | None = None
     show_emotion_portrait: bool | None = None
     max_tool_rounds: int | None = None
+    debug_mode: bool | None = None
 
 
 def _read_config() -> dict:
@@ -48,6 +49,7 @@ async def get_settings():
         "language": config.get("language", "zh-CN"),
         "show_emotion_portrait": config.get("show_emotion_portrait", True),
         "max_tool_rounds": config.get("max_tool_rounds", 25),
+        "debug_mode": config.get("debug_mode", False),
     }
 
 
@@ -66,5 +68,7 @@ async def update_settings(body: SettingsUpdate):
         if body.max_tool_rounds < 1 or body.max_tool_rounds > 100:
             return {"ok": False, "error": "最大工具轮次需在 1-100 之间"}
         config["max_tool_rounds"] = body.max_tool_rounds
+    if body.debug_mode is not None:
+        config["debug_mode"] = body.debug_mode
     _write_config(config)
     return {"ok": True, "theme": config.get("theme", "blue")}

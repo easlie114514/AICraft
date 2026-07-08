@@ -245,6 +245,7 @@ async def chat_websocket(ws: WebSocket):
                     if not found:
                         await ws.send_json({
                             "type": "inject_info",
+                            "subtype": "permission",
                             "items": [f"权限请求 {req_id} 已过期或不存在"]
                         })
                     continue
@@ -301,6 +302,7 @@ async def chat_websocket(ws: WebSocket):
                 })
                 await ws.send_json({
                     "type": "inject_info",
+                    "subtype": "context_reset",
                     "items": [f"新场景已创建，上下文已重置"]
                 })
                 continue
@@ -394,6 +396,7 @@ async def chat_websocket(ws: WebSocket):
                     )
                     await ws.send_json({
                         "type": "inject_info",
+                        "subtype": "auto_routing",
                         "items": [f"⚡ Auto路由 → {model_config.get('name', tier_name)}（{auto_reason}）"]
                     })
 
@@ -424,6 +427,7 @@ async def chat_websocket(ws: WebSocket):
                                     current_conv_id = conv_id  # 恢复后记录当前 ID
                                     await ws.send_json({
                                         "type": "inject_info",
+                                        "subtype": "conv_restore",
                                         "items": [f"已恢复对话 ({len(session_history)} 条消息)"]
                                     })
                             else:
@@ -459,6 +463,7 @@ async def chat_websocket(ws: WebSocket):
                 if current_role and new_role != current_role:
                     await ws.send_json({
                         "type": "inject_info",
+                        "subtype": "role_switch",
                         "items": [f"角色切换: {current_role} → {new_role}（正在提取对话记忆...）"]
                     })
 
@@ -541,6 +546,7 @@ async def chat_websocket(ws: WebSocket):
 
                     await ws.send_json({
                         "type": "inject_info",
+                        "subtype": "role_switch",
                         "items": [f"角色切换完成: {current_role} → {new_role}（记忆已保留，风格已重置）"]
                     })
                 else:
@@ -799,7 +805,7 @@ async def chat_websocket(ws: WebSocket):
                     system_content = "\n\n".join(content for _, content, _ in system_pieces)
 
                 if inject_items:
-                    await ws.send_json({"type": "inject_info", "items": inject_items})
+                    await ws.send_json({"type": "inject_info", "subtype": "general", "items": inject_items})
 
                 # ── 组装消息列表 ──
                 # 结构: system_prompt + session_history + current_user_message
@@ -891,7 +897,7 @@ async def chat_websocket(ws: WebSocket):
                     )
                     eval_items = format_eval_for_user(eval_result)
                     if eval_items:
-                        await ws.send_json({"type": "inject_info", "items": eval_items})
+                        await ws.send_json({"type": "inject_info", "subtype": "eval_score", "items": eval_items})
 
                     await ws.send_json({"type": "done"})
 
@@ -967,6 +973,7 @@ async def chat_websocket(ws: WebSocket):
                                     if path:
                                         await ws.send_json({
                                             "type": "inject_info",
+                                            "subtype": "memory",
                                             "items": [f"记忆: 已压缩到 memory/project-notes/{Path(path).name}"]
                                         })
 
@@ -977,6 +984,7 @@ async def chat_websocket(ws: WebSocket):
                                             if merge_path:
                                                 await ws.send_json({
                                                     "type": "inject_info",
+                                                    "subtype": "memory",
                                                     "items": [f"记忆: 已将 {compact_count} 个片段合并为长期记忆"]
                                                 })
                                 except Exception:

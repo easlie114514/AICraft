@@ -10,6 +10,7 @@ import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
 
 export default function SettingsPage({ isActive }: { isActive?: boolean }) {
   const [showEmotion, setShowEmotion] = useState(true)
+  const [debugMode, setDebugMode] = useState(false)
   const [maxToolRounds, setMaxToolRounds] = useState(25)
   const [currentVersion, setCurrentVersion] = useState("")
   const [checking, setChecking] = useState(false)
@@ -18,9 +19,10 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
 
   useEffect(() => {
     if (isActive) {
-      api.get<{ show_emotion_portrait?: boolean; max_tool_rounds?: number }>('/settings')
+      api.get<{ show_emotion_portrait?: boolean; debug_mode?: boolean; max_tool_rounds?: number }>('/settings')
         .then((data) => {
           setShowEmotion(data.show_emotion_portrait ?? true)
+          setDebugMode(data.debug_mode ?? false)
           setMaxToolRounds(data.max_tool_rounds ?? 25)
         })
         .catch(() => {})
@@ -35,6 +37,13 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
     setShowEmotion(v)
     await api.put('/settings', { show_emotion_portrait: v }).catch(() => {
       setShowEmotion(!v) // rollback on error
+    })
+  }
+
+  const handleDebugMode = async (v: boolean) => {
+    setDebugMode(v)
+    await api.put('/settings', { debug_mode: v }).catch(() => {
+      setDebugMode(!v) // rollback on error
     })
   }
 
@@ -75,6 +84,17 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
             </p>
           </div>
           <Switch checked={showEmotion} onCheckedChange={handleToggle} />
+        </div>
+
+        {/* Debug Mode Toggle */}
+        <div className="flex items-center justify-between bg-card border border-border rounded-xl p-4">
+          <div className="flex-1 min-w-0 mr-4">
+            <Label className="text-sm font-medium">调试模式</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              开启后在聊天中展示工具调用、回答评分、角色切换等调试信息
+            </p>
+          </div>
+          <Switch checked={debugMode} onCheckedChange={handleDebugMode} />
         </div>
 
         {/* Max Tool Rounds */}

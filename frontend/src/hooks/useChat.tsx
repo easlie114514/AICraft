@@ -15,6 +15,7 @@ export interface ChatMessage {
   thinking?: string
   thinkingDuration?: number
   scene?: number
+  subtype?: string
 }
 
 export interface ContextBudgetInfo {
@@ -39,7 +40,7 @@ type ChatAction =
   | { type: 'END_THINKING'; durationMs: number }
   | { type: 'ADD_TOOL_CALL'; name: string; args: Record<string, unknown> }
   | { type: 'ADD_TOOL_RESULT'; name: string; result: string }
-  | { type: 'ADD_INJECT'; items: string[] }
+  | { type: 'ADD_INJECT'; items: string[]; subtype?: string }
   | { type: 'ADD_SYSTEM'; content: string }
   | { type: 'SET_DONE' }
   | { type: 'SET_ERROR'; content: string }
@@ -161,6 +162,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
             role: 'system',
             content: `\u{1F4CE} ${action.items.join(' | ')}`,
             timestamp: Date.now(),
+            subtype: action.subtype,
           },
         ],
       }
@@ -227,6 +229,8 @@ interface ChatContextValue {
   state: ChatState
   toggles: ChatToggles
   setToggles: (toggles: ChatToggles) => void
+  debugMode: boolean
+  setDebugMode: (v: boolean) => void
   sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles, retry?: boolean) => void
   stopStreaming: () => void
   newScene: () => void
@@ -249,6 +253,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
   const [emotion, setEmotion] = useState<string | null>(null)
   const [emotionConfig, setEmotionConfig] = useState<{ available: string[]; enabled: boolean } | null>(null)
+  const [debugMode, setDebugMode] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const convIdRef = useRef<string>(localStorage.getItem('aicraft_last_conv_id') || '')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -279,9 +284,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             break
           case 'search_status':
             if (data.status === 'searching') {
-              dispatch({ type: 'ADD_INJECT', items: ['🔍 正在搜索...'] })
+              dispatch({ type: 'ADD_INJECT', items: ['🔍 正在搜索...'], subtype: 'search' })
             } else if (data.status === 'done' && data.sources) {
-              dispatch({ type: 'ADD_INJECT', items: [`✅ 搜索完成，找到 ${data.sources.length} 个来源`] })
+              dispatch({ type: 'ADD_INJECT', items: [`✅ 搜索完成，找到 ${data.sources.length} 个来源`], subtype: 'search' })
             }
             break
           case 'text':
@@ -294,7 +299,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             dispatch({ type: 'ADD_TOOL_RESULT', name: data.name, result: data.result })
             break
           case 'inject_info':
-            dispatch({ type: 'ADD_INJECT', items: data.items })
+            dispatch({ type: 'ADD_INJECT', items: data.items, subtype: data.subtype })
             break
           case 'done':
             dispatch({ type: 'SET_DONE' })
@@ -459,7 +464,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   return (
     <ChatContext.Provider value={{
-      state, toggles, setToggles, sendMessage, stopStreaming, newScene,
+      state, toggles, setToggles, debugMode, setDebugMode,
+      sendMessage, stopStreaming, newScene,
       tokenStats, permissionRequest, respondPermission,
       emotion, emotionConfig, setEmotionConfig,
     }}>
@@ -483,6 +489,8 @@ export function useChat() {
     sceneCount: ctx.state.sceneCount,
     toggles: ctx.toggles,
     setToggles: ctx.setToggles,
+    debugMode: ctx.debugMode,
+    setDebugMode: ctx.setDebugMode,
     sendMessage: ctx.sendMessage,
     stopStreaming: ctx.stopStreaming,
     newScene: ctx.newScene,
