@@ -16,6 +16,7 @@ from src.core.llm import get_current_model_config, get_model_config, simple_comp
 from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
 from src.core.permission_guard import PermissionGuard
+from src.core.evaluator import evaluate_response, format_eval_for_user
 from src.core.token_tracker import token_tracker
 from src.utils.config import get_context_config, load_app_context, load_json, CONFIG_DIR, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
 
@@ -789,6 +790,9 @@ async def chat_websocket(ws: WebSocket):
                     captured_emotion: str | None = None
                     # 缓冲区：处理 [EMOTION:xxx] 跨越两个流式事件被截断的情况
                     text_buffer: str = ""
+                    # 评估器追踪：累计最终回复文本 + 工具轮次
+                    eval_full_text: str = ""
+                    eval_tool_rounds: int = 0
 
                     # ── 开始生成时发送"思考"情绪 ──
                     _em_start_folder = _get_emotion_folder(new_role)
@@ -813,6 +817,7 @@ async def chat_websocket(ws: WebSocket):
                         # ── 实时过滤 [EMOTION:xxx]（含跨事件缓冲）──
                         if event.get("type") == "text":
                             content = event.get("content", "")
+                            eval_full_text += content  # 评估器追踪
                             # 拼接上次残留缓冲
                             full_text = text_buffer + content
 
@@ -835,6 +840,11 @@ async def chat_websocket(ws: WebSocket):
                             if not full_text.strip():
                                 continue
                             event = {**event, "content": full_text}
+
+                        # 评估器：计数工具调用轮次
+                        if event.get("type") == "tool_call":
+                            eval_tool_rounds += 1
+
                         await ws.send_json(event)
 
                         # 用户点击停止 → 立即中断生成
@@ -844,6 +854,17 @@ async def chat_websocket(ws: WebSocket):
                     # 如果被取消，跳过 done（ws_reader 已发送）和后续处理
                     if _cancel_generation.is_set():
                         continue
+
+                    # ── Harness 评估器：回复质量检查 ──
+                    eval_result = evaluate_response(
+                        text=eval_full_text,
+                        user_message=user_text,
+                        tool_rounds=eval_tool_rounds,
+                        max_rounds=max_tool_rounds,
+                    )
+                    eval_items = format_eval_for_user(eval_result)
+                    if eval_items:
+                        await ws.send_json({"type": "inject_info", "items": eval_items})
 
                     await ws.send_json({"type": "done"})
 
