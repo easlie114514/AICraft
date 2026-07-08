@@ -57,12 +57,6 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
     if (!enabled) onToggle(true)
   }
 
-  // 取消激活
-  const handleDeactivate = async () => {
-    await api.put('/projects/deactivate')
-    setActiveId(null)
-  }
-
   // 删除项目
   const handleDelete = async (id: string) => {
     await api.delete(`/projects/${encodeURIComponent(id)}`)
@@ -156,29 +150,6 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
           </div>
           <Switch checked={enabled} onCheckedChange={onToggle} />
         </div>
-
-        {/* ── 活跃项目 ── */}
-        {activeProject && (
-          <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-primary truncate max-w-[180px]">
-                📌 {activeProject.name}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                onClick={handleDeactivate}
-                title="取消激活"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
-              {activeProject.content.slice(0, 60) || '（空内容）'}
-            </p>
-          </div>
-        )}
 
         {/* ── 编辑模式 ── */}
         {editing ? (
