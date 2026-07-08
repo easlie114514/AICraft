@@ -131,11 +131,10 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-lg h-8 text-xs border border-border bg-background hover:bg-muted px-3 py-0 transition-colors',
-          enabled && activeId && 'border-primary/40 bg-primary/5 text-primary'
+          'inline-flex items-center rounded-lg h-8 text-xs border border-border bg-background hover:bg-muted px-3 py-0 transition-colors',
+          enabled && activeId && 'border-primary/50 bg-primary/10 text-primary ring-1 ring-primary/20'
         )}
       >
-        <FolderOpen className="h-3.5 w-3.5" />
         {enabled && activeProject ? activeProject.name : '项目'}
       </PopoverTrigger>
 
