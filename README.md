@@ -31,23 +31,25 @@
 ## 🎮 一览
 
 <div align="center">
-  <table><tr>
-    <td><img src="docs/screenshots/chat.png?v=2" width="900"><br><sub><i>💬 对话：RAG · 记忆 · 深度思考 · Token 计费 · 项目上下文，开箱即用</i></sub></td>
-  </tr></table>
+  <img src="docs/screenshots/chat.png?v=2"><br>
+  <sub><i>💬 对话：RAG · 记忆 · 深度思考 · Token 计费 · 项目上下文，开箱即用</i></sub>
 </div>
 
+<br>
+
 <div align="center">
-  <table><tr>
-    <td><img src="docs/screenshots/deepseek.png?v=2" width="900"><br><sub><i>🔧 DeepSeek 一键接入，自动创建 V4 Pro + Flash 双模型</i></sub></td>
-  </tr></table>
+  <img src="docs/screenshots/deepseek.png?v=2"><br>
+  <sub><i>🔧 DeepSeek 一键接入，自动创建 V4 Pro + Flash 双模型</i></sub>
 </div>
+
+<br>
 
 <div align="center">
 
 | | | |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/skills.png" width="400"><br><sub><i>🧩 Skill 热插拔</i></sub> | <img src="docs/screenshots/mcp.png" width="400"><br><sub><i>🔧 MCP 工具管理</i></sub> | <img src="docs/screenshots/rag.png" width="400"><br><sub><i>📚 本地 RAG 知识库</i></sub> |
-| <img src="docs/screenshots/memory.png" width="400"><br><sub><i>🧠 三层记忆</i></sub> | <img src="docs/screenshots/roles.png" width="400"><br><sub><i>🎭 角色管理</i></sub> | <img src="docs/screenshots/setting.png" width="400"><br><sub><i>⚙️ 设置</i></sub> |
+| <img src="docs/screenshots/skills.png"><br><sub><i>🧩 Skill 热插拔</i></sub> | <img src="docs/screenshots/mcp.png"><br><sub><i>🔧 MCP 工具管理</i></sub> | <img src="docs/screenshots/rag.png"><br><sub><i>📚 本地 RAG 知识库</i></sub> |
+| <img src="docs/screenshots/memory.png"><br><sub><i>🧠 三层记忆</i></sub> | <img src="docs/screenshots/roles.png"><br><sub><i>🎭 角色管理</i></sub> | <img src="docs/screenshots/setting.png"><br><sub><i>⚙️ 设置</i></sub> |
 
 </div>
 
