@@ -249,6 +249,7 @@ def ensure_user_dirs():
             "theme": "system",
             "language": "zh-CN",
             "skills_dir": "",
+            "debug_mode": False,
         })
 
     # 首次启动：从出厂目录复制 Skill 到用户目录（如用户目录为空）

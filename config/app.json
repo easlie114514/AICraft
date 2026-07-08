@@ -3,5 +3,6 @@
   "theme": "blue",
   "language": "zh-CN",
   "skills_dir": "",
-  "show_emotion_portrait": true
+  "show_emotion_portrait": true,
+  "debug_mode": false
 }

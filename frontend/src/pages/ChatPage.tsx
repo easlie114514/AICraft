@@ -31,7 +31,7 @@ interface RoleOption {
 }
 
 export default function ChatPage({ isActive }: { isActive?: boolean }) {
-  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, debugMode, setDebugMode, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
@@ -98,9 +98,12 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     if (isActive) {
       loadModels()
       loadRoles()
-      // 加载全局情绪画像开关
-      api.get<{ show_emotion_portrait?: boolean }>('/settings')
-        .then((data) => setShowEmotionGlobal(data.show_emotion_portrait ?? true))
+      // 加载全局情绪画像开关 & 调试模式
+      api.get<{ show_emotion_portrait?: boolean; debug_mode?: boolean }>('/settings')
+        .then((data) => {
+          setShowEmotionGlobal(data.show_emotion_portrait ?? true)
+          setDebugMode(data.debug_mode ?? false)
+        })
         .catch(() => {})
     }
   }, [isActive, loadModels, loadRoles])
@@ -217,7 +220,19 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
         ) : (
           <div className="py-4 space-y-0 relative">
             {messages
-              .filter((msg) => msg.role !== 'system')
+              .filter((msg) => {
+                // 调试模式：显示全部
+                if (debugMode) return true
+                // 非调试模式：隐藏所有 system 消息，但保留 auto_routing 和 context_reset
+                if (msg.role === 'system') {
+                  return msg.subtype === 'auto_routing' || msg.subtype === 'context_reset'
+                }
+                // 非调试模式：隐藏工具调用卡
+                if (msg.role === 'tool_call' || msg.role === 'tool_result') {
+                  return false
+                }
+                return true
+              })
               .map((msg, i, arr) => {
                 // 工具调用卡片 — 内联在消息流中
                 if (msg.role === 'tool_call' || msg.role === 'tool_result') {
