@@ -3,16 +3,15 @@
 
   <h1>AICraft</h1>
 
-  <h3>🧩 像给游戏添加 mods 一样组装你的 AI 助手</h3>
+  <h3>🧩 让 配置 Agent 能力 比 游戏配置 Mod 还要简单</h3>
 
   <p><em>Skill 即 Mod · 角色即皮肤 · MCP 即工具 · 装好即玩</em></p>
 
   <p>
-    <img src="https://img.shields.io/badge/Python-3.7+-3776AB?logo=python&logoColor=white">
+    <img src="https://img.shields.io/badge/Version-v1.0.6-165DFF">
+    <img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white">
     <img src="https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white">
-    <img src="https://img.shields.io/badge/Size-316_MB-165DFF">
     <img src="https://img.shields.io/badge/License-Apache_2.0-blue">
-    <img src="https://img.shields.io/badge/DeepSeek-Supported-4D6BFE">
   </p>
 
   <p>
@@ -25,58 +24,66 @@
 
 ## 💡 一句话说清楚
 
-> **AICraft = 桌面 AI 启动器。** 不需要 Python 环境，不需要手写配置，不需要敲命令行。打开 exe → 填 Key → 开聊。Skill、MCP、RAG、记忆、角色 —— 全部可视化，热插拔。
+> **AICraft 是一个桌面 AI 启动器。** 不需要 Python 环境，不需要手写配置，不需要敲命令行。打开 exe → 填 Key → 开聊。Skill、MCP、RAG、记忆、角色 —— 全部可视化，热插拔。
 
 ---
 
-## 🎮 预览
+## 🎮 一览
+
 <div align="center">
   <table><tr>
-    <td><img src="docs/screenshots/chat.png" width="900"><br><sub><i>💬 对话界面：RAG / 记忆 / 深度思考 / Token计费，开箱即用</i></sub></td>
+    <td><img src="docs/screenshots/chat.png" width="900"><br><sub><i>💬 对话：RAG · 记忆 · 深度思考 · Token 计费 · 项目上下文，开箱即用</i></sub></td>
   </tr></table>
 </div>
+
 <div align="center">
   <table><tr>
-    <td><img src="docs/screenshots/deepseek.png" width="800"><br><sub><i>🔧 DeepSeek 一键接入，无需手动配置模型参数</i></sub></td>
+    <td><img src="docs/screenshots/deepseek.png" width="900"><br><sub><i>🔧 DeepSeek 一键接入，自动创建 V4 Pro + Flash 双模型</i></sub></td>
   </tr></table>
+</div>
+
+<div align="center">
+
+| | | |
+|:--:|:--:|:--:|
+| <img src="docs/screenshots/skills.png" width="400"><br><sub><i>🧩 Skill 热插拔</i></sub> | <img src="docs/screenshots/mcp.png" width="400"><br><sub><i>🔧 MCP 工具管理</i></sub> | <img src="docs/screenshots/rag.png" width="400"><br><sub><i>📚 本地 RAG 知识库</i></sub> |
+| <img src="docs/screenshots/memory.png" width="400"><br><sub><i>🧠 三层记忆</i></sub> | <img src="docs/screenshots/roles.png" width="400"><br><sub><i>🎭 角色管理</i></sub> | <img src="docs/screenshots/setting.png" width="400"><br><sub><i>⚙️ 设置</i></sub> |
+
 </div>
 
 ---
 
-## ✨ 功能
-
-<!-- 卡片式网格：用 HTML table 在 GitHub 也能出效果 -->
+## ✨ 能力矩阵
 
 <div align="center">
 
 | 🚀 | 🎭 | 🧩 | 🔧 |
 |:--:|:--:|:--:|:--:|
-| **DeepSeek 一键接入** | **角色快切** | **Skill 热插拔** | **MCP 工具管理** |
-| 填入 Key 自动创建<br>V4 Pro + Flash 双模型 | 一键切换自定义<br>预置AICraft智能小助手 | 可视化加载/卸载<br>5 个出厂 Skill | 文件管理 + Python 执行<br>Agent 真正能动手 |
+| **DeepSeek 一键接入** | **角色快切** | **Skill 热插拔** | **MCP 工具** |
+| 填入 Key 自动创建<br>V4 Pro + Flash 双模型 | 一键切换角色人格<br>记忆无痕保留 | 5 个出厂 Skill<br>一键启用/停用 | 文件管理 + 代码执行<br>Agent 真正能动手 |
 
 | 📚 | 🧠 | 💭 | 💰 |
 |:--:|:--:|:--:|:--:|
-| **本地 RAG** | **三层记忆** | **深度思考** | **实时 Token 计费** |
+| **本地 RAG** | **三层记忆** | **深度思考** | **Token 计费** |
 | ChromaDB 向量检索<br>数据不出本机 | L0 实时 → L1 短期<br>→ L2 长期持久化 | DeepSeek 深度思考<br>推理更深入 | 用量 & 费用实时统计<br>缓存命中单独展示 |
 
-| 🤖 | 🎨 | 📂 | 
-|:--:|:--:|:--:|
-| **上下文预算管理** | **9 套主题色卡** | **便携运行** | 
-| 6 级优先级裁剪<br>1M 上下文不浪费 | 一键切换界面主题 | 数据存 exe 同级目录<br>解压即用，无需安装 | 
+| 🤖 | 🎨 | 📂 | 🛡️ |
+|:--:|:--:|:--:|:--:|
+| **上下文管理** | **9 套主题** | **便携运行** | **权限管控** |
+| 6 级优先级裁剪<br>1M 上下文不浪费 | 一键切换界面主题<br>色卡渐变光效 | 解压即用无需安装<br>数据跟随 exe 目录 | 文件/代码操作<br>逐次授权，60s 超时 |
 
 </div>
 
 ---
 
-## 🧩 能力模块一览
+## 🧩 出厂配置
 
-| 模块 | 做什么 | 出厂自带 |
-|:-----|:-------|:---------|
-| 🧩 **Skill** | 角色风格 prompt 注入，一键切换对话风格 | 5 个：通用 / 技术 / 创作 / 分析 / 角色设计师 |
-| 🔧 **MCP** | 可执行工具，Agent 能读写文件、运行代码 | 2 个：filesystem / code_executor |
-| 📚 **RAG** | 本地向量检索，构建私有知识库 | 3 篇：使用手册 / 开发指南 / FAQ |
-| 🧠 **记忆** | 三层架构，跨会话记住你 | 自动运转，无需配置 |
-| 🎭 **角色** | 预设人格模板，保留记忆同时无痕切换 | Diana · 绫里真宵等，支持自定义 |
+| 模块 | 说明 |
+|:-----|:-----|
+| 🧩 **5 个 Skill** | 代码审查 · 写作助手 · 数据分析 · 翻译助手 · 角色设计师 |
+| 🔧 **2 个 MCP** | 文件管理（读写本地文件）· 代码执行（Python 沙箱） |
+| 🎭 **1 个角色** | AICraft 智能小助手（支持自定义创建） |
+| 📚 **3 篇文档** | RAG 预置使用手册 · 开发指南 · FAQ |
 
 ---
 
@@ -84,13 +91,13 @@
 
 ```bash
 # ①  下载
-从 Releases 下载最新版 → 解压 → 运行 AICraft.exe
+从 Releases 下载最新版 → 解压 → 双击 AICraft.exe
 
 # ②  接入
-模型 → DeepSeek 一键接入 → 粘贴 API Key → 保存
+切换到「模型」页 → DeepSeek 一键接入 → 粘贴 API Key → 保存
 
 # ③  开聊
-搞定。你现在拥有一个带搜索、文件管理、RAG、记忆的桌面 Agent。
+搞定。你现在拥有一个带文件管理、代码执行、RAG、记忆的桌面 Agent。
 ```
 
 ---
@@ -99,37 +106,9 @@
 
 | 层 | 技术 |
 |:---|:-----|
-| 🐍 后端 | Python · FastAPI · ChromaDB · httpx · sentence-transformers |
-| ⚛️ 前端 | React 19 · Vite 8 · TailwindCSS 4 · Shadcn UI |
-| 📦 打包 | PyInstaller onedir · 316 MB |
-
----
-
-## 📋 更新日志
-
-### v1.0.6 (2026-07-08)
-
-**🎨 UI 全面升级**
-- 设置页重设计：轻量分组布局，视觉与整体风格统一
-- 对话页视觉升级：输入区主题底色、聊天区底部圆角、泛光条光效
-- 主题色卡渐变球体光效 + Logo 可见性优化
-- 导航栏水平微渐变覆盖 + 激活标签底部白光渐变
-- 角色管理页同步 Skill 卡片风格
-
-**🧩 功能增强**
-- 设置页新增调试模式开关：关闭后仅显示必要系统消息
-- 项目上下文多项目管理：从设置页迁移至对话页工具栏
-- 反馈闭环：👍👎 评分 + 👎 自动重试换种方式回答
-- Harness Engineering 改进：PEV 模式、评估器质量评分、步骤可视化
-- 增强自定义模型支持：api_base 优先、protocol 显式选择
-- 默认窗口大小调整为 1664×1040
-
-**🐛 修复**
-- AI 消息气泡流式渲染与重启后宽度不一致
-- 角色编辑弹窗横向滚动条
-- 角色设为当前后对话页同步生效
-- 主题闪烁问题彻底修复
-- 停止按钮无法中断 AI 生成
+| 🐍 后端 | Python · FastAPI · ChromaDB · httpx · WebSocket |
+| ⚛️ 前端 | React 19 · Vite 8 · TailwindCSS 4 · Shadcn UI · StreamMD |
+| 📦 打包 | PyInstaller onedir · 便携免安装 |
 
 ---
 
