@@ -234,7 +234,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
             <DialogTitle>创建角色</DialogTitle>
             <DialogDescription>定义 AI 的角色和行为</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-4 py-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0">
             <div className="space-y-2">
               <Label>角色名称</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  placeholder="例如: 代码助手" />
@@ -264,7 +264,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
             <DialogTitle>{showView?.name}</DialogTitle>
             <DialogDescription>角色 System Prompt 内容</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
             <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-lg">{showView?.content}</pre>
           </div>
           <DialogFooter className="shrink-0">
@@ -285,12 +285,12 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
 
       {/* Edit Role Dialog */}
       <Dialog open={!!showEdit} onOpenChange={() => { setShowEdit(null); setEmotionEnabled(false); setEmotionAvailable([]) }}>
-        <DialogContent className="sm:max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogContent className="sm:max-w-[720px] max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>编辑角色</DialogTitle>
             <DialogDescription>修改角色名称和 System Prompt</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-4 py-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0">
             <div className="space-y-2">
               <Label>角色名称</Label>
               <Input
