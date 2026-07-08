@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
+import ToolCallCard from '@/components/ToolCallCard'
 import EmotionPortrait from '@/components/EmotionPortrait'
 import PermissionDialog from '@/components/PermissionDialog'
 import TokenPanel from '@/components/TokenPanel'
@@ -211,6 +212,17 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
               .filter((msg) => msg.role !== 'tool_call' && msg.role !== 'tool_result')
               .map((msg) => (
                 <ChatMessage key={msg.id} message={msg} />
+              ))}
+            {/* 工具调用步骤 — 在消息流底部以卡片形式展示 */}
+            {messages
+              .filter((msg) => msg.role === 'tool_call' || msg.role === 'tool_result')
+              .map((msg) => (
+                <ToolCallCard
+                  key={msg.id}
+                  name={msg.toolName || ''}
+                  args={msg.role === 'tool_call' ? msg.toolArgs : undefined}
+                  result={msg.role === 'tool_result' ? msg.toolResult : undefined}
+                />
               ))}
             {error && (
               <div className="flex justify-center py-2">

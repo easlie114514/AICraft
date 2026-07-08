@@ -629,6 +629,20 @@ async def chat_websocket(ws: WebSocket):
                     except Exception as e:
                         inject_items.append(f"记忆注入失败: {e}")
 
+                # ── PEV 工作模式引导（Plan→Execute→Verify，提升复杂任务完成质量）──
+                system_pieces.append((
+                    "pev_guidance",
+                    "# 工作模式\n"
+                    "在回答复杂问题或需要多个步骤才能完成的任务时，请遵循 PEV 模式：\n"
+                    "1. **Plan（规划）**: 先简要思考你需要做什么、分几步、需要什么信息或工具\n"
+                    "2. **Execute（执行）**: 按计划逐步执行。先收集信息，再分析，最后给出结论\n"
+                    "3. **Verify（验证）**: 如果调用了工具，检查返回的结果是否合理、完整\n"
+                    "   - 如果工具返回了错误，分析原因并尝试其他方法\n"
+                    "   - 如果信息不足以回答问题，说明缺少什么，不要强行编造\n"
+                    "对于简单问候或事实性问题，可以跳过此模式直接回答。\n",
+                    1
+                ))
+
                 # ── 行为约束（固定尾部约束，防止幻觉和失控）──
                 system_pieces.append((
                     "behavior_constraints",

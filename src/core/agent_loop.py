@@ -550,6 +550,100 @@ async def execute_mcp_tool(
         return f"工具执行失败: {str(e)}"
 
 
+# ═══════════════════════════════════════════════════════════
+# 工具结果注解 & 错误分类
+# ═══════════════════════════════════════════════════════════
+
+# 可重试的错误模式（网络/超时）
+_RETRYABLE_PATTERNS = [
+    "connection", "timeout", "timed out", "network",
+    "refused", "reset", "unreachable", "broken pipe",
+]
+
+# 需要给 LLM 引导的诊断信号
+_DIAGNOSTIC_PATTERNS: dict[str, str] = {
+    "error": "[提示] 工具调用返回了错误，请分析原因并尝试其他方法",
+    "permission denied": "[提示] 权限被拒绝，请检查路径是否在信任范围内或改用其他路径",
+    "not found": "[提示] 目标未找到，请确认路径/名称是否正确，或尝试搜索定位",
+    "failed": "[提示] 操作失败，请检查参数是否正确并重试",
+}
+
+
+def _classify_error(error_msg: str) -> str:
+    """分类错误类型: retryable | diagnostic | fatal"""
+    lower = error_msg.lower()
+    for pattern in _RETRYABLE_PATTERNS:
+        if pattern in lower:
+            return "retryable"
+    return "diagnostic"
+
+
+def _annotate_tool_result(result: str, round_num: int, max_rounds: int) -> str:
+    """为工具结果附加诊断提示，帮助 LLM 自我修正
+
+    1. 检测错误信号 → 附加引导提示
+    2. 剩余轮次不足 → 提醒总结
+    """
+    hints: list[str] = []
+    lower = result.lower()
+
+    # 错误信号检测
+    for keyword, hint in _DIAGNOSTIC_PATTERNS.items():
+        if keyword in lower:
+            hints.append(hint)
+            break  # 只匹配第一个，避免堆叠过多提示
+
+    # 轮次限制警告
+    remaining = max_rounds - round_num
+    if remaining <= 3 and remaining > 0:
+        hints.append(
+            f"[提示] 剩余 {remaining} 轮工具调用机会，请在下一轮回复中给出最终答案"
+        )
+
+    if hints:
+        return result + "\n\n" + "\n".join(hints)
+    return result
+
+
+async def execute_mcp_tool_with_retry(
+    tool_name: str,
+    tool_args: dict[str, Any],
+    mcp_manager: Any,
+    permission_guard: PermissionGuard | None = None,
+    max_retries: int = 1,
+) -> str:
+    """带重试的 MCP 工具执行 — 对临时性网络错误自动重试
+
+    分层恢复策略：
+    - retryable (网络/超时): 自动重试 1 次
+    - diagnostic (参数/权限): 将错误原样返回，由 _annotate_tool_result 附加引导
+    - fatal: 直接返回错误
+    """
+    last_error = ""
+    for attempt in range(max_retries + 1):
+        try:
+            result = await execute_mcp_tool(
+                tool_name, tool_args, mcp_manager, permission_guard
+            )
+            return result
+        except Exception as e:
+            last_error = str(e)
+            error_type = _classify_error(last_error)
+            if error_type == "retryable" and attempt < max_retries:
+                import asyncio
+                import logging
+                logger = logging.getLogger("aicraft")
+                logger.warning(
+                    f"[retry] {tool_name} 第{attempt+1}次失败（可重试），"
+                    f"{1.0*(attempt+1)}s 后重试: {last_error[:100]}"
+                )
+                await asyncio.sleep(1.0 * (attempt + 1))
+                continue
+            break
+
+    return f"工具执行失败: {last_error}"
+
+
 async def _build_llm_kwargs(
     messages: list[dict],
     tools: list[dict] | None,
@@ -717,9 +811,10 @@ async def agent_loop(
                 # MCP 工具
                 elif mcp_manager is not None:
                     try:
-                        result = await execute_mcp_tool(
+                        result = await execute_mcp_tool_with_retry(
                             tool_name, tool_args, mcp_manager, permission_guard
                         )
+                        result = _annotate_tool_result(result, round_num + 1, max_rounds)
                     except Exception as e:
                         result = f"工具执行异常: {str(e)}"
                 else:
@@ -852,9 +947,10 @@ async def agent_loop(
                         result = f"联网搜索失败: {str(e)}"
                 elif mcp_manager is not None:
                     try:
-                        result = await execute_mcp_tool(
+                        result = await execute_mcp_tool_with_retry(
                             tool_name, tool_args, mcp_manager, permission_guard
                         )
+                        result = _annotate_tool_result(result, round_num + 1, max_rounds)
                     except Exception as e:
                         result = f"工具执行异常: {str(e)}"
                 else:
