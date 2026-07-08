@@ -16,6 +16,7 @@ from src.core.llm import get_current_model_config, get_model_config, simple_comp
 from src.core.model_selector import select_model_for_task, select_model_auto
 from src.core.context_budget import ContextBudget
 from src.core.permission_guard import PermissionGuard
+from src.core.evaluator import evaluate_response, format_eval_for_user
 from src.core.token_tracker import token_tracker
 from src.utils.config import get_context_config, load_app_context, load_json, CONFIG_DIR, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
 
@@ -368,6 +369,7 @@ async def chat_websocket(ws: WebSocket):
                 toggles = data.get("toggles", {})
                 thinking_enabled = toggles.get("thinking", False)
                 conv_id = data.get("conversation_id", "")
+                is_retry = data.get("retry", False)
 
                 if not user_text.strip():
                     continue
@@ -629,6 +631,35 @@ async def chat_websocket(ws: WebSocket):
                     except Exception as e:
                         inject_items.append(f"记忆注入失败: {e}")
 
+                # ── 重试提示（用户点踩后自动重试）──
+                if is_retry:
+                    system_pieces.append((
+                        "retry_hint",
+                        "# 重试提示\n"
+                        "用户对上次的回答不满意，点击了「换种方式」。\n"
+                        "请换一种完全不同的角度或结构来重新回答这个问题：\n"
+                        "- 如果上次太简短，这次给出详细解释\n"
+                        "- 如果上次是列表，这次试试段落叙述\n"
+                        "- 如果上次缺少例子，这次加上具体示例\n"
+                        "- 如果上次没有直接回答问题，这次先给结论再解释\n"
+                        "不要重复上次的回答方式。",
+                        1
+                    ))
+
+                # ── PEV 工作模式引导（Plan→Execute→Verify，提升复杂任务完成质量）──
+                system_pieces.append((
+                    "pev_guidance",
+                    "# 工作模式\n"
+                    "在回答复杂问题或需要多个步骤才能完成的任务时，请遵循 PEV 模式：\n"
+                    "1. **Plan（规划）**: 先简要思考你需要做什么、分几步、需要什么信息或工具\n"
+                    "2. **Execute（执行）**: 按计划逐步执行。先收集信息，再分析，最后给出结论\n"
+                    "3. **Verify（验证）**: 如果调用了工具，检查返回的结果是否合理、完整\n"
+                    "   - 如果工具返回了错误，分析原因并尝试其他方法\n"
+                    "   - 如果信息不足以回答问题，说明缺少什么，不要强行编造\n"
+                    "对于简单问候或事实性问题，可以跳过此模式直接回答。\n",
+                    1
+                ))
+
                 # ── 行为约束（固定尾部约束，防止幻觉和失控）──
                 system_pieces.append((
                     "behavior_constraints",
@@ -775,6 +806,9 @@ async def chat_websocket(ws: WebSocket):
                     captured_emotion: str | None = None
                     # 缓冲区：处理 [EMOTION:xxx] 跨越两个流式事件被截断的情况
                     text_buffer: str = ""
+                    # 评估器追踪：累计最终回复文本 + 工具轮次
+                    eval_full_text: str = ""
+                    eval_tool_rounds: int = 0
 
                     # ── 开始生成时发送"思考"情绪 ──
                     _em_start_folder = _get_emotion_folder(new_role)
@@ -799,6 +833,7 @@ async def chat_websocket(ws: WebSocket):
                         # ── 实时过滤 [EMOTION:xxx]（含跨事件缓冲）──
                         if event.get("type") == "text":
                             content = event.get("content", "")
+                            eval_full_text += content  # 评估器追踪
                             # 拼接上次残留缓冲
                             full_text = text_buffer + content
 
@@ -821,6 +856,11 @@ async def chat_websocket(ws: WebSocket):
                             if not full_text.strip():
                                 continue
                             event = {**event, "content": full_text}
+
+                        # 评估器：计数工具调用轮次
+                        if event.get("type") == "tool_call":
+                            eval_tool_rounds += 1
+
                         await ws.send_json(event)
 
                         # 用户点击停止 → 立即中断生成
@@ -830,6 +870,17 @@ async def chat_websocket(ws: WebSocket):
                     # 如果被取消，跳过 done（ws_reader 已发送）和后续处理
                     if _cancel_generation.is_set():
                         continue
+
+                    # ── Harness 评估器：回复质量检查 ──
+                    eval_result = evaluate_response(
+                        text=eval_full_text,
+                        user_message=user_text,
+                        tool_rounds=eval_tool_rounds,
+                        max_rounds=max_tool_rounds,
+                    )
+                    eval_items = format_eval_for_user(eval_result)
+                    if eval_items:
+                        await ws.send_json({"type": "inject_info", "items": eval_items})
 
                     await ws.send_json({"type": "done"})
 

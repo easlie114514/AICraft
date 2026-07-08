@@ -44,6 +44,8 @@ Thumbs.db
 # Runtime data
 .version
 /memory/conversations/
+/memory/project-notes/
+/workspace/
 /skills/toggles.json
 /models/*.json
 !/models/onnx/

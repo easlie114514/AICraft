@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
+import ToolCallCard from '@/components/ToolCallCard'
 import EmotionPortrait from '@/components/EmotionPortrait'
 import PermissionDialog from '@/components/PermissionDialog'
 import TokenPanel from '@/components/TokenPanel'
@@ -171,21 +172,27 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     }
   }, [streaming, isNearBottom, scrollToBottom])
 
-  const handleSend = () => {
-    const text = input.trim()
+  // 记住最后一条用户消息（用于重试）
+  const lastUserMessageRef = useRef('')
+
+  const handleSend = (retry: boolean = false) => {
+    const text = retry ? lastUserMessageRef.current : input.trim()
     if (!text || streaming) return
-    setInput('')
+    if (!retry) {
+      setInput('')
+      lastUserMessageRef.current = text
+    }
     // Reset pause and force scroll to bottom when user sends a message
     userPausedScrollRef.current = false
     setIsNearBottom(true)
     scrollToBottom()
-    sendMessage(text, selectedModel, selectedRole, toggles)
+    sendMessage(text, selectedModel, selectedRole, toggles, retry)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      handleSend(false)
     }
   }
 
@@ -209,8 +216,32 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           <div className="py-4 space-y-0 relative">
             {messages
               .filter((msg) => msg.role !== 'tool_call' && msg.role !== 'tool_result')
+              .map((msg, i, arr) => {
+                // 找最近的上一条用户消息（用于反馈上下文）
+                const prevUser = arr
+                  .slice(0, i)
+                  .filter((m) => m.role === 'user')
+                  .at(-1)
+                return (
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    convId={localStorage.getItem('aicraft_last_conv_id') || ''}
+                    userMessage={prevUser?.content || ''}
+                    onRetry={() => handleSend(true)}
+                  />
+                )
+              })}
+            {/* 工具调用步骤 — 在消息流底部以卡片形式展示 */}
+            {messages
+              .filter((msg) => msg.role === 'tool_call' || msg.role === 'tool_result')
               .map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
+                <ToolCallCard
+                  key={msg.id}
+                  name={msg.toolName || ''}
+                  args={msg.role === 'tool_call' ? msg.toolArgs : undefined}
+                  result={msg.role === 'tool_result' ? msg.toolResult : undefined}
+                />
               ))}
             {error && (
               <div className="flex justify-center py-2">
@@ -362,7 +393,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                 <Square className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleSend} disabled={!input.trim()} size="icon" className="h-20 w-10 rounded-lg shrink-0">
+              <Button onClick={() => handleSend(false)} disabled={!input.trim()} size="icon" className="h-20 w-10 rounded-lg shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
             )}

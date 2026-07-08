@@ -226,7 +226,7 @@ interface ChatContextValue {
   state: ChatState
   toggles: ChatToggles
   setToggles: (toggles: ChatToggles) => void
-  sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles) => void
+  sendMessage: (content: string, modelId: string, role: string, toggles: ChatToggles, retry?: boolean) => void
   stopStreaming: () => void
   newScene: () => void
   tokenStats: TokenStatsData | null
@@ -387,7 +387,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [connect])
 
   const sendMessage = useCallback(
-    (content: string, modelId: string, role: string, toggles: ChatToggles) => {
+    (content: string, modelId: string, role: string, toggles: ChatToggles, retry: boolean = false) => {
       const ws = wsRef.current
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         // Reconnect and send
@@ -402,6 +402,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               role,
               toggles,
               conversation_id: convIdRef.current,
+              retry,
             })
           )
         }
@@ -416,6 +417,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           role,
           toggles,
           conversation_id: convIdRef.current,
+          retry,
         })
       )
     },

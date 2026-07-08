@@ -32,7 +32,19 @@ function fmtCost(cost: number): string {
 
 function fmtTokens(n: number): string {
   if (n <= 0) return '--'
-  return `${fmt(n)} tokens`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return `${n}`
+}
+
+function calcCacheRate(hit: number, miss: number): string {
+  const total = hit + miss
+  if (total <= 0) return '--'
+  return `${((hit / total) * 100).toFixed(0)}%`
+}
+
+function totalTokens(s: TokenStats): number {
+  return s.input_tokens + s.output_tokens
 }
 
 // ── Component ──
@@ -101,39 +113,40 @@ export default function TokenPanel({ stats, isOpen, onToggle }: TokenPanelProps)
 
           {/* Body */}
           <div className="px-3 py-2 space-y-1.5 text-xs">
-            {/* Input */}
+            {/* Total */}
             <div className="flex items-center justify-between">
-              <span className="text-text-secondary">输入</span>
-              <span className="text-text-primary font-mono tabular-nums">
+              <span className="text-text-secondary">总计</span>
+              <span className="text-text-primary font-mono tabular-nums font-semibold">
+                {hasData ? fmtTokens(totalTokens(s!)) : '--'}
+              </span>
+            </div>
+
+            {/* Input */}
+            <div className="flex items-center justify-between pl-3">
+              <span className="text-[11px] text-text-tertiary">├ 输入</span>
+              <span className="text-[11px] text-text-tertiary font-mono tabular-nums">
                 {hasData ? fmtTokens(s!.input_tokens) : '--'}
               </span>
             </div>
 
-            {/* Cache Hit */}
-            <div className="flex items-center justify-between pl-3">
-              <span className="text-[11px] text-success">├ 缓存命中</span>
-              <span className="text-[11px] text-success font-mono tabular-nums">
-                {hasData && s!.input_cache_hit_tokens > 0
-                  ? fmtTokens(s!.input_cache_hit_tokens)
-                  : '--'}
-              </span>
-            </div>
-
-            {/* Cache Miss */}
-            <div className="flex items-center justify-between pl-3">
-              <span className="text-[11px] text-text-tertiary">└ 缓存未命中</span>
-              <span className="text-[11px] text-text-tertiary font-mono tabular-nums">
-                {hasData && s!.input_cache_miss_tokens > 0
-                  ? fmtTokens(s!.input_cache_miss_tokens)
-                  : '--'}
-              </span>
-            </div>
-
             {/* Output */}
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">输出</span>
-              <span className="text-text-primary font-mono tabular-nums">
+            <div className="flex items-center justify-between pl-3">
+              <span className="text-[11px] text-text-tertiary">└ 输出</span>
+              <span className="text-[11px] text-text-tertiary font-mono tabular-nums">
                 {hasData ? fmtTokens(s!.output_tokens) : '--'}
+              </span>
+            </div>
+
+            {/* Cache */}
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-text-secondary">缓存命中率</span>
+              <span className={cn(
+                'font-mono tabular-nums',
+                hasData && s!.input_cache_hit_tokens > 0 ? 'text-success' : 'text-text-tertiary'
+              )}>
+                {hasData
+                  ? calcCacheRate(s!.input_cache_hit_tokens, s!.input_cache_miss_tokens)
+                  : '--'}
               </span>
             </div>
 
