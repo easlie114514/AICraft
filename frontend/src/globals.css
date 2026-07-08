@@ -14,6 +14,7 @@
   --theme-ring: #165DFF;
   --theme-nav-bg: #1E3A74;
   --theme-input: #E4E8F0;
+  --theme-glow-bar: #40A9FF;  /* 亮蓝 — 与深蓝主色高对比 */
 }
 
 /* ── 竹叶绿 ── */
@@ -25,6 +26,7 @@
   --theme-ring: #16A34A;
   --theme-nav-bg: #184A2C;
   --theme-input: #E2EBE5;
+  --theme-glow-bar: #52C41A;  /* 鲜绿 */
 }
 
 /* ── 暮光紫 ── */
@@ -36,6 +38,7 @@
   --theme-ring: #7C3AED;
   --theme-nav-bg: #36285E;
   --theme-input: #E9E5F0;
+  --theme-glow-bar: #A78BFA;  /* 亮紫 */
 }
 
 /* ── 日落橙 ── */
@@ -47,6 +50,7 @@
   --theme-ring: #EA580C;
   --theme-nav-bg: #4C2A12;
   --theme-input: #EDE7E1;
+  --theme-glow-bar: #FA8C16;  /* 亮橙 */
 }
 
 /* ── 玫瑰红 ── */
@@ -58,6 +62,7 @@
   --theme-ring: #DC2626;
   --theme-nav-bg: #5C1E26;
   --theme-input: #F0E6E7;
+  --theme-glow-bar: #F5225D;  /* 亮玫红 */
 }
 
 /* ── 青碧色 ── */
@@ -69,6 +74,7 @@
   --theme-ring: #0D9488;
   --theme-nav-bg: #184A40;
   --theme-input: #E4EDEB;
+  --theme-glow-bar: #13C2C2;  /* 亮青 */
 }
 
 /* ── 琥珀金 ── */
@@ -80,6 +86,7 @@
   --theme-ring: #F59E0B;
   --theme-nav-bg: #4C3614;
   --theme-input: #EDEAE2;
+  --theme-glow-bar: #FADB14;  /* 亮金 */
 }
 
 /* ── 樱花粉 ── */
@@ -91,6 +98,7 @@
   --theme-ring: #DB2777;
   --theme-nav-bg: #581A3E;
   --theme-input: #F0E4EC;
+  --theme-glow-bar: #FF6EB4;  /* 亮粉 */
 }
 
 /* ── 石墨灰 ── */
@@ -102,6 +110,7 @@
   --theme-ring: #475569;
   --theme-nav-bg: #384250;
   --theme-input: #E5E8EC;
+  --theme-glow-bar: #8C9EFF;  /* 亮靛 — 与灰色高对比 */
 }
 
 @theme {
@@ -149,6 +158,7 @@
   /* 导航 — 跟随主题色系 */
   --color-nav-bg: var(--theme-nav-bg);
   --color-nav-text: #FFFFFF;
+  --color-glow-bar: var(--theme-glow-bar);
 
   /* accent / secondary / popover */
   --color-accent: #ECEEF2;
@@ -206,6 +216,12 @@ pre, code {
 ::-webkit-scrollbar-track { background: #F7F8FA; }
 ::-webkit-scrollbar-thumb { background: #C9CDD4; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #86909C; }
+
+/* ── 回复光效泛光动画 ── */
+@keyframes glow-bloom {
+  0%, 100% { opacity: 0.5; transform: scaleY(0.6); }
+  50% { opacity: 1; transform: scaleY(1); }
+}
 
 /* === 全局选中态 === */
 ::selection { background: #E8F3FF; color: #0E42D2; }

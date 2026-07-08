@@ -129,7 +129,7 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
           enabled && activeId && 'border-primary/50 bg-primary/10 text-primary ring-1 ring-primary/20'
         )}
       >
-        {enabled && activeProject ? activeProject.name : '项目'}
+        {activeProject ? activeProject.name : '项目提示词注入'}
       </PopoverTrigger>
 
       <PopoverContent className="w-80" align="center" sideOffset={8}>

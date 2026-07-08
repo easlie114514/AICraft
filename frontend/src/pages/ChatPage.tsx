@@ -5,11 +5,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
+
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
 import ToolCallCard from '@/components/ToolCallCard'
 import ProjectContextPopover from '@/components/ProjectContextPopover'
+import ReplyGlowBar from '@/components/ReplyGlowBar'
 import EmotionPortrait from '@/components/EmotionPortrait'
 import PermissionDialog from '@/components/PermissionDialog'
 import TokenPanel from '@/components/TokenPanel'
@@ -198,10 +199,10 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative bg-nav-bg">
       {/* Messages */}
       <ScrollArea
-        className="flex-1 min-h-0 px-4"
+        className="flex-1 min-h-0 px-4 bg-background rounded-b-[20px]"
         viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
         onScroll={checkNearBottom}
       >
@@ -216,8 +217,19 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
         ) : (
           <div className="py-4 space-y-0 relative">
             {messages
-              .filter((msg) => msg.role !== 'tool_call' && msg.role !== 'tool_result')
+              .filter((msg) => msg.role !== 'system')
               .map((msg, i, arr) => {
+                // 工具调用卡片 — 内联在消息流中
+                if (msg.role === 'tool_call' || msg.role === 'tool_result') {
+                  return (
+                    <ToolCallCard
+                      key={msg.id}
+                      name={msg.toolName || ''}
+                      args={msg.role === 'tool_call' ? msg.toolArgs : undefined}
+                      result={msg.role === 'tool_result' ? msg.toolResult : undefined}
+                    />
+                  )
+                }
                 // 找最近的上一条用户消息（用于反馈上下文）
                 const prevUser = arr
                   .slice(0, i)
@@ -233,17 +245,6 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                   />
                 )
               })}
-            {/* 工具调用步骤 — 在消息流底部以卡片形式展示 */}
-            {messages
-              .filter((msg) => msg.role === 'tool_call' || msg.role === 'tool_result')
-              .map((msg) => (
-                <ToolCallCard
-                  key={msg.id}
-                  name={msg.toolName || ''}
-                  args={msg.role === 'tool_call' ? msg.toolArgs : undefined}
-                  result={msg.role === 'tool_result' ? msg.toolResult : undefined}
-                />
-              ))}
             {error && (
               <div className="flex justify-center py-2">
                 <span className="text-xs text-destructive bg-danger-light/60 px-3 py-1.5 rounded-lg">
@@ -254,6 +255,13 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           </div>
         )}
       </ScrollArea>
+
+      {/* ── 泛光条（聊天区与 Input 交接处，偏上 4px）── */}
+      <div className="relative h-0 w-full z-10 pointer-events-none">
+        <div className="absolute -top-[10px] left-0 right-0">
+          <ReplyGlowBar active={streaming} />
+        </div>
+      </div>
 
       {/* Scroll-to-bottom floating button */}
       {!isNearBottom && hasMessages && (
@@ -269,10 +277,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
         </div>
       )}
 
-      <Separator />
-
       {/* Input Area */}
-      <div className="shrink-0 p-4 space-y-2">
+      <div className="shrink-0 p-4 space-y-2 bg-nav-bg">
 
         {/* ── 工具栏行：开关 + 选择器 ── */}
         <div className="flex items-center justify-between bg-muted rounded-lg px-3 py-1.5">
