@@ -137,16 +137,18 @@ def evaluate_response(
 
 def format_eval_for_user(result: EvalResult) -> list[str]:
     """将评估结果格式化为前端 inject_info 提示列表"""
-    if result.passed and not result.issues:
-        return []
-
     items: list[str] = []
 
-    # 评分摘要
-    if result.score < 0.6:
-        items.append(f"🔴 回复质量评分: {int(result.score * 100)} — 建议重新提问或补充信息")
-    elif result.score < 0.8:
-        items.append(f"🟡 回复质量评分: {int(result.score * 100)}")
+    # 评分摘要 — 始终显示
+    score_pct = int(result.score * 100)
+    if result.passed and score_pct >= 95:
+        items.append(f"✅ 回复质量检查通过")
+    elif result.passed and score_pct >= 80:
+        items.append(f"🟡 回复质量评分: {score_pct}")
+    elif result.score < 0.6:
+        items.append(f"🔴 回复质量评分: {score_pct} — 建议重新提问或补充信息")
+    else:
+        items.append(f"🟡 回复质量评分: {score_pct}")
 
     # 具体问题（只展示 warning 及以上级别）
     for issue in result.issues:
