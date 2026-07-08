@@ -220,6 +220,7 @@ export interface ChatToggles {
   rag: boolean
   memory: boolean
   thinking: boolean
+  projectContext: boolean
 }
 
 interface ChatContextValue {
@@ -243,7 +244,7 @@ const ChatContext = createContext<ChatContextValue | null>(null)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, { messages: [], streaming: false, error: null, contextInfo: null, sceneCount: 1 })
-  const [toggles, setToggles] = useState<ChatToggles>({ rag: false, memory: true, thinking: false })
+  const [toggles, setToggles] = useState<ChatToggles>({ rag: false, memory: true, thinking: false, projectContext: false })
   const [tokenStats, setTokenStats] = useState<TokenStatsData | null>(null)
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null)
   const [emotion, setEmotion] = useState<string | null>(null)

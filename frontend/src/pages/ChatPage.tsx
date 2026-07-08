@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '@/components/ChatMessage'
 import ToolCallCard from '@/components/ToolCallCard'
+import ProjectContextPopover from '@/components/ProjectContextPopover'
 import EmotionPortrait from '@/components/EmotionPortrait'
 import PermissionDialog from '@/components/PermissionDialog'
 import TokenPanel from '@/components/TokenPanel'
@@ -317,6 +318,14 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                 📊 {contextInfo.pct}%
               </span>
             )}
+          </div>
+
+          {/* 中：项目上下文 */}
+          <div className="flex items-center">
+            <ProjectContextPopover
+              enabled={toggles.projectContext}
+              onToggle={(v) => setToggles({ ...toggles, projectContext: v })}
+            />
           </div>
 
           {/* 右：模型 / 角色 / Token / 新场景 */}

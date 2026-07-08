@@ -496,6 +496,7 @@ def get_context_config() -> dict[str, int | bool | str | float]:
 # ═══════════════════════════════════════════════════════════
 
 APP_CONTEXT_PATH = USER_DIR / "app.md"
+PROJECTS_CONFIG_PATH = CONFIG_DIR / "projects.json"
 
 APP_CONTEXT_DEFAULT = """\
 # 应用上下文
@@ -600,11 +601,40 @@ def expand_placeholders(text: str) -> str:
     return result
 
 
-def load_app_context() -> str:
-    """加载 app.md 全局上下文，展开占位符后返回
+def get_active_project_content() -> str | None:
+    """从 projects.json 读取当前激活项目的 content
 
+    返回 None 表示没有激活的项目。
+    """
+    import json as _json
+    if not PROJECTS_CONFIG_PATH.exists():
+        return None
+    try:
+        data = _json.loads(PROJECTS_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (_json.JSONDecodeError, Exception):
+        return None
+    active_id = data.get("active_id")
+    if not active_id:
+        return None
+    for p in data.get("projects", []):
+        if p.get("id") == active_id:
+            return p.get("content", "")
+    return None
+
+
+def load_app_context() -> str:
+    """加载全局应用上下文，展开占位符后返回
+
+    优先读取 projects.json 中激活的项目内容；
+    若无激活项目则回退到 app.md（向后兼容）。
     文件不存在时返回空字符串。每次调用都重新读取，支持热更新。
     """
+    # 优先多项目模式
+    content = get_active_project_content()
+    if content is not None:
+        return expand_placeholders(content)
+
+    # 回退到 app.md（旧版单文件模式）
     if not APP_CONTEXT_PATH.exists():
         return ""
     text = APP_CONTEXT_PATH.read_text(encoding="utf-8")
