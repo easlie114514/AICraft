@@ -134,7 +134,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry }: P
         {isUser ? (
           <p className="whitespace-pre-wrap break-words select-text">{content}</p>
         ) : (
-          <div className="select-text">
+          <div className="select-text flex flex-col min-w-0">
             {/* Thinking 折叠区域 */}
             {hasThinking ? (
               <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen}>
