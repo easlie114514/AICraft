@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Brain, ChevronDown, Copy, Check } from 'lucide-react'
+import { Brain, ChevronDown, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
 import type { ChatMessage as ChatMessageType } from '@/hooks/useChat'
 
 function formatTime(ts: number): string {
@@ -29,12 +30,33 @@ function formatTime(ts: number): string {
 
 interface Props {
   message: ChatMessageType
+  convId?: string
+  userMessage?: string
 }
 
-export default function ChatMessage({ message }: Props) {
-  const { role, content, timestamp, thinking, thinkingDuration } = message
+export default function ChatMessage({ message, convId, userMessage }: Props) {
+  const { id, role, content, timestamp, thinking, thinkingDuration } = message
   const isThinkingStreaming = thinking && thinking.trim() && thinkingDuration === undefined
   const hasThinking = thinking && thinking.trim()
+
+  // ── 反馈状态 ──
+  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
+
+  const handleFeedback = useCallback(async (rating: 'up' | 'down') => {
+    if (feedback) return  // 已评价，不重复
+    setFeedback(rating)
+    try {
+      await api.post('/feedback', {
+        conv_id: convId || '',
+        message_id: id,
+        rating,
+        message_preview: (content || '').slice(0, 200),
+        user_message: (userMessage || '').slice(0, 200),
+      })
+    } catch {
+      // 静默失败，不影响用户体验
+    }
+  }, [feedback, convId, id, content, userMessage])
 
   // 思考中默认展开，思考完成自动折叠
   const [thinkingOpen, setThinkingOpen] = useState(!!isThinkingStreaming)
@@ -141,9 +163,9 @@ export default function ChatMessage({ message }: Props) {
         )}
       </div>
 
-      {/* Copy Button */}
+      {/* Copy & Feedback Buttons */}
       {content ? (
-        <div className={cn('px-1 mt-0.5', isUser ? 'text-right' : 'text-left')}>
+        <div className={cn('px-1 mt-0.5 flex items-center gap-1', isUser ? 'justify-end' : 'justify-start')}>
           <button
             onClick={handleCopy}
             className={cn(
@@ -164,6 +186,39 @@ export default function ChatMessage({ message }: Props) {
               </>
             )}
           </button>
+
+          {/* 反馈按钮 — 仅 AI 回复显示 */}
+          {!isUser && (
+            <>
+              <span className="text-text-tertiary/30 mx-0.5">·</span>
+              <button
+                onClick={() => handleFeedback('up')}
+                disabled={feedback !== null}
+                className={cn(
+                  'inline-flex items-center rounded-md px-1 py-0.5 text-xs transition-colors',
+                  feedback === 'up'
+                    ? 'text-green-500 bg-green-50'
+                    : 'text-text-tertiary/40 hover:text-green-500 hover:bg-green-50/50'
+                )}
+                title="回答有帮助"
+              >
+                <ThumbsUp className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => handleFeedback('down')}
+                disabled={feedback !== null}
+                className={cn(
+                  'inline-flex items-center rounded-md px-1 py-0.5 text-xs transition-colors',
+                  feedback === 'down'
+                    ? 'text-red-500 bg-red-50'
+                    : 'text-text-tertiary/40 hover:text-red-500 hover:bg-red-50/50'
+                )}
+                title="回答不够好"
+              >
+                <ThumbsDown className="h-3 w-3" />
+              </button>
+            </>
+          )}
         </div>
       ) : null}
     </div>

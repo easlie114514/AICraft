@@ -210,9 +210,21 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           <div className="py-4 space-y-0 relative">
             {messages
               .filter((msg) => msg.role !== 'tool_call' && msg.role !== 'tool_result')
-              .map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
-              ))}
+              .map((msg, i, arr) => {
+                // 找最近的上一条用户消息（用于反馈上下文）
+                const prevUser = arr
+                  .slice(0, i)
+                  .filter((m) => m.role === 'user')
+                  .at(-1)
+                return (
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    convId={localStorage.getItem('aicraft_last_conv_id') || ''}
+                    userMessage={prevUser?.content || ''}
+                  />
+                )
+              })}
             {/* 工具调用步骤 — 在消息流底部以卡片形式展示 */}
             {messages
               .filter((msg) => msg.role === 'tool_call' || msg.role === 'tool_result')
