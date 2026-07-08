@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Save } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
 
@@ -16,9 +15,6 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
   const [checking, setChecking] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [noUpdateToast, setNoUpdateToast] = useState(false)
-  // 项目上下文编辑
-  const [appContext, setAppContext] = useState("")
-  const [appContextSaved, setAppContextSaved] = useState(false)
 
   useEffect(() => {
     if (isActive) {
@@ -27,10 +23,6 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
           setShowEmotion(data.show_emotion_portrait ?? true)
           setMaxToolRounds(data.max_tool_rounds ?? 25)
         })
-        .catch(() => {})
-      // 加载项目上下文
-      api.get<{ content: string }>('/settings/app-context')
-        .then((data) => setAppContext(data.content || ''))
         .catch(() => {})
       // 获取当前版本号
       api.get<{ current_version: string }>('/update/check')
@@ -50,12 +42,6 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
     const clamped = Math.max(1, Math.min(100, v))
     setMaxToolRounds(clamped)
     await api.put('/settings', { max_tool_rounds: clamped }).catch(() => {})
-  }
-
-  const handleSaveAppContext = async () => {
-    await api.put('/settings/app-context', { content: appContext })
-    setAppContextSaved(true)
-    setTimeout(() => setAppContextSaved(false), 2000)
   }
 
   const handleCheckUpdate = useCallback(async () => {
@@ -130,33 +116,6 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
               +
             </Button>
           </div>
-        </div>
-
-        {/* Project Context Editor */}
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <Label className="text-sm font-medium">项目上下文 (app.md)</Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                为 AI 提供项目背景、工作重点和偏好，提高回答相关性。作为"导航地图"而非"操作手册"。
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveAppContext}
-              className="shrink-0 ml-4"
-            >
-              <Save className="h-3.5 w-3.5 mr-1" />
-              {appContextSaved ? '已保存' : '保存'}
-            </Button>
-          </div>
-          <Textarea
-            value={appContext}
-            onChange={(e) => setAppContext(e.target.value)}
-            placeholder="在此描述你的项目信息、工作重点、偏好等，AI 会在对话中参考这些内容..."
-            className="min-h-[180px] text-sm font-mono resize-y"
-          />
         </div>
 
         {/* Version & Update Check */}

@@ -368,6 +368,7 @@ async def chat_websocket(ws: WebSocket):
                 role_name = data.get("role", "")
                 toggles = data.get("toggles", {})
                 thinking_enabled = toggles.get("thinking", False)
+                project_context_enabled = toggles.get("projectContext", False)
                 conv_id = data.get("conversation_id", "")
                 is_retry = data.get("retry", False)
 
@@ -528,10 +529,15 @@ async def chat_websocket(ws: WebSocket):
                         1
                     ))
 
-                    # 注入全局应用上下文 (P1 — 不被裁剪)
-                    app_context = load_app_context()
-                    if app_context:
-                        system_pieces.append(("app_context", app_context, 1))
+                    # 注入项目上下文 (P2 — 用户主动开启，非角色设定)
+                    if project_context_enabled:
+                        app_context = load_app_context()
+                        if app_context:
+                            system_pieces.append((
+                                "app_context",
+                                "[项目背景（非角色设定，仅供参考）]\n" + app_context,
+                                2
+                            ))
 
                     await ws.send_json({
                         "type": "inject_info",
@@ -550,10 +556,15 @@ async def chat_websocket(ws: WebSocket):
                         1
                     ))
 
-                    # 注入全局应用上下文 (P1 — 不被裁剪)
-                    app_context = load_app_context()
-                    if app_context:
-                        system_pieces.append(("app_context", app_context, 1))
+                    # 注入项目上下文 (P2 — 用户主动开启，非角色设定)
+                    if project_context_enabled:
+                        app_context = load_app_context()
+                        if app_context:
+                            system_pieces.append((
+                                "app_context",
+                                "[项目背景（非角色设定，仅供参考）]\n" + app_context,
+                                2
+                            ))
 
                 current_role = new_role
 
