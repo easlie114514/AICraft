@@ -33,9 +33,10 @@ interface Props {
   convId?: string
   userMessage?: string
   onRetry?: () => void
+  streaming?: boolean
 }
 
-export default function ChatMessage({ message, convId, userMessage, onRetry }: Props) {
+export default function ChatMessage({ message, convId, userMessage, onRetry, streaming }: Props) {
   const { id, role, content, timestamp, thinking, thinkingDuration } = message
   const isThinkingStreaming = thinking && thinking.trim() && thinkingDuration === undefined
   const hasThinking = thinking && thinking.trim()
@@ -159,7 +160,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry }: P
             ) : null}
 
             {/* 正式回复 */}
-            {content ? <MarkdownRenderer content={content} /> : null}
+            {content ? <MarkdownRenderer content={content} streaming={streaming} /> : null}
           </div>
         )}
       </div>
