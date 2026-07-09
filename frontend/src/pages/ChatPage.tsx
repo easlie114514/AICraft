@@ -192,6 +192,13 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     setIsNearBottom(true)
     scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles, retry)
+    // Ensure scroll after DOM update — the immediate scrollToBottom above targets
+    // the pre-send scrollHeight; once the new message commits, scrollHeight grows and
+    // the scroll-event handler may flip isNearBottom+paused before the effect runs.
+    requestAnimationFrame(() => {
+      userPausedScrollRef.current = false
+      scrollToBottom()
+    })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
