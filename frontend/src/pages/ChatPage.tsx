@@ -257,6 +257,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                     convId={localStorage.getItem('aicraft_last_conv_id') || ''}
                     userMessage={prevUser?.content || ''}
                     onRetry={() => handleSend(true)}
+                    streaming={streaming}
                   />
                 )
               })}

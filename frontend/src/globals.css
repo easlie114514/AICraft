@@ -234,6 +234,13 @@ pre, code {
   -webkit-app-region: no-drag;
 }
 
+/* === StreamMD 段落换行保留 === */
+/* StreamMD 硬编码 <p class="smd-paragraph">，忽略自定义 p 组件。
+   确保 AI 回复中单 \n 换行可见（LLM 常用单 \n 分隔要点，而非标准 Markdown \n\n） */
+.smd-paragraph {
+  white-space: pre-line;
+}
+
 /* === 代码块 === */
 .prose pre {
   background: #1D2129;

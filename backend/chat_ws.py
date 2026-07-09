@@ -847,32 +847,25 @@ async def chat_websocket(ws: WebSocket):
                         thinking_enabled=thinking_enabled,
                         permission_guard=permission_guard,
                     ):
-                        # ── 实时过滤 [EMOTION:xxx]（含跨事件缓冲）──
+                        # ── EMOTION 标签检测（仅用于情绪画像，文本原样发送）──
+                        # 过滤剥离工作全部交给前端 normalizeMarkdown，避免 text_buffer
+                        # 截断导致流式文本与存盘文本不一致（\n 丢失的根因）。
                         if event.get("type") == "text":
                             content = event.get("content", "")
                             eval_full_text += content  # 评估器追踪
-                            # 拼接上次残留缓冲
-                            full_text = text_buffer + content
 
-                            # 检查是否有完整标记
-                            m = re.search(r'\[EMOTION:(\w+)\]', full_text)
+                            # 检测完整 EMOTION 标签（用于情绪画像）
+                            acc = text_buffer + content
+                            m = re.search(r'\[EMOTION:(\w+)\]', acc)
                             if m:
                                 captured_emotion = m.group(1)
-                                full_text = re.sub(r'\s*\[EMOTION:\w+\]\s*', '', full_text)
-
-                            # 检查末尾是否有未闭合的 [EMOTION:xxx 片段
-                            # 支持逐字符流式：[, [E, [EM, [EMO, ..., [EMOTION:thi 等截断
-                            partial_m = re.search(r'\[(?:E(?:M(?:O(?:T(?:I(?:O(?:N:?\w*)?)?)?)?)?)?)?$', full_text)
-                            if partial_m:
-                                # 截断的标记 → 保留到缓冲区，剩余部分先发送
-                                text_buffer = partial_m.group(0)
-                                full_text = full_text[:partial_m.start()]
-                            else:
                                 text_buffer = ""
+                            else:
+                                # 缓冲末尾可能被截断的 [EMOTION:xxx 片段
+                                pm = re.search(r'\[(?:E(?:M(?:O(?:T(?:I(?:O(?:N:?\w*)?)?)?)?)?)?)?$', acc)
+                                text_buffer = pm.group(0) if pm else ""
 
-                            if not full_text.strip():
-                                continue
-                            event = {**event, "content": full_text}
+                            # 原样发送（含纯空白 chunk，如 \n —— 丢失会导致换行缺失）
 
                         # 评估器：计数工具调用轮次
                         if event.get("type") == "tool_call":
@@ -911,14 +904,7 @@ async def chat_websocket(ws: WebSocket):
                             if captured_emotion in _em_avail and _em_cfg.get("enabled", False):
                                 await ws.send_json({"type": "emotion", "key": captured_emotion})
 
-                    # ── 从 messages 中移除 [EMOTION:xxx]（存盘用）──
-                    for m in reversed(messages):
-                        if m.get("role") == "assistant":
-                            content = m.get("content", "") or ""
-                            m["content"] = re.sub(r'\s*\[EMOTION:\w+\]\s*$', '', content)
-                            break
-
-                    # ── 更新会话历史（只追加本轮新消息，避免修复后重复）──
+                    # ── 更新会话历史（EMOTION 保留原样，剥离交给前端 normalizeMarkdown）──
                     # messages = [system] + session_history_old + [本轮 user/assistant/tool]
                     # 只取本轮新增部分：跳过 system(1) + 旧历史(len(session_history_old))
                     old_len = len(session_history)
