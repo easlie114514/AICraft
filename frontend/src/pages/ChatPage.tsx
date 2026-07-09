@@ -281,12 +281,12 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
 
       {/* Scroll-to-bottom floating button */}
       {!isNearBottom && hasMessages && (
-        <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-10">
+        <div className="absolute bottom-[195px] left-1/2 -translate-x-1/2 z-10">
           <Button
-            variant="secondary"
+            variant="default"
             size="sm"
             onClick={() => { userPausedScrollRef.current = false; scrollToBottom(); setIsNearBottom(true) }}
-            className="rounded-lg shadow-lg h-8 w-8 p-0"
+            className="rounded-full shadow-lg hover:shadow-xl h-9 w-16 p-0"
           >
             <ArrowDown className="h-4 w-4" />
           </Button>
