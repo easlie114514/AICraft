@@ -1,4 +1,4 @@
-import { StreamMD } from 'stream-md'
+import { StreamMD, InlineRenderer } from 'stream-md'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type {
@@ -249,7 +249,7 @@ export default function MarkdownRenderer({ content, streaming }: Props) {
                         ? { textAlign: alignments[i] }
                         : undefined}
                     >
-                      {h}
+                      <InlineRenderer text={h} />
                     </th>
                   ))}
                 </tr>
@@ -265,7 +265,7 @@ export default function MarkdownRenderer({ content, streaming }: Props) {
                           ? { textAlign: alignments[ci] }
                           : undefined}
                       >
-                        {cell}
+                        <InlineRenderer text={cell} />
                       </td>
                     ))}
                   </tr>
