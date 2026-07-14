@@ -217,12 +217,32 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
         onScroll={checkNearBottom}
       >
         {!hasMessages ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-20">
-            <div className="h-16 w-16 rounded-full bg-primary-light flex items-center justify-center mb-4">
-              <Send className="h-7 w-7 text-primary/40" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
+            {/* 欢迎图标 */}
+            <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center mb-5 shadow-sm">
+              <Send className="h-9 w-9 text-primary/40" />
             </div>
-            <p className="text-lg text-text-secondary">开始新对话</p>
-            <p className="text-sm text-text-tertiary mt-1">输入消息，AI 将为你解答</p>
+            <h3 className="text-xl font-semibold text-text-primary mb-1.5">欢迎使用 AICraft</h3>
+            <p className="text-sm text-text-secondary max-w-xs">AI 对话 · 技能调用 · 知识检索 · 角色定制</p>
+
+            {/* 新手引导 — 点击填入输入框 */}
+            <div className="flex flex-wrap gap-2 justify-center mt-6 max-w-md">
+              {[
+                '帮我写一段 Python 代码',
+                '解释一下什么是 RAG',
+                '帮我设计一个 AI 角色',
+                '分析这段文字的情感',
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setInput(s)}
+                  className="px-3.5 py-2 text-sm rounded-xl border border-border/50 bg-white hover:border-primary/30 hover:bg-primary-light/40 hover:text-primary transition-all duration-200 text-text-secondary shadow-sm hover:shadow-md"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="py-4 space-y-0 relative">

@@ -126,10 +126,10 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
       {/* Bubble */}
       <div
         className={cn(
-          'max-w-[85%] px-4 py-2.5 rounded-xl text-sm leading-relaxed select-text',
+          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text',
           isUser
-            ? 'bg-primary-light text-text-primary rounded-tr-sm'
-            : 'bg-white border border-border-light rounded-tl-sm shadow-card'
+            ? 'bg-primary-light text-text-primary rounded-tr-md'
+            : 'bg-white border border-border/30 rounded-tl-md shadow-sm'
         )}
       >
         {isUser ? (
