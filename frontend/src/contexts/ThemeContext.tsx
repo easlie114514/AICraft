@@ -1,11 +1,13 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 
-export type ThemeName = 'blue' | 'green' | 'purple' | 'orange' | 'rose' | 'teal' | 'amber' | 'pink' | 'slate'
+export type ThemeName = 'blue' | 'purple' | 'orange' | 'rose' | 'teal' | 'slate'
+  | 'crimson' | 'neon' | 'dusk' | 'forest' | 'gold' | 'lava'
 
 interface ThemeInfo {
   name: ThemeName
   label: string
   color: string
+  secondaryColor?: string  // 高冲击配色辅色，用于对角线分割色球展示
   colorLight: string
   colorLighter: string
   colorDark: string
@@ -16,14 +18,17 @@ interface ThemeInfo {
 
 export const THEMES: ThemeInfo[] = [
   { name: 'blue',   label: '字节蓝', color: '#165DFF', colorLight: '#E8F3FF', colorLighter: '#F2F7FF', colorDark: '#0E42D2', ring: '#165DFF', navBg: '#1E3A74', input: '#E4E8F0' },
-  { name: 'green',  label: '竹叶绿', color: '#16A34A', colorLight: '#F0FDF4', colorLighter: '#F7FEF9', colorDark: '#15803D', ring: '#16A34A', navBg: '#184A2C', input: '#E2EBE5' },
   { name: 'purple', label: '暮光紫', color: '#7C3AED', colorLight: '#F5F3FF', colorLighter: '#FAF9FF', colorDark: '#6D28D9', ring: '#7C3AED', navBg: '#36285E', input: '#E9E5F0' },
   { name: 'orange', label: '日落橙', color: '#EA580C', colorLight: '#FFF7ED', colorLighter: '#FFFBEB', colorDark: '#C2410C', ring: '#EA580C', navBg: '#4C2A12', input: '#EDE7E1' },
   { name: 'rose',   label: '玫瑰红', color: '#DC2626', colorLight: '#FEF2F2', colorLighter: '#FFF7F7', colorDark: '#B91C1C', ring: '#DC2626', navBg: '#5C1E26', input: '#F0E6E7' },
   { name: 'teal',   label: '青碧色', color: '#0D9488', colorLight: '#F0FDFA', colorLighter: '#F6FEFC', colorDark: '#0F766E', ring: '#0D9488', navBg: '#184A40', input: '#E4EDEB' },
-  { name: 'amber',  label: '琥珀金', color: '#F59E0B', colorLight: '#FFFCEB', colorLighter: '#FFFEF5', colorDark: '#D97706', ring: '#F59E0B', navBg: '#4C3614', input: '#EDEAE2' },
-  { name: 'pink',   label: '樱花粉', color: '#DB2777', colorLight: '#FDF2F8', colorLighter: '#FFF7FB', colorDark: '#BE185D', ring: '#DB2777', navBg: '#581A3E', input: '#F0E4EC' },
-  { name: 'slate',  label: '石墨灰', color: '#475569', colorLight: '#F1F5F9', colorLighter: '#F8FAFC', colorDark: '#334155', ring: '#475569', navBg: '#384250', input: '#E5E8EC' },
+  { name: 'slate',   label: '石墨灰', color: '#475569', colorLight: '#F1F5F9', colorLighter: '#F8FAFC', colorDark: '#334155', ring: '#475569', navBg: '#384250', input: '#E5E8EC' },
+  { name: 'crimson', label: '警戒红', color: '#D10B1E', secondaryColor: '#111111', colorLight: '#FBEBED', colorLighter: '#FDF5F6', colorDark: '#A50918', ring: '#D10B1E', navBg: '#111111', input: '#E7E1E6' },
+  { name: 'neon',    label: '电光桃', color: '#DF2C88', secondaryColor: '#000000', colorLight: '#FCEEF5', colorLighter: '#FEF7FA', colorDark: '#B61B6B', ring: '#DF2C88', navBg: '#000000', input: '#E8E2EB' },
+  { name: 'dusk',    label: '暮海蓝', color: '#BC5A8C', secondaryColor: '#4F467D', colorLight: '#FAF2F6', colorLighter: '#FCF8FA', colorDark: '#9C406F', ring: '#BC5A8C', navBg: '#4F467D', input: '#E6E5EB' },
+  { name: 'forest',  label: '松林绿', color: '#C9A954', secondaryColor: '#145A33', colorLight: '#FBF8F1', colorLighter: '#FDFCF8', colorDark: '#AB8B36', ring: '#C9A954', navBg: '#145A33', input: '#E6E9E8' },
+  { name: 'gold',    label: '古铜金', color: '#D8B241', secondaryColor: '#000000', colorLight: '#FCF9F0', colorLighter: '#FDFCF7', colorDark: '#B69225', ring: '#D8B241', navBg: '#000000', input: '#E7E9E7' },
+  { name: 'lava',    label: '熔岩橙', color: '#FF6B0A', secondaryColor: '#222222', colorLight: '#FFF3EB', colorLighter: '#FFF9F5', colorDark: '#D15400', ring: '#FF6B0A', navBg: '#222222', input: '#E9E6E5' },
 ]
 
 const THEME_CLASS_PREFIX = 'theme-'

@@ -17,18 +17,6 @@
   --theme-glow-bar: #40A9FF;  /* 亮蓝 — 与深蓝主色高对比 */
 }
 
-/* ── 竹叶绿 ── */
-.theme-green {
-  --theme-primary: #16A34A;
-  --theme-primary-hover: #15803D;
-  --theme-primary-light: #F0FDF4;
-  --theme-primary-lighter: #F7FEF9;
-  --theme-ring: #16A34A;
-  --theme-nav-bg: #184A2C;
-  --theme-input: #E2EBE5;
-  --theme-glow-bar: #52C41A;  /* 鲜绿 */
-}
-
 /* ── 暮光紫 ── */
 .theme-purple {
   --theme-primary: #7C3AED;
@@ -77,30 +65,6 @@
   --theme-glow-bar: #13C2C2;  /* 亮青 */
 }
 
-/* ── 琥珀金 ── */
-.theme-amber {
-  --theme-primary: #F59E0B;
-  --theme-primary-hover: #D97706;
-  --theme-primary-light: #FFFCEB;
-  --theme-primary-lighter: #FFFEF5;
-  --theme-ring: #F59E0B;
-  --theme-nav-bg: #4C3614;
-  --theme-input: #EDEAE2;
-  --theme-glow-bar: #FADB14;  /* 亮金 */
-}
-
-/* ── 樱花粉 ── */
-.theme-pink {
-  --theme-primary: #DB2777;
-  --theme-primary-hover: #BE185D;
-  --theme-primary-light: #FDF2F8;
-  --theme-primary-lighter: #FFF7FB;
-  --theme-ring: #DB2777;
-  --theme-nav-bg: #581A3E;
-  --theme-input: #F0E4EC;
-  --theme-glow-bar: #FF6EB4;  /* 亮粉 */
-}
-
 /* ── 石墨灰 ── */
 .theme-slate {
   --theme-primary: #475569;
@@ -111,6 +75,82 @@
   --theme-nav-bg: #384250;
   --theme-input: #E5E8EC;
   --theme-glow-bar: #8C9EFF;  /* 亮靛 — 与灰色高对比 */
+}
+
+/* ═══════════════════════════════════════════════════════════
+   高冲击视觉配色 — 10 套追加主题
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 警戒红 + 暗夜灰 ── */
+.theme-crimson {
+  --theme-primary: #D10B1E;
+  --theme-primary-hover: #A50918;
+  --theme-primary-light: #FBEBED;
+  --theme-primary-lighter: #FDF5F6;
+  --theme-ring: #D10B1E;
+  --theme-nav-bg: #111111;
+  --theme-input: #E7E1E6;
+  --theme-glow-bar: #FF3D51;  /* 亮红泛光 */
+}
+
+/* ── 电光桃 + 深夜黑 ── */
+.theme-neon {
+  --theme-primary: #DF2C88;
+  --theme-primary-hover: #B61B6B;
+  --theme-primary-light: #FCEEF5;
+  --theme-primary-lighter: #FEF7FA;
+  --theme-ring: #DF2C88;
+  --theme-nav-bg: #000000;
+  --theme-input: #E8E2EB;
+  --theme-glow-bar: #FF3DA1;  /* 亮桃泛光 */
+}
+
+/* ── 暮海蓝 + 莓果粉 ── */
+.theme-dusk {
+  --theme-primary: #BC5A8C;
+  --theme-primary-hover: #9C406F;
+  --theme-primary-light: #FAF2F6;
+  --theme-primary-lighter: #FCF8FA;
+  --theme-ring: #BC5A8C;
+  --theme-nav-bg: #4F467D;
+  --theme-input: #E6E5EB;
+  --theme-glow-bar: #4F467D;  /* 主色泛光 */
+}
+
+/* ── 松林绿 + 沙丘金 ── */
+.theme-forest {
+  --theme-primary: #C9A954;
+  --theme-primary-hover: #AB8B36;
+  --theme-primary-light: #FBF8F1;
+  --theme-primary-lighter: #FDFCF8;
+  --theme-ring: #C9A954;
+  --theme-nav-bg: #145A33;
+  --theme-input: #E6E9E8;
+  --theme-glow-bar: #145A33;  /* 主色泛光 */
+}
+
+/* ── 古铜金 + 暗域黑 ── */
+.theme-gold {
+  --theme-primary: #D8B241;
+  --theme-primary-hover: #B69225;
+  --theme-primary-light: #FCF9F0;
+  --theme-primary-lighter: #FDFCF7;
+  --theme-ring: #D8B241;
+  --theme-nav-bg: #000000;
+  --theme-input: #E7E9E7;
+  --theme-glow-bar: #FFCF3D;  /* 亮金泛光 */
+}
+
+/* ── 熔岩橙 + 炭岩灰 ── */
+.theme-lava {
+  --theme-primary: #FF6B0A;
+  --theme-primary-hover: #D15400;
+  --theme-primary-light: #FFF3EB;
+  --theme-primary-lighter: #FFF9F5;
+  --theme-ring: #FF6B0A;
+  --theme-nav-bg: #222222;
+  --theme-input: #E9E6E5;
+  --theme-glow-bar: #FF8B3D;  /* 亮橙泛光 */
 }
 
 @theme {
