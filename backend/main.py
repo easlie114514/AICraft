@@ -1,12 +1,13 @@
 """FastAPI 应用入口"""
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.deps import init_deps, get_deps
@@ -75,12 +76,38 @@ if frontend_assets.exists():
 if frontend_fonts.exists():
     app.mount("/fonts", StaticFiles(directory=str(frontend_fonts)), name="fonts")
 
-# 生产模式：根路径返回 index.html
+# 前端主题白名单（与 settings router 保持一致）
+_VALID_THEMES = {"blue", "purple", "orange", "rose", "teal", "slate",
+                "crimson", "neon", "dusk", "forest", "gold", "lava"}
+
+# 生产模式：根路径返回 index.html（注入主题种子脚本避免首次加载闪烁）
 @app.get("/")
 async def root():
     index_path = FRONTEND_DIST / "index.html"
     if index_path.exists():
-        return FileResponse(index_path)
+        html = index_path.read_text(encoding="utf-8")
+        # 从 config/app.json 读取后端保存的主题，注入为 localStorage 种子
+        # 这样 index.html 中的内联脚本可以在首次渲染前获得正确的主题色
+        try:
+            app_config_path = Path(__file__).resolve().parent.parent / "config" / "app.json"
+            if app_config_path.exists():
+                app_config = json.loads(app_config_path.read_text(encoding="utf-8"))
+                server_theme = app_config.get("theme", "blue")
+            else:
+                server_theme = "blue"
+        except Exception:
+            server_theme = "blue"
+        # 只在有效主题且 localStorage 无值时才注入（不覆盖用户当前会话的选择）
+        if server_theme in _VALID_THEMES:
+            seed_script = (
+                "<script>"
+                "(function(){if(!localStorage.getItem('aicraft_theme'))"
+                f"localStorage.setItem('aicraft_theme','{server_theme}');"
+                "})();"
+                "</script>\n    "
+            )
+            html = html.replace("<script>", seed_script + "<script>", 1)
+        return HTMLResponse(content=html)
     return {"message": "AICraft API - 开发模式请使用 Vite dev server (localhost:5173)"}
 
 

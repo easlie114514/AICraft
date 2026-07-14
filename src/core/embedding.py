@@ -5,6 +5,7 @@
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,8 @@ import httpx
 from chromadb.api.types import EmbeddingFunction
 
 from src.utils.config import ONNX_MODEL_DIR
+
+logger = logging.getLogger(__name__)
 
 BUNDLED_MODEL_DIR = ONNX_MODEL_DIR
 
@@ -68,7 +71,7 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
                     {"model": self.model, "input": batch},
                     ensure_ascii=False,
                 ).encode("utf-8")
-                print(f"[Embedding] 请求 model={self.model}, batch={len(batch)}条, body={len(body)}bytes")
+                logger.debug(f"[Embedding] 请求 model={self.model}, batch={len(batch)}条, body={len(body)}bytes")
                 resp = self._client.post(
                     f"{self.api_base}/embeddings",
                     headers={

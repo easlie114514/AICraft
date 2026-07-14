@@ -14,21 +14,22 @@ interface ThemeInfo {
   ring: string
   navBg: string
   input: string
+  glowBar: string  // 底部泛光条颜色
 }
 
 export const THEMES: ThemeInfo[] = [
-  { name: 'blue',   label: '字节蓝', color: '#165DFF', colorLight: '#E8F3FF', colorLighter: '#F2F7FF', colorDark: '#0E42D2', ring: '#165DFF', navBg: '#1E3A74', input: '#E4E8F0' },
-  { name: 'purple', label: '暮光紫', color: '#7C3AED', colorLight: '#F5F3FF', colorLighter: '#FAF9FF', colorDark: '#6D28D9', ring: '#7C3AED', navBg: '#36285E', input: '#E9E5F0' },
-  { name: 'orange', label: '日落橙', color: '#EA580C', colorLight: '#FFF7ED', colorLighter: '#FFFBEB', colorDark: '#C2410C', ring: '#EA580C', navBg: '#4C2A12', input: '#EDE7E1' },
-  { name: 'rose',   label: '玫瑰红', color: '#DC2626', colorLight: '#FEF2F2', colorLighter: '#FFF7F7', colorDark: '#B91C1C', ring: '#DC2626', navBg: '#5C1E26', input: '#F0E6E7' },
-  { name: 'teal',   label: '青碧色', color: '#0D9488', colorLight: '#F0FDFA', colorLighter: '#F6FEFC', colorDark: '#0F766E', ring: '#0D9488', navBg: '#184A40', input: '#E4EDEB' },
-  { name: 'slate',   label: '石墨灰', color: '#475569', colorLight: '#F1F5F9', colorLighter: '#F8FAFC', colorDark: '#334155', ring: '#475569', navBg: '#384250', input: '#E5E8EC' },
-  { name: 'crimson', label: '警戒红', color: '#D10B1E', secondaryColor: '#111111', colorLight: '#FBEBED', colorLighter: '#FDF5F6', colorDark: '#A50918', ring: '#D10B1E', navBg: '#111111', input: '#E7E1E6' },
-  { name: 'neon',    label: '电光桃', color: '#DF2C88', secondaryColor: '#000000', colorLight: '#FCEEF5', colorLighter: '#FEF7FA', colorDark: '#B61B6B', ring: '#DF2C88', navBg: '#000000', input: '#E8E2EB' },
-  { name: 'dusk',    label: '暮海蓝', color: '#BC5A8C', secondaryColor: '#4F467D', colorLight: '#FAF2F6', colorLighter: '#FCF8FA', colorDark: '#9C406F', ring: '#BC5A8C', navBg: '#4F467D', input: '#E6E5EB' },
-  { name: 'forest',  label: '松林绿', color: '#C9A954', secondaryColor: '#145A33', colorLight: '#FBF8F1', colorLighter: '#FDFCF8', colorDark: '#AB8B36', ring: '#C9A954', navBg: '#145A33', input: '#E6E9E8' },
-  { name: 'gold',    label: '古铜金', color: '#D8B241', secondaryColor: '#000000', colorLight: '#FCF9F0', colorLighter: '#FDFCF7', colorDark: '#B69225', ring: '#D8B241', navBg: '#000000', input: '#E7E9E7' },
-  { name: 'lava',    label: '熔岩橙', color: '#FF6B0A', secondaryColor: '#222222', colorLight: '#FFF3EB', colorLighter: '#FFF9F5', colorDark: '#D15400', ring: '#FF6B0A', navBg: '#222222', input: '#E9E6E5' },
+  { name: 'blue',   label: '字节蓝', color: '#165DFF', colorLight: '#E8F3FF', colorLighter: '#F2F7FF', colorDark: '#0E42D2', ring: '#165DFF', navBg: '#1E3A74', input: '#E4E8F0', glowBar: '#40A9FF' },
+  { name: 'purple', label: '暮光紫', color: '#7C3AED', colorLight: '#F5F3FF', colorLighter: '#FAF9FF', colorDark: '#6D28D9', ring: '#7C3AED', navBg: '#36285E', input: '#E9E5F0', glowBar: '#A78BFA' },
+  { name: 'orange', label: '日落橙', color: '#EA580C', colorLight: '#FFF7ED', colorLighter: '#FFFBEB', colorDark: '#C2410C', ring: '#EA580C', navBg: '#4C2A12', input: '#EDE7E1', glowBar: '#FA8C16' },
+  { name: 'rose',   label: '玫瑰红', color: '#DC2626', colorLight: '#FEF2F2', colorLighter: '#FFF7F7', colorDark: '#B91C1C', ring: '#DC2626', navBg: '#5C1E26', input: '#F0E6E7', glowBar: '#F5225D' },
+  { name: 'teal',   label: '青碧色', color: '#0D9488', colorLight: '#F0FDFA', colorLighter: '#F6FEFC', colorDark: '#0F766E', ring: '#0D9488', navBg: '#184A40', input: '#E4EDEB', glowBar: '#13C2C2' },
+  { name: 'slate',   label: '石墨灰', color: '#475569', colorLight: '#F1F5F9', colorLighter: '#F8FAFC', colorDark: '#334155', ring: '#475569', navBg: '#384250', input: '#E5E8EC', glowBar: '#8C9EFF' },
+  { name: 'crimson', label: '警戒红', color: '#D10B1E', secondaryColor: '#111111', colorLight: '#FBEBED', colorLighter: '#FDF5F6', colorDark: '#A50918', ring: '#D10B1E', navBg: '#111111', input: '#E7E1E6', glowBar: '#FF3D51' },
+  { name: 'neon',    label: '电光桃', color: '#DF2C88', secondaryColor: '#000000', colorLight: '#FCEEF5', colorLighter: '#FEF7FA', colorDark: '#B61B6B', ring: '#DF2C88', navBg: '#000000', input: '#E8E2EB', glowBar: '#FF3DA1' },
+  { name: 'dusk',    label: '暮海蓝', color: '#BC5A8C', secondaryColor: '#4F467D', colorLight: '#FAF2F6', colorLighter: '#FCF8FA', colorDark: '#9C406F', ring: '#BC5A8C', navBg: '#4F467D', input: '#E6E5EB', glowBar: '#4F467D' },
+  { name: 'forest',  label: '松林绿', color: '#C9A954', secondaryColor: '#145A33', colorLight: '#FBF8F1', colorLighter: '#FDFCF8', colorDark: '#AB8B36', ring: '#C9A954', navBg: '#145A33', input: '#E6E9E8', glowBar: '#145A33' },
+  { name: 'gold',    label: '古铜金', color: '#D8B241', secondaryColor: '#000000', colorLight: '#FCF9F0', colorLighter: '#FDFCF7', colorDark: '#B69225', ring: '#D8B241', navBg: '#000000', input: '#E7E9E7', glowBar: '#FFCF3D' },
+  { name: 'lava',    label: '熔岩橙', color: '#FF6B0A', secondaryColor: '#222222', colorLight: '#FFF3EB', colorLighter: '#FFF9F5', colorDark: '#D15400', ring: '#FF6B0A', navBg: '#222222', input: '#E9E6E5', glowBar: '#FF8B3D' },
 ]
 
 const THEME_CLASS_PREFIX = 'theme-'
@@ -44,6 +45,7 @@ function applyThemeClass(name: ThemeName) {
   // 同步写入内联 CSS 变量（覆盖 index.html 的初始值，确保切换主题时即刻生效）
   const info = THEMES.find((t) => t.name === name) ?? THEMES[0]
   const s = root.style
+  // --theme-* 供直接引用 var(--theme-*) 的组件使用
   s.setProperty('--theme-primary', info.color, 'important')
   s.setProperty('--theme-primary-hover', info.colorDark, 'important')
   s.setProperty('--theme-primary-light', info.colorLight, 'important')
@@ -51,6 +53,16 @@ function applyThemeClass(name: ThemeName) {
   s.setProperty('--theme-ring', info.ring, 'important')
   s.setProperty('--theme-nav-bg', info.navBg, 'important')
   s.setProperty('--theme-input', info.input, 'important')
+  s.setProperty('--theme-glow-bar', info.glowBar, 'important')
+  // --color-* 供 Tailwind 工具类使用，绕过 CSS @theme 映射加载延迟
+  s.setProperty('--color-primary', info.color, 'important')
+  s.setProperty('--color-primary-hover', info.colorDark, 'important')
+  s.setProperty('--color-primary-light', info.colorLight, 'important')
+  s.setProperty('--color-primary-lighter', info.colorLighter, 'important')
+  s.setProperty('--color-ring', info.ring, 'important')
+  s.setProperty('--color-nav-bg', info.navBg, 'important')
+  s.setProperty('--color-input', info.input, 'important')
+  s.setProperty('--color-glow-bar', info.glowBar, 'important')
   // 只在 class 不同时才切换，避免移除再添加造成的主题闪烁
   if (root.classList.contains(target)) {
     try { localStorage.setItem(STORAGE_KEY, name) } catch { /* ignore */ }
