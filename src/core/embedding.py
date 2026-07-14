@@ -47,18 +47,15 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
         self.api_key = api_key
         self.model = model
         self.api_base = api_base.rstrip("/")
-        self._client = httpx.Client(timeout=60.0)
 
-    def __del__(self):
-        """析构时关闭 HTTP 客户端，释放连接池"""
-        try:
-            self._client.close()
-        except Exception:
-            pass
+    @property
+    def _client(self):
+        """每次调用创建新连接，避免持久连接池的状态问题"""
+        return httpx.Client(timeout=60.0)
 
     def close(self):
-        """显式关闭 HTTP 客户端"""
-        self._client.close()
+        """显式关闭（兼容接口，新实现无需此操作）"""
+        pass
 
     def __call__(self, input: list[str]) -> list[list[float]]:
         batch_size = 64
@@ -71,6 +68,7 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
                     {"model": self.model, "input": batch},
                     ensure_ascii=False,
                 ).encode("utf-8")
+                print(f"[Embedding] 请求 model={self.model}, batch={len(batch)}条, body={len(body)}bytes")
                 resp = self._client.post(
                     f"{self.api_base}/embeddings",
                     headers={
@@ -85,6 +83,10 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
                 all_embeddings.extend([d["embedding"] for d in data])
             except httpx.HTTPStatusError as e:
                 print(f"[Embedding] API 错误: {e.response.status_code} {e.response.text[:200]}")
+                # 调试：打印导致错误的输入
+                for j, t in enumerate(batch):
+                    idx = i + j
+                    print(f"  input[{idx}] len={len(t)} empty={not t.strip() if t else 'None'} preview={repr(t[:80])}")
                 raise
             except Exception as e:
                 print(f"[Embedding] 请求异常: {type(e).__name__}: {e}")
@@ -134,7 +136,12 @@ def is_local_embedding_available() -> bool:
         return False
 
 
-def get_embedding_function(mode: str = "auto", api_key: str = "") -> EmbeddingFunction | None:
+def get_embedding_function(
+    mode: str = "auto",
+    api_key: str = "",
+    model: str = "BAAI/bge-m3",
+    api_base: str = "https://api.siliconflow.cn/v1",
+) -> EmbeddingFunction | None:
     """获取 embedding 函数
 
     mode="api"   → 强制硅基流动 API（需 api_key）
@@ -144,12 +151,12 @@ def get_embedding_function(mode: str = "auto", api_key: str = "") -> EmbeddingFu
     if mode == "api":
         if not api_key:
             raise ValueError("API 模式需要提供硅基流动 API Key")
-        return SiliconFlowEmbeddingFunction(api_key=api_key)
+        return SiliconFlowEmbeddingFunction(api_key=api_key, model=model, api_base=api_base)
 
     if mode == "local":
         return None  # ChromaDB 使用默认 ONNX，路径已在模块顶部指向内置模型
 
     # auto 模式
     if api_key:
-        return SiliconFlowEmbeddingFunction(api_key=api_key)
+        return SiliconFlowEmbeddingFunction(api_key=api_key, model=model, api_base=api_base)
     return None  # 本地 ONNX

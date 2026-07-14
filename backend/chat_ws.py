@@ -598,14 +598,29 @@ async def chat_websocket(ws: WebSocket):
                             rag_text = "\n\n".join(rag_results)
                             system_pieces.append((
                                 "rag_results",
-                                "[知识库内容 — 以下是从你的知识库中检索到的相关文档片段，"
-                                "这些内容就是用户的知识库。请基于这些内容直接回答用户问题。"
-                                "不要使用工具去查找其他文件或目录，知识库的内容已经在这里了。"
-                                "如果检索结果确实与问题无关，如实告知即可。]\n"
-                                + rag_text,
+                                "[知识库内容]\n"
+                                "以下是你专属知识库中与当前问题最相关的片段。\n\n"
+                                "回答规则（必须遵守）：\n"
+                                "1. 只使用以下知识库内容回答，不要用训练数据中的知识补充或覆盖\n"
+                                "2. 知识库未覆盖的信息，明确告知用户「你的知识库中未提及这部分内容」\n"
+                                "3. 如果所有片段都与当前问题无关，如实告知用户，不要强行关联\n"
+                                "4. 不要使用工具去查找其他文件或目录，知识库的内容已经在这里了\n\n"
+                                "---\n"
+                                + rag_text
+                                + "\n---",
                                 3
                             ))
                             inject_items.append(f"RAG检索: {len(rag_results)} 条片段")
+                        else:
+                            # 检索为空时显式告知 LLM，防止它假装有结果
+                            system_pieces.append((
+                                "rag_results",
+                                "[RAG 检索状态]\n"
+                                "已检索你的专属知识库，未找到与当前问题相关的内容。\n"
+                                "请在回复中明确告知用户这一情况，不要假装或暗示从知识库中获取了信息。",
+                                3
+                            ))
+                            inject_items.append("RAG检索: 无结果")
                     except Exception as e:
                         inject_items.append(f"RAG检索失败: {e}")
 

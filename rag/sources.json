@@ -9,11 +9,11 @@
       "indexed": false
     },
     {
-      "name": "SIPP",
-      "path": "release/AICraft/rag/SIPP",
+      "name": "小鸡毛与哆啦A梦的离谱怪兽大作战",
+      "path": "rag/故事",
       "type": "local",
       "enabled": true,
-      "file_count": 4,
+      "file_count": 1,
       "indexed": true
     }
   ]
