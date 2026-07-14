@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Folder, RefreshCw, Database, Settings2, Eye, EyeOff, FlaskConical } from 'lucide-react'
+import { Plus, Trash2, Folder, RefreshCw, Database, Settings2, Eye, EyeOff, FlaskConical, Info, Cloud, Link, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { SettingRow, SectionLabel, NumberStepper } from '@/components/settings-ui'
 import { api } from '@/lib/api'
 
 interface RAGSource {
@@ -36,6 +38,7 @@ interface RAGConfig {
   embedding_model: string
   embedding_api_base: string
   chunk_max_tokens: number
+  top_k: number
 }
 
 const EMBEDDING_MODELS = [
@@ -43,6 +46,45 @@ const EMBEDDING_MODELS = [
   { value: 'BAAI/bge-large-en-v1.5', label: 'BAAI/bge-large-en-v1.5 (英文, 1024维)' },
   { value: 'BAAI/bge-m3', label: 'BAAI/bge-m3 (多语言, 1024维)' },
 ]
+
+const EMBEDDING_MODE_OPTIONS = [
+  {
+    value: 'auto',
+    icon: Cloud,
+    title: 'auto — 智能切换',
+    desc: '有 API Key 使用硅基流动，否则自动使用本地 ONNX',
+  },
+  {
+    value: 'api',
+    icon: Link,
+    title: 'api — 强制 API',
+    desc: '始终使用硅基流动 API（需配置 API Key）',
+  },
+  {
+    value: 'local',
+    icon: Monitor,
+    title: 'local — 本地 ONNX',
+    desc: '使用内置 all-MiniLM-L6-v2 模型，无需联网',
+  },
+]
+
+/** Small info icon that shows a tooltip on hover */
+function InfoTip({ text }: { text: string }) {
+  return (
+    <TooltipProvider delay={300}>
+      <Tooltip>
+        <TooltipTrigger>
+          <span className="inline-flex cursor-help text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+            <Info className="h-3.5 w-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 export default function RAGPage() {
   const [sources, setSources] = useState<RAGSource[]>([])
@@ -60,6 +102,7 @@ export default function RAGPage() {
   const [embedModel, setEmbedModel] = useState('BAAI/bge-large-zh-v1.5')
   const [apiBase, setApiBase] = useState('https://api.siliconflow.cn/v1')
   const [chunkMaxTokens, setChunkMaxTokens] = useState(800)
+  const [topK, setTopK] = useState(20)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; dimension?: number; error?: string } | null>(null)
   const [configSaving, setConfigSaving] = useState(false)
@@ -91,7 +134,7 @@ export default function RAGPage() {
       setEmbedModel(data.embedding_model)
       setApiBase(data.embedding_api_base)
       setChunkMaxTokens(data.chunk_max_tokens || 800)
-      // 不清空 apiKey — 保持用户已输入的内容
+      setTopK(data.top_k ?? 20)
     } catch { /* ignore */ }
     setConfigLoading(false)
   }, [])
@@ -110,8 +153,7 @@ export default function RAGPage() {
     setConfigSaving(false)
   }
 
-  const handleModeChange = async (mode: string | null) => {
-    if (!mode) return
+  const handleModeChange = async (mode: string) => {
     setEmbedMode(mode)
     await saveRagConfig({ embedding_mode: mode })
   }
@@ -124,7 +166,6 @@ export default function RAGPage() {
 
   const handleApiBaseChange = async (base: string) => {
     setApiBase(base)
-    // 失焦时保存
   }
 
   const handleApiBaseBlur = () => {
@@ -139,17 +180,24 @@ export default function RAGPage() {
     }
   }
 
+  const handleTopKChange = (v: number) => {
+    const clamped = Math.max(10, Math.min(30, v))
+    setTopK(clamped)
+    if (clamped !== (ragConfig?.top_k ?? 20)) {
+      saveRagConfig({ top_k: String(clamped) })
+    }
+  }
+
   const handleSaveKey = async () => {
     if (!apiKey.trim()) return
     await saveRagConfig({ embedding_api_key: apiKey.trim() })
-    // 保存成功后保持输入内容，不清空
   }
 
   const handleTestConnection = async () => {
     setTesting(true)
     setTestResult(null)
     try {
-      const key = apiKey.trim() || ''  // 用当前输入或已保存的 key
+      const key = apiKey.trim() || ''
       const res = await api.post<{ success: boolean; dimension?: number; error?: string }>('/rag/test-embedding', {
         api_key: key || '',
         model: embedModel,
@@ -194,8 +242,22 @@ export default function RAGPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
-      <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-text-primary">RAG 数据源</h2>
+      {/* ── Page Header ── */}
+      <div className="shrink-0 flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center shrink-0">
+            <Database className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-text-primary">RAG 知识库</h2>
+              {ragConfig?.has_api_key && (
+                <Badge className="rounded-lg text-xs" variant="secondary">API 已配置</Badge>
+              )}
+            </div>
+            <p className="text-xs text-text-tertiary">配置 Embedding 参数并管理文档数据源</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => { loadSources(); loadRagConfig() }}>
             <RefreshCw className="h-4 w-4" />
@@ -208,237 +270,282 @@ export default function RAGPage() {
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        {/* ── Embedding 配置卡片 ── */}
-        <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Settings2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Embedding 配置</span>
-              {ragConfig?.has_api_key && (
-                <Badge className="rounded-lg text-xs" variant="secondary">API 已配置</Badge>
-              )}
-            </div>
+        <div className="pr-1 pb-4">
+          {/* ── Embedding 配置 ── */}
+          <SectionLabel icon={Settings2} title="Embedding 配置" description="向量化模型、API 连接与检索参数" />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Embedding 模式 */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Embedding 模式</Label>
-                <Select value={embedMode} onValueChange={handleModeChange}>
-                  <SelectTrigger className="w-full h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
-                    <SelectItem value="auto">auto — 有 Key 用 API，否则本地</SelectItem>
-                    <SelectItem value="api">api — 强制硅基流动 API</SelectItem>
-                    <SelectItem value="local">local — 本地 ONNX 模型</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Embedding 模型 */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Embedding 模型</Label>
-                <Select value={embedModel} onValueChange={handleModelChange} disabled={isLocalMode}>
-                  <SelectTrigger className="w-full h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent sideOffset={6} alignItemWithTrigger={false}>
-                    {EMBEDDING_MODELS.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Chunk 分片 Token 上限 */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">
-                  分片 Token 上限
-                  {isLocalMode && <span className="ml-1 text-muted-foreground/60">（本地模式固定 200）</span>}
-                </Label>
-                <Input
-                  type="number"
-                  min={100}
-                  max={8192}
-                  value={isLocalMode ? 200 : chunkMaxTokens}
-                  onChange={(e) => setChunkMaxTokens(Number(e.target.value))}
-                  onBlur={handleChunkTokensBlur}
-                  disabled={isLocalMode}
-                  className="h-8 text-sm"
-                />
-              </div>
-
-              {/* API 地址 */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">API 地址</Label>
-                <Input
-                  value={apiBase}
-                  onChange={(e) => handleApiBaseChange(e.target.value)}
-                  onBlur={handleApiBaseBlur}
-                  disabled={isLocalMode}
-                  className="h-8 text-sm font-mono"
-                  placeholder="https://api.siliconflow.cn/v1"
-                />
-              </div>
-
-              {/* API Key — local 模式隐藏 */}
-              {!isLocalMode && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    硅基流动 API Key
-                    {ragConfig?.has_api_key && !apiKey && (
-                      <span className="ml-1 text-muted-foreground/60">{ragConfig.embedding_api_key_masked}</span>
-                    )}
-                  </Label>
-                  <div className="flex gap-1.5">
-                    <div className="relative flex-1">
-                      <Input
-                        type={showKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        className="h-8 text-sm pr-8"
-                        placeholder={ragConfig?.has_api_key ? '输入新 Key 覆盖旧值' : 'sk-...'}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowKey(!showKey)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSaveKey}
-                      disabled={!apiKey.trim() || configSaving}
-                      className="h-8 text-xs shrink-0"
+          <div className="rounded-xl border border-border overflow-hidden mb-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr]">
+              {/* ── 左栏：Embedding 模式 ── */}
+              <div className="flex flex-col justify-center gap-2 p-5 lg:border-r border-border">
+                <span className="text-sm font-medium text-text-primary inline-flex items-center gap-1 mb-0.5">
+                  Embedding 模式
+                  <InfoTip text="auto：有 API Key 时使用硅基流动 API（1024维），否则使用本地 ONNX 模型（384维）。api：强制使用硅基流动 API。local：强制使用本地 ONNX 模型。注意：API 和本地向量维度不同，切换后需重新索引全部数据源。" />
+                </span>
+                <p className="text-xs text-text-tertiary -mt-0.5 mb-1">选择文本向量化的运行方式</p>
+                {EMBEDDING_MODE_OPTIONS.map((opt) => {
+                  const isSelected = embedMode === opt.value
+                  const OptIcon = opt.icon
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleModeChange(opt.value)}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                          : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
+                      }`}
                     >
-                      {configSaving ? '保存中...' : '保存'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleTestConnection}
-                      disabled={testing}
-                      className="h-8 text-xs shrink-0"
-                    >
-                      <FlaskConical className={`h-3.5 w-3.5 mr-1 ${testing ? 'animate-spin' : ''}`} />
-                      测试
-                    </Button>
-                  </div>
-                  {/* 测试结果 */}
-                  {testResult && (
-                    <p className={`text-xs mt-1 ${testResult.success ? 'text-green-600' : 'text-red-500'}`}>
-                      {testResult.success
-                        ? `✅ 连接成功，维度: ${testResult.dimension}`
-                        : `❌ ${testResult.error}`}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* 模式切换提示 */}
-            {ragConfig && embedMode !== ragConfig.embedding_mode && (
-              <div className="mt-3 p-2 rounded-lg bg-warning-light/50 border border-warning/30">
-                <p className="text-xs text-warning">
-                  ⚠️ Embedding 模式已更改。API(1024维) 和本地 ONNX(384维) 向量不兼容，切换后需重新索引全部数据源。
-                </p>
+                      <span className={`shrink-0 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                        isSelected ? 'border-primary' : 'border-muted-foreground/40'
+                      }`}>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </span>
+                      <OptIcon className={`shrink-0 h-3.5 w-3.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <div className="min-w-0">
+                        <div className={`text-xs font-medium truncate ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
+                          {opt.title}
+                        </div>
+                        <div className="text-[11px] text-text-tertiary leading-tight">{opt.desc}</div>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
-            )}
 
-            <Separator className="my-3" />
-
-            <p className="text-xs text-muted-foreground">
-              免费注册硅基流动 API Key: <a href="https://cloud.siliconflow.cn" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">cloud.siliconflow.cn</a>
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* ── 数据源列表 ── */}
-        {sourcesLoading ? (
-          <div className="grid gap-4 pr-1">
-            {[1, 2].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4 animate-pulse">
-                    <div className="h-10 w-10 rounded-full bg-muted/70 shrink-0" />
-                    <div className="flex-1 space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="h-4 w-20 bg-muted/70 rounded" />
-                        <div className="h-4 w-12 bg-muted/50 rounded-lg" />
+              {/* ── 右栏：参数配置 ── */}
+              <div className="h-fit">
+                {/* 仅在非 local 模式下显示 */}
+                {!isLocalMode && (
+                  <>
+                    <SettingRow
+                      title="Embedding 模型"
+                      description="选择文本向量化模型，多语言场景推荐 BGE-M3"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Select value={embedModel} onValueChange={handleModelChange}>
+                          <SelectTrigger className="w-56 h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent sideOffset={6}>
+                            {EMBEDDING_MODELS.map((m) => (
+                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <InfoTip text="选择 Embedding 模型。BGE-M3 支持中英多语言，效果最好且免费。BGE-large-zh-v1.5 专为中文优化。切换模型后需重新索引全部数据源。" />
                       </div>
-                      <div className="h-3 w-48 bg-muted/50 rounded font-mono" />
-                      <div className="h-3 w-32 bg-muted/50 rounded" />
+                    </SettingRow>
+                    <Separator />
+
+                    <SettingRow
+                      title="API 地址"
+                      description="硅基流动 API 端点地址，通常无需修改"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={apiBase}
+                          onChange={(e) => handleApiBaseChange(e.target.value)}
+                          onBlur={handleApiBaseBlur}
+                          className="w-[400px] h-8 text-sm font-mono"
+                          placeholder="https://api.siliconflow.cn/v1"
+                        />
+                        <InfoTip text="硅基流动 API 的基础地址。默认使用官方服务，如使用兼容 OpenAI 格式的代理服务可在此更改地址。" />
+                      </div>
+                    </SettingRow>
+                    <Separator />
+
+                    {/* API Key */}
+                    <div className="px-4 py-3.5">
+                      <div className="flex items-start justify-between gap-6">
+                        <div className="space-y-0.5 min-w-0 pt-0.5">
+                          <span className="text-sm text-text-primary inline-flex items-center gap-1">
+                            API Key
+                            <InfoTip text="在 cloud.siliconflow.cn 免费注册获取。硅基流动提供免费 Embedding 额度，日常使用基本够用。" />
+                          </span>
+                          <p className="text-xs text-text-tertiary leading-relaxed">
+                            {ragConfig?.has_api_key && !apiKey
+                              ? `已保存: ${ragConfig.embedding_api_key_masked}`
+                              : '输入硅基流动 API Key'}
+                          </p>
+                        </div>
+                        <div className="shrink-0 space-y-1.5">
+                          <div className="flex gap-1.5">
+                            <div className="relative">
+                              <Input
+                                type={showKey ? 'text' : 'password'}
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                className="w-80 h-8 text-sm pr-8"
+                                placeholder={ragConfig?.has_api_key ? '输入新 Key 覆盖旧值' : 'sk-...'}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowKey(!showKey)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              >
+                                {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                              </button>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleSaveKey}
+                              disabled={!apiKey.trim() || configSaving}
+                              className="h-8 text-xs shrink-0"
+                            >
+                              {configSaving ? '保存中...' : '保存'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleTestConnection}
+                              disabled={testing}
+                              className="h-8 text-xs shrink-0"
+                            >
+                              <FlaskConical className={`h-3.5 w-3.5 mr-1 ${testing ? 'animate-spin' : ''}`} />
+                              测试
+                            </Button>
+                          </div>
+                          {testResult && (
+                            <p className={`text-xs ${testResult.success ? 'text-green-600' : 'text-red-500'}`}>
+                              {testResult.success
+                                ? `✅ 连接成功，维度: ${testResult.dimension}`
+                                : `❌ ${testResult.error}`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 bg-muted/50 rounded" />
-                      <div className="h-8 w-8 bg-muted/50 rounded" />
-                    </div>
+                    <Separator />
+                  </>
+                )}
+
+                {/* 分片 Token 上限 — 始终显示 */}
+                <SettingRow
+                  title="分片 Token 上限"
+                  description={isLocalMode ? '本地模式固定为 200 token' : '每个文本片段的最大 Token 数'}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number"
+                      min={100}
+                      max={8192}
+                      value={isLocalMode ? 200 : chunkMaxTokens}
+                      onChange={(e) => setChunkMaxTokens(Number(e.target.value))}
+                      onBlur={handleChunkTokensBlur}
+                      disabled={isLocalMode}
+                      className="w-24 h-8 text-sm text-center"
+                    />
+                    <InfoTip text="每个文本片段的最大 Token 数。值越大单个片段包含越多上下文，但可能超出 Embedding 模型的输入限制（BGE-M3 支持 8192 token）。本地 ONNX 模型固定限制为 200 token。推荐 800-1500。" />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : sources.length === 0 && !configLoading ? (
-          <div className="flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
-            <Database className="w-16 h-16 text-text-disabled mb-4" />
-            <p className="text-base font-medium text-text-primary mb-1">RAG 知识库</p>
-            <p className="text-sm text-text-secondary mb-4">给 AI 喂资料，让它从你的文档中找到答案。</p>
-            <Button onClick={() => setShowAdd(true)} className="mb-4">
-              <Plus className="h-4 w-4 mr-1" />
-              添加数据源
-            </Button>
-            <div className="text-xs space-y-1 text-center text-text-tertiary">
-              <p>💡 支持 txt/md/py/json/csv/html/xml/docx/pdf 格式</p>
-              <p>💡 推荐先用硅基流动免费 API 做 Embedding（设置页配置）</p>
+                </SettingRow>
+
+                <Separator />
+
+                {/* Top-K 召回数 — 始终显示 */}
+                <SettingRow
+                  title="检索数量 (Top-K)"
+                  description="每次查询返回的最相关片段数，推荐 15-25"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <NumberStepper value={topK} min={10} max={30} onChange={handleTopKChange} />
+                    <InfoTip text="每次查询从知识库中召回的最相关文本片段数量。值越大覆盖范围越广，但可能引入噪音。配合精排（API 模式）或 MMR 去重（本地模式）过滤低质量结果。范围 10-30，推荐 20。" />
+                  </div>
+                </SettingRow>
+              </div>
             </div>
           </div>
-        ) : (
-          <div className="grid gap-4 pr-1">
-            {sources.map((s) => (
-              <Card key={s.name} className="hover:shadow-card-hover transition-shadow duration-200">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-10 w-10 shrink-0 rounded-full bg-primary/15">
-                      <AvatarFallback className="bg-transparent text-primary">
-                        <Folder className="h-5 w-5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{s.name}</span>
-                        {s.indexed && <Badge className="rounded-lg text-xs">已索引</Badge>}
+
+          {/* 提示 */}
+          <p className="text-xs text-muted-foreground mb-6">
+            推荐非内网情况下首选硅基流动，比软件自带的 onnx 模型更快，免费额度基本够用(∩_∩)。免费注册硅基流动 API Key: <a href="https://cloud.siliconflow.cn" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">cloud.siliconflow.cn</a>
+          </p>
+
+          {/* ── 数据源列表 ── */}
+          {sourcesLoading ? (
+            <div className="grid gap-4 pr-1">
+              {[1, 2].map((i) => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4 animate-pulse">
+                      <div className="h-10 w-10 rounded-full bg-muted/70 shrink-0" />
+                      <div className="flex-1 space-y-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-4 w-20 bg-muted/70 rounded" />
+                          <div className="h-4 w-12 bg-muted/50 rounded-lg" />
+                        </div>
+                        <div className="h-3 w-48 bg-muted/50 rounded font-mono" />
+                        <div className="h-3 w-32 bg-muted/50 rounded" />
                       </div>
-                      <p className="text-sm text-muted-foreground font-mono truncate mt-0.5">{s.path}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {s.file_count > 0 && `${s.file_count} 个文件`}
-                        {s.chroma_docs > 0 && ` | ChromaDB: ${s.chroma_docs} 片段`}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 bg-muted/50 rounded" />
+                        <div className="h-8 w-8 bg-muted/50 rounded" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleIndex(s.name)}
-                        disabled={indexing[s.name]}
-                        
-                      >
-                        <RefreshCw className={`h-4 w-4 mr-1 ${indexing[s.name] ? 'animate-spin' : ''}`} />
-                        {indexing[s.name] ? '索引中...' : '索引'}
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.name)} className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : sources.length === 0 && !configLoading ? (
+            <div className="flex flex-col items-center justify-center min-h-[300px] text-muted-foreground">
+              <Database className="w-16 h-16 text-text-disabled mb-4" />
+              <p className="text-base font-medium text-text-primary mb-1">知识库为空</p>
+              <p className="text-sm text-text-secondary mb-4">给 AI 喂资料，让它从你的文档中找到答案。</p>
+              <Button onClick={() => setShowAdd(true)} className="mb-4">
+                <Plus className="h-4 w-4 mr-1" />
+                添加数据源
+              </Button>
+              <div className="text-xs space-y-1 text-center text-text-tertiary">
+                <p>💡 支持 txt/md/py/json/csv/html/xml/docx/pdf 格式</p>
+                <p>💡 推荐先用硅基流动免费 API 做 Embedding</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 pr-1">
+              {sources.map((s) => (
+                <Card key={s.name} className="hover:shadow-card-hover transition-shadow duration-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-10 w-10 shrink-0 rounded-full bg-primary/15">
+                        <AvatarFallback className="bg-transparent text-primary">
+                          <Folder className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{s.name}</span>
+                          {s.indexed && <Badge className="rounded-lg text-xs">已索引</Badge>}
+                        </div>
+                        <p className="text-sm text-muted-foreground font-mono truncate mt-0.5">{s.path}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {s.file_count > 0 && `${s.file_count} 个文件`}
+                          {s.chroma_docs > 0 && ` | ChromaDB: ${s.chroma_docs} 片段`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleIndex(s.name)}
+                          disabled={indexing[s.name]}
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-1 ${indexing[s.name] ? 'animate-spin' : ''}`} />
+                          {indexing[s.name] ? '索引中...' : '索引'}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(s.name)} className="text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </ScrollArea>
 
       {/* Add RAG Source Dialog */}
@@ -451,16 +558,16 @@ export default function RAGPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>数据源名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  placeholder="例如: 项目文档" />
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: 项目文档" />
             </div>
             <div className="space-y-2">
               <Label>数据源路径</Label>
-              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })}  placeholder="rag/使用指导 (相对项目根)" />
+              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} placeholder="rag/使用指导 (相对项目根)" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} >取消</Button>
-            <Button onClick={handleAdd} >添加</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+            <Button onClick={handleAdd}>添加</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

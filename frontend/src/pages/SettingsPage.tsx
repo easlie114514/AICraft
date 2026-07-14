@@ -8,91 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { api } from '@/lib/api'
 import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
-
-// ─── Sub-components ───────────────────────────────────────────────
-
-/** A single setting row — clean text label + control, no icon */
-function SettingRow({ title, description, children }: {
-  title: string
-  description?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex items-center justify-between gap-6 px-4 py-3.5">
-      <div className="space-y-0.5 min-w-0">
-        <span className="text-sm text-text-primary">{title}</span>
-        {description && (
-          <p className="text-xs text-text-tertiary leading-relaxed">{description}</p>
-        )}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  )
-}
-
-/** Section label with icon, placed above a group of rows */
-function SectionLabel({ icon: Icon, title, description }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description?: string
-}) {
-  return (
-    <div className="flex items-center gap-2.5 mb-3 ml-1">
-      <Icon className="w-4 h-4 text-text-secondary" />
-      <div>
-        <h3 className="text-sm font-medium text-text-primary">{title}</h3>
-        {description && (
-          <p className="text-xs text-text-tertiary">{description}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Number stepper ───────────────────────────────────────────────
-
-interface ToolRoundsStepperProps {
-  value: number
-  min: number
-  max: number
-  onChange: (v: number) => void
-}
-
-function ToolRoundsStepper({ value, min, max, onChange }: ToolRoundsStepperProps) {
-  return (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8"
-        disabled={value <= min}
-        onClick={() => onChange(value - 1)}
-      >
-        −
-      </Button>
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => {
-          const v = parseInt(e.target.value, 10)
-          if (!isNaN(v)) onChange(v)
-        }}
-        className="h-8 w-14 text-center text-sm border border-border rounded-lg bg-background text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-      />
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8"
-        disabled={value >= max}
-        onClick={() => onChange(value + 1)}
-      >
-        +
-      </Button>
-    </div>
-  )
-}
+import { SettingRow, SectionLabel, NumberStepper } from '@/components/settings-ui'
 
 // ─── Skeleton ─────────────────────────────────────────────────────
 
@@ -204,7 +120,7 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="max-w-2xl pr-1 pb-4">
+        <div className="pr-1 pb-4">
           {settingsLoading ? (
             <SettingsSkeleton />
           ) : (
@@ -234,7 +150,7 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
                   title="最大工具调用轮次"
                   description="LLM 连续调用工具的最大轮次，超过后自动停止（1-100）"
                 >
-                  <ToolRoundsStepper
+                  <NumberStepper
                     value={maxToolRounds}
                     min={1}
                     max={100}

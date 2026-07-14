@@ -593,7 +593,7 @@ async def chat_websocket(ws: WebSocket):
 
                 if toggles.get("rag"):
                     try:
-                        rag_results = await loop.run_in_executor(None, deps.rag_engine.search, user_text, 5)
+                        rag_results = await loop.run_in_executor(None, deps.rag_engine.search, user_text)
                         if rag_results:
                             rag_text = "\n\n".join(rag_results)
                             system_pieces.append((
