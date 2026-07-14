@@ -11,7 +11,8 @@ router = APIRouter(tags=["settings"])
 APP_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "app.json"
 
 # 前端主题名称白名单
-VALID_THEMES = {"blue", "green", "purple", "orange", "rose", "teal", "amber", "pink", "slate"}
+VALID_THEMES = {"blue", "purple", "orange", "rose", "teal", "slate",
+                "crimson", "neon", "dusk", "forest", "gold", "lava"}
 
 
 class SettingsUpdate(BaseModel):
