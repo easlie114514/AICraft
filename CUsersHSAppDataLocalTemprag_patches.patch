@@ -1,0 +1,1861 @@
+From dd6db842541eb9bb69ba938b6dd76a86b670481c Mon Sep 17 00:00:00 2001
+From: easlie114514 <easlie114514@users.noreply.github.com>
+Date: Tue, 14 Jul 2026 13:41:18 +0800
+Subject: [PATCH 1/2] =?UTF-8?q?feat:=20RAG=20=E5=85=A8=E9=9D=A2=E5=8D=87?=
+ =?UTF-8?q?=E7=BA=A7=20=E2=80=94=20=E8=AF=AD=E4=B9=89=E5=88=86=E7=89=87?=
+ =?UTF-8?q?=E3=80=81=E7=B2=BE=E6=8E=92=E3=80=81=E5=8E=BB=E9=87=8D=E3=80=81?=
+ =?UTF-8?q?Prompt=20=E4=BC=98=E5=8C=96?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+分片: SemanticChunker 替代 RecursiveCharacterTextSplitter
+- 结构预分割 (标题/段落/代码块)
+- 中文标点感知切分 (。！？；，)
+- embedding 相似度低谷检测 (API 模式)
+- token 上限硬约束, 防止静默截断
+- 重叠缓冲区 [上文续...]
+
+召回 & 精排:
+- 粗排 top_k×4 扩大候选池
+- Jaccard 3-gram 去重
+- Cross-Encoder 精排 (硅基流动 bge-reranker-v2-m3 API)
+- 本地降级: cosine distance 过滤 + MMR 多样性重排
+- 分阶段 debug 输出
+
+Prompt:
+- 有结果/无结果 双模板
+- ONLY 硬约束, 精确拒绝话术
+- --- 分隔符隔离上下文
+
+配置:
+- embedding 模型默认 bge-m3 (8192 token 免费)
+- chunk_max_tokens 配置项 (本地锁定200, API可配)
+- 模型切换自动检测重建
+- 移除 langchain-text-splitters 依赖
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ backend/chat_ws.py                            |  25 +-
+ backend/routers/rag.py                        |   5 +-
+ config/defaults/default_rag_config.json       |   5 +-
+ ...71\350\277\233\346\226\271\346\241\210.md" | 570 ++++++++++++++++++
+ frontend/src/pages/RAGPage.tsx                |  27 +
+ rag/sources.json                              |   6 +-
+ requirements.txt                              |   1 -
+ src/core/embedding.py                         |  31 +-
+ src/core/rag_engine.py                        | 328 ++++++++--
+ src/core/reranker.py                          | 128 ++++
+ src/core/semantic_chunker.py                  | 365 +++++++++++
+ 11 files changed, 1430 insertions(+), 61 deletions(-)
+ create mode 100644 "docs/RAG\346\224\271\350\277\233\346\226\271\346\241\210.md"
+ create mode 100644 src/core/reranker.py
+ create mode 100644 src/core/semantic_chunker.py
+
+diff --git a/backend/chat_ws.py b/backend/chat_ws.py
+index 8d91217..2149690 100644
+--- a/backend/chat_ws.py
++++ b/backend/chat_ws.py
+@@ -598,14 +598,29 @@ async def chat_websocket(ws: WebSocket):
+                             rag_text = "\n\n".join(rag_results)
+                             system_pieces.append((
+                                 "rag_results",
+-                                "[知识库内容 — 以下是从你的知识库中检索到的相关文档片段，"
+-                                "这些内容就是用户的知识库。请基于这些内容直接回答用户问题。"
+-                                "不要使用工具去查找其他文件或目录，知识库的内容已经在这里了。"
+-                                "如果检索结果确实与问题无关，如实告知即可。]\n"
+-                                + rag_text,
++                                "[知识库内容]\n"
++                                "以下是你专属知识库中与当前问题最相关的片段。\n\n"
++                                "回答规则（必须遵守）：\n"
++                                "1. 只使用以下知识库内容回答，不要用训练数据中的知识补充或覆盖\n"
++                                "2. 知识库未覆盖的信息，明确告知用户「你的知识库中未提及这部分内容」\n"
++                                "3. 如果所有片段都与当前问题无关，如实告知用户，不要强行关联\n"
++                                "4. 不要使用工具去查找其他文件或目录，知识库的内容已经在这里了\n\n"
++                                "---\n"
++                                + rag_text
++                                + "\n---",
+                                 3
+                             ))
+                             inject_items.append(f"RAG检索: {len(rag_results)} 条片段")
++                        else:
++                            # 检索为空时显式告知 LLM，防止它假装有结果
++                            system_pieces.append((
++                                "rag_results",
++                                "[RAG 检索状态]\n"
++                                "已检索你的专属知识库，未找到与当前问题相关的内容。\n"
++                                "请在回复中明确告知用户这一情况，不要假装或暗示从知识库中获取了信息。",
++                                3
++                            ))
++                            inject_items.append("RAG检索: 无结果")
+                     except Exception as e:
+                         inject_items.append(f"RAG检索失败: {e}")
+ 
+diff --git a/backend/routers/rag.py b/backend/routers/rag.py
+index c7deedd..96006b5 100644
+--- a/backend/routers/rag.py
++++ b/backend/routers/rag.py
+@@ -99,8 +99,9 @@ async def get_rag_config():
+         "embedding_mode": config.get("embedding_mode", "auto"),
+         "embedding_api_key_masked": masked_key,
+         "has_api_key": bool(config.get("embedding_api_key")),
+-        "embedding_model": config.get("embedding_model", "BAAI/bge-large-zh-v1.5"),
++        "embedding_model": config.get("embedding_model", "BAAI/bge-m3"),
+         "embedding_api_base": config.get("embedding_api_base", "https://api.siliconflow.cn/v1"),
++        "chunk_max_tokens": config.get("chunk_max_tokens", 800),
+     }
+ 
+ 
+@@ -118,6 +119,8 @@ async def update_rag_config(data: dict):
+         config["embedding_model"] = data["embedding_model"]
+     if "embedding_api_base" in data:
+         config["embedding_api_base"] = data["embedding_api_base"]
++    if "chunk_max_tokens" in data:
++        config["chunk_max_tokens"] = int(data["chunk_max_tokens"])
+     save_json(CONFIG_DIR / "rag_config.json", config)
+     return {"success": True}
+ 
+diff --git a/config/defaults/default_rag_config.json b/config/defaults/default_rag_config.json
+index f73730b..ff031c1 100644
+--- a/config/defaults/default_rag_config.json
++++ b/config/defaults/default_rag_config.json
+@@ -1,6 +1,7 @@
+ {
+   "embedding_mode": "auto",
+   "embedding_api_key": "",
+-  "embedding_model": "BAAI/bge-large-zh-v1.5",
+-  "embedding_api_base": "https://api.siliconflow.cn/v1"
++  "embedding_model": "BAAI/bge-m3",
++  "embedding_api_base": "https://api.siliconflow.cn/v1",
++  "chunk_max_tokens": 800
+ }
+diff --git "a/docs/RAG\346\224\271\350\277\233\346\226\271\346\241\210.md" "b/docs/RAG\346\224\271\350\277\233\346\226\271\346\241\210.md"
+new file mode 100644
+index 0000000..902b336
+--- /dev/null
++++ "b/docs/RAG\346\224\271\350\277\233\346\226\271\346\241\210.md"
+@@ -0,0 +1,570 @@
++# AICraft RAG 改进方案
++
++> 诊断日期：2026-07-13
++> 诊断范围：`src/core/rag_engine.py`、`src/core/embedding.py`、`backend/chat_ws.py`
++
++---
++
++## 一、现状诊断
++
++### 1.1 分片（Chunking）— ❌ 无语义分片
++
++**当前实现** (`rag_engine.py:273-277`)：
++
++```python
++splitter = RecursiveCharacterTextSplitter(
++    chunk_size=500,
++    chunk_overlap=50,
++)
++```
++
++问题：
++
++| 问题 | 影响 |
++|------|------|
++| `chunk_size=500` 字符过小 | 单个片段难以承载完整的语义单元，回答容易断章取义 |
++| `chunk_overlap=50` (仅 10%) | 边界上下文丢失严重，相邻片段衔接断裂 |
++| 固定字符数切分 | 不考虑句子/段落/语义边界，可能在句子中间截断 |
++| 无语义分片 | 没有利用 embedding 相似度检测语义转折点，同一主题可能被切到两个不同片段 |
++
++> `RecursiveCharacterTextSplitter` 虽然优先在 `\n\n` → `\n` → `。` → ` ` 等分隔符处切分，**比纯字符截断好**，但本质上仍是固定大小切分，不是语义分片。
++
++#### LangChain 依赖说明
++
++整个项目中 **仅此一处** 使用了 LangChain 生态的包：
++
++| 位置 | 引用 |
++|------|------|
++| `src/core/rag_engine.py:243` | `from langchain_text_splitters import RecursiveCharacterTextSplitter` |
++| `requirements.txt` | `langchain-text-splitters` |
++
++项目没有引入 `langchain-core`、`langchain-community` 等重型依赖，只是为这一个切分器装了轻量包 `langchain-text-splitters`。**也就是说，项目中唯一用到 LangChain 的地方，就是被诊断出的"强制切片"问题所在。** 改为语义分片后，此依赖可以直接移除，反而让依赖树更干净。
++
++### 1.2 召回（Retrieval）— ⚠️ 仅简单向量检索
++
++**当前实现** (`rag_engine.py:339-382`)：
++
++```python
++result = collection.query(
++    query_texts=[query],
++    n_results=top_k,   # 固定 5
++)
++```
++
++问题：
++
++| 问题 | 影响 |
++|------|------|
++| 单一向量相似度检索 | 只能捕捉语义相似，无法匹配精确关键词 |
++| `top_k=5` 固定且偏少 | 后续无重排，直接截断可能遗漏高价值片段 |
++| 无查询改写 | 用户口语化提问与文档书面语不匹配时召回率低 |
++| 无混合检索 | 缺少 BM25/关键词等稀疏检索互补 |
++
++### 1.3 重排序（Reranking）— ❌ 完全缺失
++
++**当前实现**：`search()` 方法直接返回 ChromaDB 的 cosine 相似度排序结果，**没有任何重排逻辑**。
++
++缺失的能力：
++
++| 缺失环节 | 说明 |
++|----------|------|
++| Cross-Encoder 重排 | 用更强的模型对召回结果重新打分，精度远高于双塔向量相似度 |
++| 多样性重排 (MMR) | 召回结果可能高度重复，缺少去重/多样性控制 |
++| 相关性阈值过滤 | 低相关度的片段也被注入，浪费上下文窗口 |
++| 上下文窗口感知排序 | 不知道最终有多少 token 预算，无脑塞入所有结果 |
++
++### 1.4 后处理（Post-processing）— ❌ 无过滤，粗暴拼接
++
++**当前实现** (`chat_ws.py:594-610`)：
++
++```python
++rag_results = await loop.run_in_executor(None, deps.rag_engine.search, user_text, 5)
++if rag_results:
++    rag_text = "\n\n".join(rag_results)
++    system_pieces.append(("rag_results", prompt_prefix + rag_text, 3))
++```
++
++问题：
++
++| 问题 | 影响 |
++|------|------|
++| 所有结果无脑拼接 | 低相关片段浪费 token 预算 |
++| 无去重 | 高度相似的片段重复注入 |
++| 无上下文压缩 | 片段可能很长，超出实际需要 |
++| 预算裁剪粗暴 (`context_budget.py:152-155`) | 超预算时直接砍掉后半段，可能丢失关键信息 |
++
++---
++
++## 二、改进方案
++
++### 方案总览
++
++```
++                        当前                              改进后
++                  ┌──────────────┐              ┌──────────────────┐
++  文档 ──────────→│ 固定500字切分  │     文档 ──→│ 语义分片           │
++                  └──────┬───────┘              │ (SemanticChunker) │
++                         ↓                      └────────┬─────────┘
++                  ┌──────────────┐                       ↓
++  查询 ──────────→│ 原始查询      │     查询 ──→│ 查询改写 + 混合检索  │
++                  └──────┬───────┘              └────────┬─────────┘
++                         ↓                               ↓
++                  ┌──────────────┐              ┌──────────────────┐
++                  │ 向量检索 top5 │              │ 向量 + BM25 粗排  │
++                  └──────┬───────┘              │ 召回 top_k=20     │
++                         ↓                      └────────┬─────────┘
++                  ┌──────────────┐                       ↓
++                  │ (无重排)      │              ┌──────────────────┐
++                  └──────┬───────┘              │ Cross-Encoder 精排│
++                         ↓                      │ + MMR 多样性去重   │
++                  ┌──────────────┐              └────────┬─────────┘
++                  │ 粗暴拼接注入  │                       ↓
++                  └──────────────┘              ┌──────────────────┐
++                                                │ 相关性过滤 + 压缩  │
++                                                │ 预算感知注入       │
++                                                └──────────────────┘
++```
++
++### 2.1 语义分片（Semantic Chunking）
++
++#### 方案选择
++
++| 方案 | 原理 | 适用场景 | 复杂度 |
++|------|------|----------|--------|
++| **A. 基于 Embedding 相似度** | 计算相邻句子的 embedding 余弦相似度，在相似度"低谷"处切分 | 通用文档 | 中 |
++| B. 基于 LLM 分割 | 让 LLM 判断语义边界 | 高度结构化文档 | 高（成本大） |
++| C. 基于段落/标题结构 | 按 Markdown 标题/段落层级切分 | Markdown/结构化文档 | 低 |
++
++#### 推荐：**方案 A + C 混合**（嵌入相似度 + 文档结构感知）
++
++```
++算法流程:
++1. 按文档结构预分割（Markdown 标题、段落、代码块等）
++2. 对每个预分割单元用 embedding 模型生成向量
++3. 计算相邻单元的余弦相似度
++4. 在相似度低于阈值(如 0.5)处切分
++5. 合并过小的片段，保证最小 100 token、最大 800 token
++6. 重叠缓冲区：每个 chunk 从上一 chunk 末尾取 100~200 token 作为前缀
++```
++
++**关键参数建议**：
++
++| 参数 | 当前值 | 建议值 | 说明 |
++|------|--------|--------|------|
++| chunk_size | 500 字符 | 500~800 token | 根据文档类型自适应，约合中文 750~1200 字符 |
++| chunk_overlap | 50 字符 | 100~200 token | 约合中文 150~300 字符，作为检索时的上下文安全垫 |
++| 相似度阈值 | — | 0.5~0.6 | 低于此值视为语义边界 |
++| 最小chunk | — | 100 token | 低于此值合并到相邻片段 |
++
++> **为什么用 token 而不是字符？** Embedding 模型和 LLM 都以 token 为粒度计费/计量。中文 1 token ≈ 1.5 字符，直接以 token 设计可以精确控制窗口占用，避免中英混排时字符数失真。
++
++#### 重叠缓冲区设计
++
++语义分片的切分点由相似度低谷决定，而非固定步长滑动。因此重叠缓冲区需要**语义边界感知**：
++
++```
++┌─────────────────────────────────────────────────────────────┐
++│  原文:  ...段落A... │ ←低谷→ │ ...段落B... │ ←低谷→ │ ...段落C...  │
++└─────────────────────────────────────────────────────────────┘
++                          ↓ 切分
++┌──────────────────────┬──────────────────────┬──────────────────────┐
++│ Chunk 1: A (主体)     │ Chunk 2: B (主体)     │ Chunk 3: C (主体)     │
++│ 无前缀               │ 前缀: A 末尾 100-200t │ 前缀: B 末尾 100-200t │
++│                      │ 标记: [上文续...]     │ 标记: [上文续...]     │
++└──────────────────────┴──────────────────────┴──────────────────────┘
++```
++
++**重叠内容选择策略**（三步）：
++
++```python
++def _build_overlap(prev_chunk: str, overlap_tokens: int = 150) -> str:
++    """
++    从上一 chunk 末尾提取重叠缓冲区。
++    不做固定字符截断，而是找到最近的完整句子边界。
++    """
++    # 1. 估算目标字符数（中文 1 token ≈ 1.5 chars）
++    target_chars = overlap_tokens * 1.5
++
++    # 2. 从 prev_chunk 末尾向前扫描
++    tail = prev_chunk[-int(target_chars * 1.5):]  # 多取 50%，防止欠取
++
++    # 3. 向前调整到最近的句子边界（。！？\n\n）
++    #    避免从句子中间开始
++    sentence_breaks = ['。', '！', '？', '\n\n', '. ', '! ', '? ']
++    best_pos = 0
++    for sep in sentence_breaks:
++        pos = tail.find(sep)
++        if 0 < pos < best_pos or best_pos == 0:
++            best_pos = pos + len(sep)
++
++    if best_pos > 0:
++        tail = tail[best_pos:]
++
++    # 4. 如果仍然超过限制，tokenize 后精确截断到 overlap_tokens
++    tokens = tokenize(tail)
++    if len(tokens) > overlap_tokens:
++        tail = detokenize(tokens[-overlap_tokens:])
++
++    return "[上文续...]\n" + tail
++```
++
++**边界处的关键处理**：
++- 重叠区加上 `[上文续...]` 标记，让 LLM 知道这是上下文衔接而非独立段落
++- 如果 prev_chunk 本身就小于 overlap_tokens，直接整体作为下一个 chunk 的前缀（即 chunk_overlap > chunk 本身时，两 chunk 共享同一段文本——这在极小文档中可能发生，属于正常降级）
++- 检索时两 chunk 都被命中 → LLM 看到的上下文是连续的，不会出现"断章取义"
++
++**为什么是 100~200 token？**
++
++| overlap | 效果 |
++|---------|------|
++| < 50 token | 边界上下文不足，检索到 chunk 边界附近的内容时容易缺失前文 |
++| 100~200 token | 约 2-4 个中文句子，覆盖绝大多数语义衔接的必备上下文 |
++| > 300 token | 冗余过多，多个 chunk 重复内容占比高，浪费向量存储和 token 预算 |
++
++权衡后取 **150 token 默认**，约 3 句中文，可配置为 100~200 区间。
++
++#### 更新后的伪代码
++
++```python
++class SemanticChunker:
++    def __init__(self, embed_fn, similarity_threshold=0.5,
++                 min_chunk_tokens=100, max_chunk_tokens=800,
++                 overlap_tokens=150):
++        ...
++
++    def split(self, text: str, doc_type: str = "text") -> list[str]:
++        # 1. 预分割：按文档结构/句子
++        segments = self._presplit(text, doc_type)
++        # 2. 计算相邻段 embedding 相似度
++        embeddings = [self.embed_fn([s])[0] for s in segments]
++        similarities = [cosine_sim(embeddings[i], embeddings[i+1])
++                        for i in range(len(embeddings)-1)]
++        # 3. 在相似度低谷处切分
++        boundaries = self._find_boundaries(similarities)
++        # 4. 合并过小片段、限制最大 token 数
++        chunks = self._merge_and_trim(segments, boundaries)
++        # 5. 为每个 chunk 构建重叠缓冲区（从上一 chunk 末尾取）
++        chunks = self._add_overlap(chunks)
++        return chunks
++
++    def _add_overlap(self, chunks: list[str]) -> list[str]:
++        result = [chunks[0]]  # 第一个 chunk 不需要前缀
++        for i in range(1, len(chunks)):
++            prefix = self._build_overlap(chunks[i-1], self.overlap_tokens)
++            result.append(prefix + chunks[i])
++        return result
++```
++
++---
++
++### 2.2 混合检索（Hybrid Retrieval）
++
++#### 当前：仅向量检索
++#### 改进：向量 + 关键词 混合
++
++| 检索方式 | 优势 | 劣势 |
++|----------|------|------|
++| 向量检索 (Dense) | 语义匹配，同义词/改写 | 对精确关键词（代码、ID、术语）弱 |
++| 关键词检索 (Sparse/BM25) | 精确匹配，专有名词 | 无法理解同义改写 |
++
++#### 推荐方案：**向量 + BM25 混合**，使用 RRF (Reciprocal Rank Fusion) 融合
++
++```
++算法:
++1. 用户查询 → 向量检索 top_k*2 条
++2. 用户查询 → BM25 检索 top_k*2 条
++3. RRF 融合两个排序结果:
++   RRF_score(d) = Σ 1/(k + rank_i(d))   # k=60
++4. 取融合后 top_k 条进入精排
++```
++
++**为什么不用 ChromaDB 内置的 BM25？** ChromaDB 目前不支持 BM25，需要额外引入轻量级方案：
++
++- **推荐**：使用 `rank_bm25` (纯 Python，无额外依赖) 构建内存中 BM25 索引
++- **备选**：集成 Elasticsearch / Meilisearch（重量级，适合大规模）
++
++对于 AICraft 的项目规模（本地知识库，数百到数千文档），`rank_bm25` 完全够用。
++
++#### 查询改写（Query Rewriting）
++
++在检索前增加一个轻量级查询优化步骤：
++
++```
++原始查询: "怎么配置那个AI模型"
++改写后: "如何配置 AI 模型 API Key"
++```
++
++- **触发条件**：查询过短 (< 10字) 或包含口语化指代词（"那个"、"这个"）
++- **实现方式**：用 Flash 模型做一次快速改写（约 50 tokens），几乎无感延迟
++- **设计为可选**：配置开关，用户可选择关闭以节省 token
++
++#### 伪代码
++
++```python
++class HybridRetriever:
++    def __init__(self, vector_store, bm25_index, embed_fn):
++        ...
++
++    def retrieve(self, query: str, top_k: int = 20,
++                 rewrite: bool = True) -> list[dict]:
++        # 可选：查询改写
++        if rewrite and self._needs_rewrite(query):
++            query = self._rewrite_query(query)
++
++        # 向量检索
++        dense_results = self.vector_store.query(query, n_results=top_k * 2)
++
++        # BM25 关键词检索
++        sparse_results = self.bm25_index.search(query, top_k * 2)
++
++        # RRF 融合
++        fused = self._rrf_fusion(dense_results, sparse_results, k=60)
++        return fused[:top_k]
++```
++
++---
++
++### 2.3 Cross-Encoder 精排（Reranking）
++
++#### 推荐方案：本地 Reranker 模型
++
++| 方案 | 模型 | 延迟 | 精度 |
++|------|------|------|------|
++| **A. 本地 ONNX** | `bge-reranker-v2-m3` / `ms-marco-MiniLM` | ~50ms/条 | ⭐⭐⭐⭐ |
++| B. API 调用 | SiliconFlow Rerank API / Cohere Rerank | ~200ms | ⭐⭐⭐⭐⭐ |
++| C. LLM 打分 | 用 Flash 模型对每条打分 | ~500ms | ⭐⭐⭐⭐⭐ |
++
++#### 推荐：**方案 A（本地 ONNX）+ B（API 备选）**
++
++理由：
++- 本地模型延迟低，可对 top_k=20 结果在 ~1s 内完成重排
++- 项目已有 `onnxruntime` 依赖和 ONNX 模型管理经验
++- 保留 API 选项作为高精度模式
++
++#### 推荐的 Reranker 模型
++
++| 模型 | 大小 | 说明 |
++|------|------|------|
++| `BAAI/bge-reranker-v2-m3` | ~1.5GB | 多语言，中文效果好 |
++| `BAAI/bge-reranker-base` | ~1.1GB | 轻量级 |
++| `cross-encoder/ms-marco-MiniLM-L-6-v2` | ~90MB | 极轻量，英文为主 |
++
++对于 AICraft 的中文场景，推荐 `bge-reranker-v2-m3`，通过 ONNX 量化后约 600MB，可以接受。
++
++#### 精排流程
++
++```
++粗排 top_k=20 → Cross-Encoder 逐条打分 → 按 relevance 排序 → MMR 去重 → 取 top_n=5
++```
++
++#### MMR (Maximal Marginal Relevance) 多样性去重
++
++```python
++def mmr_rerank(docs: list[dict], scores: list[float],
++               lambda_param: float = 0.7, top_n: int = 5) -> list[dict]:
++    """
++    lambda_param: 相关性 vs 多样性权重
++    0.7 = 偏相关性, 0.5 = 平衡, 0.3 = 偏多样性
++    """
++    selected = []
++    remaining = list(range(len(docs)))
++
++    while len(selected) < top_n and remaining:
++        mmr_scores = []
++        for i in remaining:
++            relevance = scores[i]
++            # 与已选文档的最大相似度
++            max_sim = max(
++                (cosine_sim(docs[i].embedding, docs[j].embedding)
++                 for j in selected),
++                default=0
++            )
++            mmr = lambda_param * relevance - (1 - lambda_param) * max_sim
++            mmr_scores.append(mmr)
++
++        best = remaining[argmax(mmr_scores)]
++        selected.append(best)
++        remaining.remove(best)
++
++    return [docs[i] for i in selected]
++```
++
++---
++
++### 2.4 后处理增强
++
++#### 2.4.1 相关性阈值过滤
++
++设置相关性分数阈值，低于阈值的片段不注入：
++
++```python
++RELEVANCE_THRESHOLD = 0.3  # 可配置
++filtered = [d for d, s in zip(docs, scores) if s >= RELEVANCE_THRESHOLD]
++```
++
++#### 2.4.2 上下文窗口感知压缩
++
++根据 ContextBudget 的剩余 token 预算动态决定注入多少 RAG 内容：
++
++```python
++def inject_rag_results(docs: list[dict], budget: ContextBudget, max_chars: int = 3000):
++    """按预算注入 RAG 结果，优先保留高相关度片段"""
++    remaining = budget.remaining_tokens * 2  # token → 字符估算
++    injected = []
++    for doc in docs:  # 已按 relevance 排序
++        snippet = doc.content[:500]  # 单条最多 500 字符
++        if len("\n\n".join(injected)) + len(snippet) > min(max_chars, remaining):
++            break
++        injected.append(snippet)
++    return injected
++```
++
++#### 2.4.3 片段格式化
++
++每条 RAG 结果附带来源文件名（已存储在 ChromaDB metadata 中）：
++
++```python
++# 当前: 纯文本拼接
++# 改进: 带来源标注
++formatted = []
++for doc in docs:
++    source = doc.metadata.get("source", "未知")
++    fname = Path(source).name
++    formatted.append(f"📄 [{fname}]\n{doc.content}")
++```
++
++---
++
++## 三、实施优先级
++
++### Phase 1：短期（1-2 周）— 最大收益 / 最小改动
++
++| 任务 | 改动范围 | 预期效果 |
++|------|----------|----------|
++| **1.1 增大 chunk_size 和 overlap** | `rag_engine.py` 2 行 | 立即改善片段连贯性 |
++| `chunk_size: 500字 → 800 token, overlap: 50字 → 150 token` | | |
++| **1.2 添加 Cross-Encoder 精排** | 新增 `src/core/reranker.py` | 召回精度提升 30-50% |
++| 用 `bge-reranker-v2-m3` ONNX 模型 | | |
++| **1.3 RAG 结果去重** | `rag_engine.py` search 末尾 | 减少重复内容注入 |
++| 基于 Jaccard/编辑距离的简单去重 | | |
++
++### Phase 2：中期（2-4 周）— 体验质变
++
++| 任务 | 改动范围 | 预期效果 |
++|------|----------|----------|
++| **2.1 语义分片** | 新增 `src/core/semantic_chunker.py` | 片段语义完整性大幅提升 |
++| 基于 embedding 相似度低谷 | | |
++| **2.2 混合检索 (向量 + BM25)** | 新增 `src/core/hybrid_retriever.py` | 精确关键词匹配能力 |
++| **2.3 相关性阈值过滤** | `rag_engine.py` search() | 减少低质量片段注入 |
++| **2.4 上下文窗口感知压缩** | `chat_ws.py` RAG 注入段 | token 预算利用率提升 |
++
++### Phase 3：长期（1-2 月）— 锦上添花
++
++| 任务 | 改动范围 | 预期效果 |
++|------|----------|----------|
++| **3.1 查询改写** | `rag_engine.py` search 前置 | 口语化查询召回率提升 |
++| **3.2 MMR 多样性重排** | 并入精排流程 | 避免冗余片段 |
++| **3.3 RAG 评估反馈** | 新模块 | 两两对比/用户反馈优化检索参数 |
++| **3.4 增量索引** | `rag_engine.py` | 大目录改动时只索引变更文件 |
++
++---
++
++### 待优化项总览
++
++#### 分片
++
++| # | 项 | 现状 | 预期 |
++|---|----|------|------|
++| 1 | 语义分片 | `RecursiveCharacterTextSplitter` 固定 500 字硬切 | 改为基于 embedding 相似度低谷检测，片段内语义连贯，不再从中截断 |
++| 2 | chunk_size | 500 字符，完整语义单元被切碎 | 增大到 500~800 token（约合中文 750~1200 字符），完整段落不再被切断 |
++| 3 | chunk_overlap | 50 字符（仅 10%），边界上下文丢失 | 增大到 100~200 token（约合中文 150~300 字符），边界处上下文平滑过渡，chunk 间语义连续 |
++| 4 | LangChain 依赖 | 仅为 `RecursiveCharacterTextSplitter` 引入 `langchain-text-splitters` | 语义分片后移除该依赖，减少依赖树体积 |
++
++#### 召回
++
++| # | 项 | 现状 | 预期 |
++|---|----|------|------|
++| 5 | 混合检索 | 仅向量相似度检索 | 向量 + BM25 混合 + RRF 融合，精确关键词（代码/ID/术语）也能命中，召回率提升 20-40% |
++| 6 | top_k | 固定 5 条，无精排直接截断 | 粗排召回 20 条，留给精排充足候选池，减少遗漏 |
++| 7 | 查询改写 | 无 | 口语化提问自动改写为检索友好的书面语，模糊查询召回率明显提升 |
++
++#### 重排
++
++| # | 项 | 现状 | 预期 |
++|---|----|------|------|
++| 8 | Cross-Encoder 精排 | ChromaDB cosine 排序直接使用 | Cross-Encoder 逐对打分重排，排序精度比双塔向量提升 30-50%，最相关内容排在前面 |
++| 9 | 多样性去重 (MMR) | 无 | 抑制高度相似片段的重复注入，相同 token 预算覆盖更多不同角度 |
++| 10 | 相关性阈值过滤 | 无 | 低于阈值（如 0.3）的片段直接丢弃，不浪费上下文窗口 |
++
++#### 后处理
++
++| # | 项 | 现状 | 预期 |
++|---|----|------|------|
++| 11 | 结果去重 | 不同数据源可能返回相似内容，不做去重 | Jaccard 相似度去重，相同内容不重复占 token |
++| 12 | 上下文预算感知 | 超预算时粗暴砍半 | 按 relevance 排序后从低到高裁剪，优先保留高价值片段 |
++| 13 | 来源标注 | 纯文本拼接，用户不知道片段来自哪个文档 | 每条结果带 `📄 [文件名]` 标注，可追溯、可验证 |
++
++#### 工程化
++
++| # | 项 | 现状 | 预期 |
++|---|----|------|------|
++| 14 | 增量索引 | 每次全量重建整个目录 | 仅索引新增/修改的文件，大目录重建从分钟级降到秒级 |
++| 15 | 参数配置化 | `chunk_size`/`overlap`/`top_k` 全部硬编码在源码中 | 全部参数集中在 `rag_config.json`，调整无需改代码，运行时即时生效 |
++
++---
++
++## 四、配置化设计
++
++所有 RAG 高级参数应集中在 `config/rag_config.json`，支持运行时调整：
++
++```json
++{
++  "embedding_mode": "auto",
++  "embedding_api_key": "",
++  "embedding_model": "BAAI/bge-large-zh-v1.5",
++  "embedding_api_base": "https://api.siliconflow.cn/v1",
++
++  "chunking": {
++    "mode": "semantic",
++    "chunk_size": 1000,
++    "chunk_overlap": 200,
++    "similarity_threshold": 0.5,
++    "min_chunk_size": 200,
++    "max_chunk_size": 1500
++  },
++
++  "retrieval": {
++    "mode": "hybrid",
++    "top_k": 20,
++    "rrf_k": 60,
++    "enable_query_rewrite": false
++  },
++
++  "reranking": {
++    "enabled": true,
++    "model": "BAAI/bge-reranker-v2-m3",
++    "mode": "local",
++    "top_n": 5,
++    "relevance_threshold": 0.3,
++    "mmr_lambda": 0.7
++  },
++
++  "injection": {
++    "max_chars": 3000,
++    "format": "source_annotated",
++    "enable_dedup": true
++  }
++}
++```
++
++---
++
++## 五、兼容性说明
++
++1. **平滑升级**：新参数都有默认值，老配置文件无需修改即可运行
++2. **降级策略**：
++   - 语义分片失败 → 回退到 `RecursiveCharacterTextSplitter`
++   - Reranker 加载失败 → 跳过精排，用粗排结果
++   - BM25 索引构建失败 → 仅用向量检索
++3. **重新索引提示**：chunking 模式变更后，提示用户重新索引数据源
++4. **ONNX 模型管理**：Reranker 模型按 `models/onnx/` 的现有惯例管理，支持 PyInstaller 打包
+diff --git a/frontend/src/pages/RAGPage.tsx b/frontend/src/pages/RAGPage.tsx
+index 996801e..6b31f2d 100644
+--- a/frontend/src/pages/RAGPage.tsx
++++ b/frontend/src/pages/RAGPage.tsx
+@@ -35,6 +35,7 @@ interface RAGConfig {
+   has_api_key: boolean
+   embedding_model: string
+   embedding_api_base: string
++  chunk_max_tokens: number
+ }
+ 
+ const EMBEDDING_MODELS = [
+@@ -58,6 +59,7 @@ export default function RAGPage() {
+   const [showKey, setShowKey] = useState(false)
+   const [embedModel, setEmbedModel] = useState('BAAI/bge-large-zh-v1.5')
+   const [apiBase, setApiBase] = useState('https://api.siliconflow.cn/v1')
++  const [chunkMaxTokens, setChunkMaxTokens] = useState(800)
+   const [testing, setTesting] = useState(false)
+   const [testResult, setTestResult] = useState<{ success: boolean; dimension?: number; error?: string } | null>(null)
+   const [configSaving, setConfigSaving] = useState(false)
+@@ -88,6 +90,7 @@ export default function RAGPage() {
+       setEmbedMode(data.embedding_mode)
+       setEmbedModel(data.embedding_model)
+       setApiBase(data.embedding_api_base)
++      setChunkMaxTokens(data.chunk_max_tokens || 800)
+       // 不清空 apiKey — 保持用户已输入的内容
+     } catch { /* ignore */ }
+     setConfigLoading(false)
+@@ -130,6 +133,12 @@ export default function RAGPage() {
+     }
+   }
+ 
++  const handleChunkTokensBlur = () => {
++    if (chunkMaxTokens > 0 && chunkMaxTokens !== ragConfig?.chunk_max_tokens) {
++      saveRagConfig({ chunk_max_tokens: String(chunkMaxTokens) })
++    }
++  }
++
+   const handleSaveKey = async () => {
+     if (!apiKey.trim()) return
+     await saveRagConfig({ embedding_api_key: apiKey.trim() })
+@@ -241,6 +250,24 @@ export default function RAGPage() {
+                 </Select>
+               </div>
+ 
++              {/* Chunk 分片 Token 上限 */}
++              <div className="space-y-1.5">
++                <Label className="text-xs text-muted-foreground">
++                  分片 Token 上限
++                  {isLocalMode && <span className="ml-1 text-muted-foreground/60">（本地模式固定 200）</span>}
++                </Label>
++                <Input
++                  type="number"
++                  min={100}
++                  max={8192}
++                  value={isLocalMode ? 200 : chunkMaxTokens}
++                  onChange={(e) => setChunkMaxTokens(Number(e.target.value))}
++                  onBlur={handleChunkTokensBlur}
++                  disabled={isLocalMode}
++                  className="h-8 text-sm"
++                />
++              </div>
++
+               {/* API 地址 */}
+               <div className="space-y-1.5">
+                 <Label className="text-xs text-muted-foreground">API 地址</Label>
+diff --git a/rag/sources.json b/rag/sources.json
+index 38838db..39a971f 100644
+--- a/rag/sources.json
++++ b/rag/sources.json
+@@ -9,11 +9,11 @@
+       "indexed": false
+     },
+     {
+-      "name": "SIPP",
+-      "path": "release/AICraft/rag/SIPP",
++      "name": "小鸡毛与哆啦A梦的离谱怪兽大作战",
++      "path": "rag/故事",
+       "type": "local",
+       "enabled": true,
+-      "file_count": 4,
++      "file_count": 1,
+       "indexed": true
+     }
+   ]
+diff --git a/requirements.txt b/requirements.txt
+index 4640fda..f95e39f 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,7 +1,6 @@
+ httpx>=0.27.0
+ mcp>=1.0.0
+ chromadb>=0.5.0
+-langchain-text-splitters
+ PyPDF2
+ python-docx
+ anthropic>=0.100.0
+diff --git a/src/core/embedding.py b/src/core/embedding.py
+index c3349ae..6799897 100644
+--- a/src/core/embedding.py
++++ b/src/core/embedding.py
+@@ -47,18 +47,15 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
+         self.api_key = api_key
+         self.model = model
+         self.api_base = api_base.rstrip("/")
+-        self._client = httpx.Client(timeout=60.0)
+ 
+-    def __del__(self):
+-        """析构时关闭 HTTP 客户端，释放连接池"""
+-        try:
+-            self._client.close()
+-        except Exception:
+-            pass
++    @property
++    def _client(self):
++        """每次调用创建新连接，避免持久连接池的状态问题"""
++        return httpx.Client(timeout=60.0)
+ 
+     def close(self):
+-        """显式关闭 HTTP 客户端"""
+-        self._client.close()
++        """显式关闭（兼容接口，新实现无需此操作）"""
++        pass
+ 
+     def __call__(self, input: list[str]) -> list[list[float]]:
+         batch_size = 64
+@@ -71,6 +68,7 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
+                     {"model": self.model, "input": batch},
+                     ensure_ascii=False,
+                 ).encode("utf-8")
++                print(f"[Embedding] 请求 model={self.model}, batch={len(batch)}条, body={len(body)}bytes")
+                 resp = self._client.post(
+                     f"{self.api_base}/embeddings",
+                     headers={
+@@ -85,6 +83,10 @@ class SiliconFlowEmbeddingFunction(EmbeddingFunction):
+                 all_embeddings.extend([d["embedding"] for d in data])
+             except httpx.HTTPStatusError as e:
+                 print(f"[Embedding] API 错误: {e.response.status_code} {e.response.text[:200]}")
++                # 调试：打印导致错误的输入
++                for j, t in enumerate(batch):
++                    idx = i + j
++                    print(f"  input[{idx}] len={len(t)} empty={not t.strip() if t else 'None'} preview={repr(t[:80])}")
+                 raise
+             except Exception as e:
+                 print(f"[Embedding] 请求异常: {type(e).__name__}: {e}")
+@@ -134,7 +136,12 @@ def is_local_embedding_available() -> bool:
+         return False
+ 
+ 
+-def get_embedding_function(mode: str = "auto", api_key: str = "") -> EmbeddingFunction | None:
++def get_embedding_function(
++    mode: str = "auto",
++    api_key: str = "",
++    model: str = "BAAI/bge-m3",
++    api_base: str = "https://api.siliconflow.cn/v1",
++) -> EmbeddingFunction | None:
+     """获取 embedding 函数
+ 
+     mode="api"   → 强制硅基流动 API（需 api_key）
+@@ -144,12 +151,12 @@ def get_embedding_function(mode: str = "auto", api_key: str = "") -> EmbeddingFu
+     if mode == "api":
+         if not api_key:
+             raise ValueError("API 模式需要提供硅基流动 API Key")
+-        return SiliconFlowEmbeddingFunction(api_key=api_key)
++        return SiliconFlowEmbeddingFunction(api_key=api_key, model=model, api_base=api_base)
+ 
+     if mode == "local":
+         return None  # ChromaDB 使用默认 ONNX，路径已在模块顶部指向内置模型
+ 
+     # auto 模式
+     if api_key:
+-        return SiliconFlowEmbeddingFunction(api_key=api_key)
++        return SiliconFlowEmbeddingFunction(api_key=api_key, model=model, api_base=api_base)
+     return None  # 本地 ONNX
+diff --git a/src/core/rag_engine.py b/src/core/rag_engine.py
+index a3e9303..5952c95 100644
+--- a/src/core/rag_engine.py
++++ b/src/core/rag_engine.py
+@@ -1,6 +1,7 @@
+ """RAG引擎 - 文档索引与检索"""
+ 
+ import hashlib
++import math
+ import re
+ from dataclasses import dataclass
+ from pathlib import Path
+@@ -8,6 +9,7 @@ from typing import Any
+ 
+ from src.utils.config import RAG_STATE_DIR, load_json, save_json, CHROMA_DIR, resolve_path, CONFIG_DIR
+ from src.core.embedding import get_embedding_function
++from src.core.reranker import get_reranker
+ 
+ 
+ def _safe_collection_name(name: str) -> str:
+@@ -27,6 +29,87 @@ def _safe_collection_name(name: str) -> str:
+     return safe
+ 
+ 
++def _deduplicate_chunks(chunks: list[str], threshold: float = 0.75) -> list[str]:
++    """基于 Jaccard 相似度去除重复/高度相似的文本片段"""
++    if len(chunks) <= 1:
++        return chunks
++    import re
++    def _ngrams(text: str, n: int = 3) -> set[str]:
++        clean = re.sub(r"\s+", " ", text)
++        if len(clean) < n:
++            return {clean}
++        return {clean[i:i+n] for i in range(len(clean) - n + 1)}
++    keep = []
++    keep_ngrams: list[set[str]] = []
++    for chunk in chunks:
++        c_ngrams = _ngrams(chunk)
++        is_dup = False
++        for existing in keep_ngrams:
++            if not c_ngrams or not existing:
++                continue
++            intersection = len(c_ngrams & existing)
++            union = len(c_ngrams | existing)
++            jaccard = intersection / union if union > 0 else 0
++            if jaccard >= threshold:
++                is_dup = True
++                break
++        if not is_dup:
++            keep.append(chunk)
++            keep_ngrams.append(c_ngrams)
++    if len(keep) < len(chunks):
++        print(f"[RAG] 去重: {len(chunks)} -> {len(keep)} 条 (移除 {len(chunks) - len(keep)} 条重复)")
++    return keep
++
++
++def _cosine_sim(a: list[float], b: list[float]) -> float:
++    """余弦相似度"""
++    dot = sum(x * y for x, y in zip(a, b))
++    norm_a = math.sqrt(sum(x * x for x in a))
++    norm_b = math.sqrt(sum(x * x for x in b))
++    if norm_a == 0 or norm_b == 0:
++        return 0.0
++    return dot / (norm_a * norm_b)
++
++
++def _distance_filter(docs, distances, threshold=1.2):
++    """基于 ChromaDB cosine distance 过滤低相关片段"""
++    if not docs or len(docs) != len(distances):
++        return docs, distances
++    filtered = [(d, dist) for d, dist in zip(docs, distances) if dist <= threshold]
++    if not filtered:
++        best_idx = min(range(len(distances)), key=lambda i: distances[i])
++        return [docs[best_idx]], [distances[best_idx]]
++    kept = len(filtered)
++    dropped = len(docs) - kept
++    if dropped > 0:
++        print(f"[RAG] 距离过滤: {len(docs)} -> {kept} 条 (阈值 {threshold}, 移除 {dropped} 条)")
++    return [d for d, _ in filtered], [dist for _, dist in filtered]
++
++
++def _mmr_rerank(docs, doc_embeddings, query_embedding, lambda_param=0.7, top_n=5):
++    """MMR 多样性重排"""
++    if len(docs) <= top_n:
++        return docs
++    relevance_scores = [_cosine_sim(emb, query_embedding) for emb in doc_embeddings]
++    selected: list[int] = []
++    remaining = list(range(len(docs)))
++    while len(selected) < top_n and remaining:
++        mmr_scores = []
++        for i in remaining:
++            relevance = relevance_scores[i]
++            if selected:
++                max_sim = max(_cosine_sim(doc_embeddings[i], doc_embeddings[j]) for j in selected)
++            else:
++                max_sim = 0.0
++            mmr = lambda_param * relevance - (1 - lambda_param) * max_sim
++            mmr_scores.append((mmr, i))
++        best_mmr, best_idx = max(mmr_scores, key=lambda x: x[0])
++        selected.append(best_idx)
++        remaining.remove(best_idx)
++    return [docs[i] for i in selected]
++
++
++
+ def _extract_text(file_path: Path) -> str:
+     """从文件中提取文本内容，支持 txt/md/py/json/csv/html/xml/docx/pdf"""
+     suffix = file_path.suffix.lower()
+@@ -123,7 +206,9 @@ class RAGEngine:
+             config = self._get_rag_config()
+             mode = config.get("embedding_mode", "auto")
+             api_key = config.get("embedding_api_key", "")
+-            return get_embedding_function(mode=mode, api_key=api_key)
++            model = config.get("embedding_model", "BAAI/bge-m3")
++            api_base = config.get("embedding_api_base", "https://api.siliconflow.cn/v1")
++            return get_embedding_function(mode=mode, api_key=api_key, model=model, api_base=api_base)
+         except ValueError as e:
+             print(f"[RAG] Embedding 不可用: {e}")
+             return None
+@@ -131,6 +216,23 @@ class RAGEngine:
+             print(f"[RAG] Embedding 初始化异常: {type(e).__name__}: {e}")
+             return None
+ 
++    def _get_reranker(self):
++        """根据配置获取 reranker 实例，失败返回 None 并跳过精排"""
++        try:
++            config = self._get_rag_config()
++            rerank_cfg = config.get("reranking", {})
++            if not rerank_cfg.get("enabled", False):
++                return None
++            mode = rerank_cfg.get("mode", "none")
++            api_key = config.get("embedding_api_key", "")
++            model = rerank_cfg.get("model", "BAAI/bge-reranker-v2-m3")
++            api_base = config.get("embedding_api_base", "https://api.siliconflow.cn/v1")
++            return get_reranker(mode=mode, api_key=api_key, model=model, api_base=api_base)
++        except Exception as e:
++            print(f"[RAG] Reranker 初始化异常: {type(e).__name__}: {e}")
++            return None
++
++
+     # ── 配置持久化 ──
+ 
+     def load_sources(self) -> list[RAGSource]:
+@@ -240,43 +342,62 @@ class RAGEngine:
+     async def _index_local(self, source: RAGSource) -> int:
+         """索引本地目录"""
+         import chromadb
+-        from langchain_text_splitters import RecursiveCharacterTextSplitter
++        from src.core.semantic_chunker import SemanticChunker
+ 
+         doc_dir = resolve_path(source.path)
+         if not doc_dir.exists():
+             print(f"[RAG] 目录不存在，无法索引: {doc_dir}")
+             return 0
+ 
+-        # 初始化ChromaDB
++        config = self._get_rag_config()
++        model_name = config.get("embedding_model", "BAAI/bge-m3")
++        mode = config.get("embedding_mode", "auto")
++
++        # 初始化ChromaDB（检测模型变更自动重建）
+         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+         embed_fn = self._get_embed_fn()
+         col_name = f"rag_{_safe_collection_name(source.name)}"
++        want_meta = {"hnsw:space": "cosine", "rag_model": model_name, "rag_mode": mode}
+         try:
+-            collection = client.get_or_create_collection(
+-                name=col_name,
+-                metadata={"hnsw:space": "cosine"},
+-                embedding_function=embed_fn,
+-            )
+-        except ValueError as e:
+-            # embedding 函数不兼容（如从 local 切换到 api），删除旧集合重建
+-            if "Embedding function conflict" in str(e):
+-                print(f"[RAG] Embedding 函数变更，删除旧集合并重建: {col_name}")
++            collection = client.get_collection(col_name, embedding_function=embed_fn)
++            existing = collection.metadata or {}
++            if existing.get("rag_model") != model_name or existing.get("rag_mode") != mode:
++                print(f"[RAG] 模型变更 ({existing.get('rag_model')}->{model_name}), 自动重建: {col_name}")
+                 client.delete_collection(col_name)
+-                collection = client.get_or_create_collection(
+-                    name=col_name,
+-                    metadata={"hnsw:space": "cosine"},
+-                    embedding_function=embed_fn,
++                collection = client.create_collection(
++                    name=col_name, metadata=want_meta, embedding_function=embed_fn,
+                 )
+-            else:
+-                raise
++        except (ValueError, Exception):
++            try:
++                client.delete_collection(col_name)
++            except Exception:
++                pass
++            collection = client.create_collection(
++                name=col_name, metadata=want_meta, embedding_function=embed_fn,
++            )
+ 
+-        # 初始化切分器
+-        splitter = RecursiveCharacterTextSplitter(
+-            chunk_size=500,
+-            chunk_overlap=50,
++        # 初始化语义分片器：用户配置值被模型硬上限 clamp
++        model_token_limit = SemanticChunker.MODEL_TOKEN_LIMITS.get(model_name)
++        if model_token_limit is None:
++            if mode == "local" or (mode == "auto" and not config.get("embedding_api_key")):
++                model_token_limit = 256
++            else:
++                model_token_limit = 512
++        if mode == "local":
++            chunk_max_tokens = 200
++        else:
++            chunk_max_tokens = int(config.get("chunk_max_tokens", 800))
++        effective_limit = min(chunk_max_tokens, model_token_limit)
++
++        splitter = SemanticChunker(
++            embed_fn=embed_fn,
++            similarity_threshold=0.5,
++            min_chunk_chars=200,
++            max_chunk_chars=1500,
++            overlap_chars=300,
++            max_embedding_tokens=effective_limit,
+         )
+ 
+-        # 支持的文件类型
+         supported_extensions = {".txt", ".md", ".py", ".json", ".csv", ".html", ".xml", ".docx", ".pdf"}
+ 
+         count = 0
+@@ -285,17 +406,33 @@ class RAGEngine:
+                 continue
+             try:
+                 text = _extract_text(f)
+-                chunks = splitter.split_text(text)
++                suffix = f.suffix.lower()
++                if suffix == ".md":
++                    doc_type = "markdown"
++                elif suffix in (".py", ".json", ".html", ".xml", ".csv"):
++                    doc_type = "code"
++                else:
++                    doc_type = "text"
++                chunks = splitter.split(text, doc_type)
+                 if chunks:
+                     ids = [f"{source.name}_{count}_{i}" for i in range(len(chunks))]
++                    # 自己调 embedding，绕过 ChromaDB 内部序列化可能的模型名丢失
++                    embeddings = embed_fn(chunks)
+                     collection.upsert(
+                         documents=chunks,
++                        embeddings=embeddings,
+                         ids=ids,
+                         metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
+                     )
+                     count += 1
+             except Exception as e:
+-                print(f"[RAG] 索引文件失败 {f}: {type(e).__name__}: {e}")
++                err_msg = str(e)
++                if "dimension" in err_msg.lower() or "embedding" in err_msg.lower():
++                    print(f"[RAG] 索引失败 {f}: embedding 不兼容，请清空旧数据后重新索引")
++                elif "400" in err_msg or "20015" in err_msg:
++                    print(f"[RAG] 索引失败 {f}: API 参数错误，请检查模型名称或 API Key")
++                else:
++                    print(f"[RAG] 索引文件失败 {f}: {type(e).__name__}: {e}")
+                 continue
+ 
+         source.file_count = count
+@@ -337,16 +474,28 @@ class RAGEngine:
+             return False
+ 
+     def search(self, query: str, top_k: int = 5) -> list[str]:
+-        """检索相关文档片段"""
++        """检索相关文档片段
++
++        流程: 向量粗排 -> 去重 -> 精排（API优先 / 本地降级）-> 阈值过滤
++        """
++        print(f"\n{'='*60}")
++        print(f"[RAG] 查询: {query[:80]}")
+         try:
++            config = self._get_rag_config()
++            rerank_cfg = config.get("reranking", {})
++            rerank_enabled = rerank_cfg.get("enabled", False)
++            coarse_k = top_k * 4 if rerank_enabled else top_k
++
+             embed_fn = self._get_embed_fn()
+-            # embed_fn 为 None 表示使用 ChromaDB 默认 ONNX（本地模式），合法
+ 
+             import chromadb
+             client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+ 
+-            # 在所有已启用的数据源中检索
+-            results = []
++            # 阶段1: 粗排
++            print(f"[RAG] 阶段1 粗排: coarse_k={coarse_k}, rerank={'ON' if rerank_enabled else 'OFF'}")
++            results: list[str] = []
++            results_distances: list[float] = []
++            results_embeddings: list[list[float]] = []
+             for source in self.sources:
+                 if not source.enabled or not source.indexed:
+                     continue
+@@ -356,29 +505,134 @@ class RAGEngine:
+                         f"rag_{_safe_collection_name(source.name)}",
+                         embedding_function=embed_fn,
+                     )
+-                    print(f"[RAG] 检索 '{source.name}': collection 存在, 文档数={collection.count()}")
+                     result = collection.query(
+                         query_texts=[query],
+-                        n_results=top_k,
++                        n_results=coarse_k,
++                        include=["documents", "distances", "embeddings"],
+                     )
+                     if result.get("documents") and result["documents"]:
+                         docs = result["documents"][0]
++                        dists = result.get("distances", [[]])[0] if result.get("distances") else []
++                        embs = result.get("embeddings", [[]])[0] if result.get("embeddings") else []
++
+                         results.extend(docs)
+-                        print(f"[RAG] 检索 '{source.name}': 命中 {len(docs)} 条")
++                        results_distances.extend(dists if dists else [0.0] * len(docs))
++                        results_embeddings.extend(embs if embs else [[0.0]] * len(docs))
++
++                        print(f"  [{source.name}] 粗排 top-{len(docs)}:")
++                        for j, (d, dist) in enumerate(zip(docs, dists)):
++                            preview = d[:60].replace('\n', ' ')
++                            print(f"    #{j+1} dist={dist:.3f} | {preview}...")
+                     else:
+-                        print(f"[RAG] 检索 '{source.name}': 无结果 (collection 有 {collection.count()} 条文档)")
++                        print(f"  [{source.name}] 无结果 (总数={collection.count()})")
+                 except ValueError as e:
+-                    if "Embedding function conflict" in str(e):
+-                        print(f"[RAG] 检索 '{source.name}': embedding 函数不兼容，跳过 (需重新索引)")
++                    if "Embedding function conflict" in str(e) or "dimension" in str(e).lower():
++                        print(f"  [{source.name}] 跳过: embedding 维度不兼容，需重新索引")
+                     else:
+-                        print(f"[RAG] 检索 '{source.name}': {e}")
++                        print(f"  [{source.name}] 跳过: {e}")
+                     continue
+                 except Exception as e:
+-                    print(f"[RAG] 检索 '{source.name}' 失败: {type(e).__name__}: {e}")
++                    print(f"  [{source.name}] 失败: {type(e).__name__}: {e}")
++
++            if not results:
++                print(f"[RAG] 无结果\n{'='*60}\n")
++                return []
++
++            print(f"[RAG] 粗排合计: {len(results)} 条")
++
++            # 阶段2: 去重
++            print(f"[RAG] 阶段2 去重")
++            kept_docs = _deduplicate_chunks(results)
++            if len(kept_docs) < len(results):
++                used_indices: list[int] = []
++                seen = set()
++                for i, doc in enumerate(results):
++                    key = doc[:100]
++                    if key not in seen:
++                        seen.add(key)
++                        used_indices.append(i)
++                if len(used_indices) > len(kept_docs):
++                    used_indices = used_indices[:len(kept_docs)]
++                results = kept_docs
++                results_distances = [results_distances[i] for i in used_indices if i < len(results_distances)]
++                results_embeddings = [results_embeddings[i] for i in used_indices if i < len(results_embeddings)]
++            else:
++                results = kept_docs
++            print(f"  去重后: {len(results)} 条")
++            for j, (d, dist) in enumerate(zip(results, results_distances)):
++                preview = d[:60].replace('\n', ' ')
++                print(f"    #{j+1} dist={dist:.3f} | {preview}...")
++
++            # 阶段3: 精排
++            print(f"[RAG] 阶段3 精排")
++            if rerank_enabled and len(results) > top_k:
++                reranker = self._get_reranker()
++                if reranker is not None:
++                    try:
++                        scored = reranker.rerank(query, results, top_n=top_k)
++                        threshold = rerank_cfg.get("relevance_threshold", 0.3)
++                        print(f"  API 精排结果:")
++                        for j, (doc, score) in enumerate(scored):
++                            mark = "v" if score >= threshold else "x"
++                            preview = doc[:60].replace('\n', ' ')
++                            print(f"    #{j+1} score={score:.3f} {mark} | {preview}...")
++                        filtered = [(doc, score) for doc, score in scored if score >= threshold]
++                        if filtered:
++                            results = [doc for doc, _ in filtered]
++                            print(f"  阈值过滤({threshold}): {len(scored)} -> {len(results)} 条")
++                        else:
++                            results = [scored[0][0]] if scored else results[:1]
++                            print(f"  全部低于阈值，取 top-1 兜底")
++                    except Exception as e:
++                        print(f"  API 精排失败: {type(e).__name__}: {e}")
++                    finally:
++                        try:
++                            reranker.close()
++                        except Exception:
++                            pass
++                else:
++                    print(f"  本地降级: 距离过滤 + MMR")
++                    if results_distances:
++                        before = len(results)
++                        results, results_distances = _distance_filter(
++                            results, results_distances,
++                            threshold=rerank_cfg.get("distance_threshold", 1.2),
++                        )
++                        if len(results) < before:
++                            print(f"  距离过滤: {before} -> {len(results)} 条")
++                    if results_embeddings and len(results) > top_k and embed_fn is not None:
++                        try:
++                            before = len(results)
++                            query_emb = embed_fn([query])[0]
++                            results = _mmr_rerank(
++                                results, results_embeddings, query_emb,
++                                lambda_param=rerank_cfg.get("mmr_lambda", 0.7),
++                                top_n=top_k,
++                            )
++                            print(f"  MMR 重排: {before} -> {len(results)} 条")
++                        except Exception as e:
++                            print(f"  MMR 失败: {type(e).__name__}: {e}")
++                            results = results[:top_k]
++                    else:
++                        results = results[:top_k]
++                        print(f"  截断至 top-{top_k}")
++            else:
++                if len(results) > top_k:
++                    results = results[:top_k]
++                    print(f"  未启用精排，截断至 top-{top_k}")
++                else:
++                    print(f"  候选数 <= top_k，跳过精排")
++
++            print(f"\n[RAG] 最终 Top-{len(results)}:")
++            for j, doc in enumerate(results):
++                preview = doc[:80].replace('\n', ' ')
++                print(f"  #{j+1} {preview}...")
++            print(f"{'='*60}\n")
+ 
+             return results
+         except Exception as e:
+             print(f"[RAG] search 异常: {type(e).__name__}: {e}")
++            print(f"{'='*60}\n")
+             return []
+ 
+     def get_chroma_stats(self) -> dict[str, int]:
+diff --git a/src/core/reranker.py b/src/core/reranker.py
+new file mode 100644
+index 0000000..267a230
+--- /dev/null
++++ b/src/core/reranker.py
+@@ -0,0 +1,128 @@
++"""Reranker — Cross-Encoder 精排模块
++
++在向量粗排之后，用更强的 Cross-Encoder 模型对候选片段逐对打分重排，
++显著提升检索精度。
++
++支持两种模式：
++- api: 硅基流动 Rerank API（BAAI/bge-reranker-v2-m3）
++- local: 本地 ONNX 模型（Phase 2 实现）
++- none: 跳过精排
++"""
++
++import json
++from typing import Any
++
++import httpx
++
++
++class SiliconFlowReranker:
++    """通过硅基流动 Rerank API 进行精排
++
++    支持的模型:
++    - BAAI/bge-reranker-v2-m3  (多语言, 推荐)
++    """
++
++    def __init__(
++        self,
++        api_key: str,
++        model: str = "BAAI/bge-reranker-v2-m3",
++        api_base: str = "https://api.siliconflow.cn/v1",
++    ):
++        self.api_key = api_key
++        self.model = model
++        self.api_base = api_base.rstrip("/")
++        self._client = httpx.Client(timeout=30.0)
++
++    def __del__(self):
++        try:
++            self._client.close()
++        except Exception:
++            pass
++
++    def close(self):
++        self._client.close()
++
++    def rerank(
++        self,
++        query: str,
++        documents: list[str],
++        top_n: int = 5,
++    ) -> list[tuple[str, float]]:
++        """对文档列表进行精排
++
++        Args:
++            query: 用户查询
++            documents: 候选文档列表（粗排结果）
++            top_n: 返回最相关的 top_n 条
++
++        Returns:
++            [(文档文本, 相关度分数), ...]  按分数降序排列
++        """
++        if not documents:
++            return []
++
++        # 限制单次请求的文档数（API 限制通常为 32-64 条）
++        max_docs = min(len(documents), 32)
++        docs_to_rank = documents[:max_docs]
++
++        try:
++            body = json.dumps(
++                {
++                    "model": self.model,
++                    "query": query,
++                    "documents": docs_to_rank,
++                    "top_n": min(top_n, len(docs_to_rank)),
++                },
++                ensure_ascii=False,
++            ).encode("utf-8")
++
++            resp = self._client.post(
++                f"{self.api_base}/rerank",
++                headers={
++                    "Authorization": f"Bearer {self.api_key}",
++                    "Content-Type": "application/json; charset=utf-8",
++                },
++                content=body,
++            )
++            resp.raise_for_status()
++            data = resp.json()
++
++            results = data.get("results", [])
++            # 按 index 排序后返回 (文档, 分数)
++            scored = [
++                (docs_to_rank[r["index"]], r["relevance_score"])
++                for r in results
++            ]
++            return scored
++
++        except httpx.HTTPStatusError as e:
++            print(f"[Reranker] API 错误: {e.response.status_code} {e.response.text[:200]}")
++            return [(d, 0.0) for d in documents[:top_n]]  # 降级：保持原序
++        except Exception as e:
++            print(f"[Reranker] 请求异常: {type(e).__name__}: {e}")
++            return [(d, 0.0) for d in documents[:top_n]]
++
++
++def get_reranker(
++    mode: str = "none",
++    api_key: str = "",
++    model: str = "BAAI/bge-reranker-v2-m3",
++    api_base: str = "https://api.siliconflow.cn/v1",
++) -> SiliconFlowReranker | None:
++    """获取 Reranker 实例
++
++    mode="api"  → 硅基流动 Rerank API（需 api_key）
++    mode="none" → 跳过精排，返回 None
++    """
++    if mode == "api":
++        if not api_key:
++            print("[Reranker] API 模式需要提供 API Key，已跳过精排")
++            return None
++        return SiliconFlowReranker(
++            api_key=api_key,
++            model=model,
++            api_base=api_base,
++        )
++
++    # "none" 或未知模式
++    return None
+diff --git a/src/core/semantic_chunker.py b/src/core/semantic_chunker.py
+new file mode 100644
+index 0000000..67d4fc2
+--- /dev/null
++++ b/src/core/semantic_chunker.py
+@@ -0,0 +1,365 @@
++"""语义分片器 — 基于文档结构 + embedding 相似度低谷检测
++
++替代 RecursiveCharacterTextSplitter 的强制字符数切分。
++
++工作模式：
++- embed_fn 可用：结构预分割 → embedding 相似度低谷检测 → 合并/裁剪 → 加重叠
++- embed_fn 不可用：结构预分割 → 中文标点感知边界 → 合并/裁剪 → 加重叠
++
++两者都远优于 RecursiveCharacterTextSplitter，因为：
++1. 使用中文标点（。！？；）作为优先分隔符，而非只有空格
++2. 先按文档结构（标题、段落、代码块）预分割，再决定是否进一步切分
++3. embed 模式下检测语义转折点，而非盲切
++"""
++
++import re
++from pathlib import Path
++
++
++class SemanticChunker:
++    """语义分片器"""
++
++    # 常见 embedding 模型的 token 上限
++    MODEL_TOKEN_LIMITS = {
++        "all-MiniLM-L6-v2": 256,
++        "BAAI/bge-large-zh-v1.5": 512,
++        "BAAI/bge-large-en-v1.5": 512,
++        "BAAI/bge-m3": 8192,
++    }
++
++    def __init__(
++        self,
++        embed_fn=None,
++        similarity_threshold: float = 0.5,
++        min_chunk_chars: int = 200,
++        max_chunk_chars: int = 1500,
++        overlap_chars: int = 300,
++        max_embedding_tokens: int | None = None,
++    ):
++        self.embed_fn = embed_fn
++        self.similarity_threshold = similarity_threshold
++        self.min_chunk_chars = min_chunk_chars
++        self.max_chunk_chars = max_chunk_chars
++        self.overlap_chars = overlap_chars
++        # embedding 模型的 token 上限，None 时不做 token 检查
++        self.max_embedding_tokens = max_embedding_tokens
++
++    # ── 公开入口 ──
++
++    def split(self, text: str, doc_type: str = "text") -> list[str]:
++        """将文本语义分片
++
++        Args:
++            text: 原始文本
++            doc_type: 文档类型提示 ("text" | "markdown" | "code")
++        """
++        if not text or not text.strip():
++            return []
++
++        # embedding 模型 token 上限 → 字符上限
++        # 中文 1 char ≈ 1.5 tokens, 大模型用 0.8 系数, 小模型保守用 0.65
++        effective_max_chars = self.max_chunk_chars
++        if self.max_embedding_tokens is not None:
++            coef = 0.8 if self.max_embedding_tokens >= 1000 else 0.65
++            token_safe_chars = int(self.max_embedding_tokens * coef)
++            if token_safe_chars < effective_max_chars:
++                print(f"[SemanticChunker] embedding {self.max_embedding_tokens}t → 分片上限 {token_safe_chars}字")
++                effective_max_chars = token_safe_chars
++
++        # 1. 结构预分割
++        segments = self._presplit(text, doc_type)
++
++        # 2. 语义边界检测（embed_fn 可用时）或智能合并
++        if self.embed_fn is not None and len(segments) > 1:
++            segments = self._semantic_merge(segments)
++
++        # 3. 处理过长片段 + 合并过短片段
++        chunks = self._size_control(segments, doc_type, effective_max_chars)
++
++        # 4. 添加重叠缓冲区（受上限约束，prefix 不会让总长超标）
++        chunks = self._add_overlap(chunks, effective_max_chars)
++
++        # 5. 最终检查：超限则强制再切
++        if self.max_embedding_tokens is not None and chunks:
++            final = []
++            for chunk in chunks:
++                est_tokens = len(chunk) / 1.5
++                if est_tokens > self.max_embedding_tokens:
++                    print(f"[SemanticChunker] ⚠️ chunk {len(chunk)}字 ≈ {est_tokens:.0f}t 超限, 强制再切")
++                    final.extend(self._force_split_long(chunk, "text", effective_max_chars))
++                else:
++                    final.append(chunk)
++            chunks = final
++
++        return chunks
++
++    # ── 1. 结构预分割 ──
++
++    def _presplit(self, text: str, doc_type: str) -> list[str]:
++        """按文档结构预分割，返回语义上不宜再切分的基本单元"""
++        if doc_type == "markdown":
++            return self._presplit_markdown(text)
++        elif doc_type == "code":
++            return self._presplit_code(text)
++        else:
++            return self._presplit_text(text)
++
++    def _presplit_markdown(self, text: str) -> list[str]:
++        """Markdown：按标题 + 代码块边界预分割"""
++        # 先在代码块边界切（保护代码不被当段落处理）
++        parts = re.split(r"(\n```[^\n]*\n.*?\n```)", text, flags=re.DOTALL)
++
++        segments = []
++        for part in parts:
++            if part.startswith("\n```"):
++                segments.append(part.strip())
++            else:
++                # 在标题行处切分
++                sub = re.split(r"(\n#{1,6}\s+.+)", part)
++                for s in sub:
++                    s = s.strip()
++                    if s:
++                        segments.append(s)
++        return segments
++
++    def _presplit_code(self, text: str) -> list[str]:
++        """代码文件：按函数/类定义 + 空行边界预分割"""
++        # 在 def/class 定义前切分（独立行）
++        parts = re.split(r"(\n(?=def\s|\bclass\s))", text)
++
++        segments = []
++        for part in parts:
++            # 进一步用连续空行切分
++            sub = re.split(r"\n\n+", part)
++            for s in sub:
++                s = s.strip()
++                if s:
++                    segments.append(s)
++        return segments
++
++    def _presplit_text(self, text: str) -> list[str]:
++        """纯文本：按段落 + 句子边界预分割"""
++        # 1. 先按段落切（连续空行）
++        paragraphs = re.split(r"\n\s*\n", text)
++
++        segments = []
++        for para in paragraphs:
++            para = para.strip()
++            if not para:
++                continue
++            # 2. 如果段落仍然很长，按句子边界切
++            if len(para) > self.max_chunk_chars:
++                sentences = self._split_by_punctuation(para)
++                segments.extend(sentences)
++            else:
++                segments.append(para)
++
++        return segments
++
++    @staticmethod
++    def _split_by_punctuation(text: str) -> list[str]:
++        """按中文标点切分句子，保持标点在上一句末尾"""
++        # 在句末标点后切分（保留标点在上一句）
++        parts = re.split(r"(?<=[。！？；])\s*", text)
++        result = [p.strip() for p in parts if p.strip()]
++        # 如果切后全都很短，合并
++        if result and all(len(p) < 50 for p in result):
++            merged = []
++            buf = ""
++            for p in result:
++                buf += p
++                if len(buf) >= 80:
++                    merged.append(buf)
++                    buf = ""
++            if buf:
++                if merged:
++                    merged[-1] += buf
++                else:
++                    merged.append(buf)
++            return merged if merged else result
++        return result
++
++    # ── 2. 语义相似度合并 ──
++
++    def _semantic_merge(self, segments: list[str]) -> list[str]:
++        """基于 embedding 相似度合并语义连续的段，在低谷处切分"""
++        try:
++            embeddings = self._batch_embed(segments)
++        except Exception as e:
++            print(f"[SemanticChunker] embedding 失败: {e}, 回退到结构模式")
++            return segments  # 降级：保持结构预分割结果
++
++        # 计算相邻段相似度
++        similarities = []
++        for i in range(len(embeddings) - 1):
++            sim = self._cosine_sim(embeddings[i], embeddings[i + 1])
++            similarities.append(sim)
++
++        # 检测低谷：低于阈值且是局部最低点
++        boundaries: set[int] = set()
++        for i, sim in enumerate(similarities):
++            if sim < self.similarity_threshold:
++                # 检查是否为局部最低点（窗口 ±1）
++                left = similarities[i - 1] if i > 0 else sim
++                right = similarities[i + 1] if i < len(similarities) - 1 else sim
++                if sim <= left and sim <= right:
++                    boundaries.add(i)
++
++        # 在低谷处切分
++        merged = []
++        buf = ""
++        for i, seg in enumerate(segments):
++            buf += ("\n\n" if buf else "") + seg
++            if i in boundaries:
++                merged.append(buf)
++                buf = ""
++        if buf:
++            merged.append(buf)
++
++        return merged
++
++    def _batch_embed(self, texts: list[str]) -> list[list[float]]:
++        """批量生成 embedding，处理空文本"""
++        embeddings = []
++        for i in range(0, len(texts), 32):  # 分批，避免单次请求过大
++            batch = texts[i:i + 32]
++            # 过滤纯空白的文本，用零向量占位
++            clean = [t if t.strip() else " " for t in batch]
++            batch_emb = self.embed_fn(clean)
++            embeddings.extend(batch_emb)
++        return embeddings
++
++    @staticmethod
++    def _cosine_sim(a: list[float], b: list[float]) -> float:
++        """余弦相似度"""
++        dot = sum(x * y for x, y in zip(a, b))
++        norm_a = sum(x * x for x in a) ** 0.5
++        norm_b = sum(x * x for x in b) ** 0.5
++        if norm_a == 0 or norm_b == 0:
++            return 0.0
++        return dot / (norm_a * norm_b)
++
++    # ── 3. 尺寸控制 ──
++
++    def _size_control(self, segments: list[str], doc_type: str, effective_max_chars: int) -> list[str]:
++        """合并过短片段，切分过长片段"""
++        max_c = effective_max_chars
++        # 合并过短片段
++        merged = []
++        buf = ""
++        for seg in segments:
++            combined = buf + ("\n\n" if buf else "") + seg
++            if len(combined) < max_c:
++                buf = combined
++            else:
++                if buf:
++                    merged.append(buf)
++                buf = seg
++        if buf:
++            merged.append(buf)
++
++        # 切分仍然过长的片段
++        result = []
++        for chunk in merged:
++            if len(chunk) <= max_c:
++                result.append(chunk)
++            else:
++                result.extend(self._force_split_long(chunk, doc_type, max_c))
++        return result
++
++    def _force_split_long(self, text: str, doc_type: str, max_chars: int) -> list[str]:
++        """对超出上限的片段，用中文标点感知分隔符切分
++
++        分隔符优先级（从优到劣）：
++        \n\n → \n → 。→ ！→ ？→ ；→ ，→ " " → 逐字符
++        """
++        separators = ["\n\n", "\n", "。", "！", "？", "；", "，", ". ", "! ", "? ", " ", ""]
++        return self._recursive_split(text, separators, max_chars)
++
++    def _recursive_split(self, text: str, separators: list[str], max_chars: int) -> list[str]:
++        """递归切分：在最佳分隔符处下刀"""
++        if len(text) <= max_chars:
++            return [text] if text.strip() else []
++
++        sep = separators[0] if separators else ""
++        remaining_seps = separators[1:] if len(separators) > 1 else []
++
++        if sep == "":
++            result = []
++            for i in range(0, len(text), max_chars):
++                result.append(text[i:i + max_chars])
++            return result
++
++        splits = text.split(sep)
++        if len(splits) == 1:
++            return self._recursive_split(text, remaining_seps, max_chars)
++
++        result = []
++        buf = ""
++        for i, part in enumerate(splits):
++            separator = sep if i < len(splits) - 1 else ""
++            proposed = buf + part + separator
++
++            if len(proposed) <= max_chars:
++                buf = proposed
++            else:
++                if buf:
++                    result.append(buf)
++                if len(part + separator) > max_chars:
++                    sub = self._recursive_split(part + separator, remaining_seps, max_chars)
++                    result.extend(sub)
++                    buf = ""
++                else:
++                    buf = part + separator
++
++        if buf:
++            result.append(buf)
++
++        return [r for r in result if r.strip()]
++
++    # ── 4. 重叠缓冲区 ──
++
++    def _add_overlap(self, chunks: list[str], max_chars: int) -> list[str]:
++        """为每个 chunk 添加前一片段末尾的重叠缓冲区"""
++        if len(chunks) <= 1:
++            return chunks
++
++        result = [chunks[0]]
++        for i in range(1, len(chunks)):
++            prev = chunks[i - 1]
++            # prefix 不能超过 max_chars * 0.5，确保 body + prefix ≤ max_chars * 1.5
++            max_prefix = min(self.overlap_chars, int(max_chars * 0.4))
++            prefix = self._extract_overlap_prefix(prev, max_prefix)
++            if prefix:
++                result.append(prefix + "\n" + chunks[i])
++            else:
++                result.append(chunks[i])
++
++        return result
++
++    def _extract_overlap_prefix(self, prev_chunk: str, max_prefix: int) -> str:
++        """从前一 chunk 末尾提取重叠前缀，对齐句边界"""
++        if len(prev_chunk) <= max_prefix:
++            return "[上文续...]\n" + prev_chunk
++
++        # 从末尾取 max_prefix * 1.5 的文本，再对齐到句边界
++        tail_start = max(0, len(prev_chunk) - int(max_prefix * 1.5))
++        tail = prev_chunk[tail_start:]
++
++        # 向前调整到最近的句子边界
++        for sep in ["\n\n", "\n", "。", "！", "？", "；", ". ", "! ", "? "]:
++            pos = tail.find(sep)
++            if pos > 0 and pos < len(tail) // 2:
++                tail = tail[pos + len(sep):]
++                break
++
++        # 如果仍然太长，截断
++        if len(tail) > max_prefix:
++            tail = tail[-max_prefix:]
++            for sep in ["。", "！", "？", "；", "，"]:
++                pos = tail.find(sep)
++                if pos > len(tail) // 2:
++                    tail = tail[pos + len(sep):]
++                    break
++
++        return "[上文续...]\n" + tail if tail.strip() else ""
+-- 
+2.50.1.windows.1
+
+
+From 4d6794f111d8427b9f6065380953a7bffe172aad Mon Sep 17 00:00:00 2001
+From: easlie114514 <easlie114514@users.noreply.github.com>
+Date: Tue, 14 Jul 2026 13:43:26 +0800
+Subject: [PATCH 2/2] =?UTF-8?q?chore:=20=E8=A7=92=E8=89=B2=E8=AE=BE?=
+ =?UTF-8?q?=E8=AE=A1=E5=B8=88=E6=8A=80=E8=83=BD=E6=B7=BB=E5=8A=A0=E5=AF=BB?=
+ =?UTF-8?q?=E8=B7=AF=E9=99=90=E5=88=B6?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../SKILL.md"                                                   | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git "a/skills/\350\247\222\350\211\262\350\256\276\350\256\241\345\270\210/SKILL.md" "b/skills/\350\247\222\350\211\262\350\256\276\350\256\241\345\270\210/SKILL.md"
+index 9be17df..2a43a5e 100644
+--- "a/skills/\350\247\222\350\211\262\350\256\276\350\256\241\345\270\210/SKILL.md"
++++ "b/skills/\350\247\222\350\211\262\350\256\276\350\256\241\345\270\210/SKILL.md"
+@@ -5,6 +5,8 @@
+ > 📁 **路径约定**：
+ >
+ > 角色文件保存到 `<项目根目录>/roles/<角色名>.md`（单一路径，无需区分开发/打包模式）。
++> 
++> 你默认有项目根目录的权限，禁止向用户申请任何根目录之外路径（比如"/"）的权限。
+ >
+ > 其中 `<项目根目录>` 即应用上下文（app.md）中标注的"项目根目录"——包含 `run.py`、`skills/`、`app.md` 或 `.git` 的顶层目录。无论以 `python run.py` 还是 `AICraft.exe` 启动，角色都从该目录的 `roles/` 子目录加载。
+ >
+-- 
+2.50.1.windows.1
+

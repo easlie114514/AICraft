@@ -10,18 +10,13 @@
       (function() {
         try {
           var THEMES = {
-            blue:    { primary: '#165DFF', hover: '#0E42D2', light: '#E8F3FF', lighter: '#F2F7FF', ring: '#165DFF', nav: '#1E3A74', input: '#E4E8F0', glow: '#40A9FF' },
-            purple:  { primary: '#7C3AED', hover: '#6D28D9', light: '#F5F3FF', lighter: '#FAF9FF', ring: '#7C3AED', nav: '#36285E', input: '#E9E5F0', glow: '#A78BFA' },
-            orange:  { primary: '#EA580C', hover: '#C2410C', light: '#FFF7ED', lighter: '#FFFBEB', ring: '#EA580C', nav: '#4C2A12', input: '#EDE7E1', glow: '#FA8C16' },
-            rose:    { primary: '#DC2626', hover: '#B91C1C', light: '#FEF2F2', lighter: '#FFF7F7', ring: '#DC2626', nav: '#5C1E26', input: '#F0E6E7', glow: '#F5225D' },
-            teal:    { primary: '#0D9488', hover: '#0F766E', light: '#F0FDFA', lighter: '#F6FEFC', ring: '#0D9488', nav: '#184A40', input: '#E4EDEB', glow: '#13C2C2' },
-            slate:   { primary: '#475569', hover: '#334155', light: '#F1F5F9', lighter: '#F8FAFC', ring: '#475569', nav: '#384250', input: '#E5E8EC', glow: '#8C9EFF' },
-            crimson: { primary: '#D10B1E', hover: '#A50918', light: '#FBEBED', lighter: '#FDF5F6', ring: '#D10B1E', nav: '#111111', input: '#E7E1E6', glow: '#FF3D51' },
-            neon:    { primary: '#DF2C88', hover: '#B61B6B', light: '#FCEEF5', lighter: '#FEF7FA', ring: '#DF2C88', nav: '#000000', input: '#E8E2EB', glow: '#FF3DA1' },
-            dusk:    { primary: '#BC5A8C', hover: '#9C406F', light: '#FAF2F6', lighter: '#FCF8FA', ring: '#BC5A8C', nav: '#4F467D', input: '#E6E5EB', glow: '#4F467D' },
-            forest:  { primary: '#C9A954', hover: '#AB8B36', light: '#FBF8F1', lighter: '#FDFCF8', ring: '#C9A954', nav: '#145A33', input: '#E6E9E8', glow: '#145A33' },
-            gold:    { primary: '#D8B241', hover: '#B69225', light: '#FCF9F0', lighter: '#FDFCF7', ring: '#D8B241', nav: '#000000', input: '#E7E9E7', glow: '#FFCF3D' },
-            lava:    { primary: '#FF6B0A', hover: '#D15400', light: '#FFF3EB', lighter: '#FFF9F5', ring: '#FF6B0A', nav: '#222222', input: '#E9E6E5', glow: '#FF8B3D' },
+            sky:          { primary: '#0EA5E9', hover: '#0284C7', light: '#F0F9FF', lighter: '#F7FDFF', fg: '#FFFFFF', ring: '#0EA5E9', nav: '#0C4A6E', input: '#E6F2F8', glow: '#38BDF8', secondary: '#38BDF8' },
+            mint:         { primary: '#10B981', hover: '#059669', light: '#ECFDF5', lighter: '#F6FEF9', fg: '#FFFFFF', ring: '#10B981', nav: '#064E3B', input: '#E6F5EE', glow: '#34D399', secondary: '#34D399' },
+            sakura:       { primary: '#EC4899', hover: '#DB2777', light: '#FDF2F8', lighter: '#FEF7FB', fg: '#FFFFFF', ring: '#EC4899', nav: '#4A1030', input: '#F2E5ED', glow: '#F472B6', secondary: '#F472B6' },
+            'dusk-berry':  { primary: '#BC5A8C', hover: '#A04470', light: '#FBF5F8', lighter: '#FDF9FB', fg: '#FFFFFF', ring: '#BC5A8C', nav: '#4F467D', input: '#EDE8EE', glow: '#BC5A8C', secondary: '#4F467D' },
+            'ocean-lime':  { primary: '#9FD60B', hover: '#7FB000', light: '#F6FDE8', lighter: '#FBFEF4', fg: '#0F172A', ring: '#9FD60B', nav: '#2767C4', input: '#EAF0F8', glow: '#9FD60B', secondary: '#2767C4' },
+            'forest-gold': { primary: '#C9A954', hover: '#AB8B36', light: '#FBF8F1', lighter: '#FDFCF8', fg: '#0F172A', ring: '#C9A954', nav: '#145A33', input: '#EAEDEA', glow: '#C9A954', secondary: '#145A33' },
+            'royal-lemon': { primary: '#FFDC1E', hover: '#E5C500', light: '#FFFDEB', lighter: '#FFFEF5', fg: '#0F172A', ring: '#FFDC1E', nav: '#501E78', input: '#F2EDE8', glow: '#FFDC1E', secondary: '#501E78' },
           };
 
           var t = localStorage.getItem('aicraft_theme');
@@ -32,10 +27,12 @@
           s.setProperty('--theme-primary-hover', c.hover, 'important');
           s.setProperty('--theme-primary-light', c.light, 'important');
           s.setProperty('--theme-primary-lighter', c.lighter, 'important');
+          s.setProperty('--theme-primary-foreground', c.fg, 'important');
           s.setProperty('--theme-ring', c.ring, 'important');
           s.setProperty('--theme-nav-bg', c.nav, 'important');
           s.setProperty('--theme-input', c.input, 'important');
           s.setProperty('--theme-glow-bar', c.glow, 'important');
+          s.setProperty('--theme-secondary', c.secondary, 'important');
           // --color-* 供 Tailwind 工具类使用（bg-primary → var(--color-primary)）
           // 绕过 CSS @theme 映射，CSS 文件未加载时也能正确解析
           s.setProperty('--color-primary', c.primary, 'important');
@@ -46,7 +43,8 @@
           s.setProperty('--color-nav-bg', c.nav, 'important');
           s.setProperty('--color-input', c.input, 'important');
           s.setProperty('--color-glow-bar', c.glow, 'important');
-          document.documentElement.classList.add('theme-' + (THEMES[t] ? t : 'blue'));
+          s.setProperty('--color-secondary-accent', c.secondary, 'important');
+          document.documentElement.classList.add('theme-' + (THEMES[t] ? t : 'sky'));
         } catch(e) {}
       })();
     </script>

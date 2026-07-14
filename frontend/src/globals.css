@@ -2,220 +2,167 @@
 
 /* ═══════════════════════════════════════════════════════════
    多主题色系 — 通过切换 <html> 上的 .theme-{name} 类实现
-   新增主题只需加一套 :root 变量即可
+   3 套清新单色 + 5 套高冲击拼色
+   拼色规则：主色（导航栏）= 主题名  |  辅色（按钮/色条/泛光/标签线）
+   默认：天空蓝 (Sky)
    ═══════════════════════════════════════════════════════════ */
 
-/* ── 字节蓝（默认）── */
-.theme-blue {
-  --theme-primary: #165DFF;
-  --theme-primary-hover: #0E42D2;
-  --theme-primary-light: #E8F3FF;
-  --theme-primary-lighter: #F2F7FF;
-  --theme-ring: #165DFF;
-  --theme-nav-bg: #1E3A74;
-  --theme-input: #E4E8F0;
-  --theme-glow-bar: #40A9FF;  /* 亮蓝 — 与深蓝主色高对比 */
+/* ─── 清新单色系 ─── */
+
+.theme-sky {
+  --theme-primary: #0EA5E9;
+  --theme-primary-hover: #0284C7;
+  --theme-primary-light: #F0F9FF;
+  --theme-primary-lighter: #F7FDFF;
+  --theme-primary-foreground: #FFFFFF;
+  --theme-ring: #0EA5E9;
+  --theme-nav-bg: #0C4A6E;
+  --theme-input: #E6F2F8;
+  --theme-glow-bar: #38BDF8;
+  --theme-secondary: #38BDF8;
 }
 
-/* ── 暮光紫 ── */
-.theme-purple {
-  --theme-primary: #7C3AED;
-  --theme-primary-hover: #6D28D9;
-  --theme-primary-light: #F5F3FF;
-  --theme-primary-lighter: #FAF9FF;
-  --theme-ring: #7C3AED;
-  --theme-nav-bg: #36285E;
-  --theme-input: #E9E5F0;
-  --theme-glow-bar: #A78BFA;  /* 亮紫 */
+.theme-mint {
+  --theme-primary: #10B981;
+  --theme-primary-hover: #059669;
+  --theme-primary-light: #ECFDF5;
+  --theme-primary-lighter: #F6FEF9;
+  --theme-primary-foreground: #FFFFFF;
+  --theme-ring: #10B981;
+  --theme-nav-bg: #064E3B;
+  --theme-input: #E6F5EE;
+  --theme-glow-bar: #34D399;
+  --theme-secondary: #34D399;
 }
 
-/* ── 日落橙 ── */
-.theme-orange {
-  --theme-primary: #EA580C;
-  --theme-primary-hover: #C2410C;
-  --theme-primary-light: #FFF7ED;
-  --theme-primary-lighter: #FFFBEB;
-  --theme-ring: #EA580C;
-  --theme-nav-bg: #4C2A12;
-  --theme-input: #EDE7E1;
-  --theme-glow-bar: #FA8C16;  /* 亮橙 */
-}
-
-/* ── 玫瑰红 ── */
-.theme-rose {
-  --theme-primary: #DC2626;
-  --theme-primary-hover: #B91C1C;
-  --theme-primary-light: #FEF2F2;
-  --theme-primary-lighter: #FFF7F7;
-  --theme-ring: #DC2626;
-  --theme-nav-bg: #5C1E26;
-  --theme-input: #F0E6E7;
-  --theme-glow-bar: #F5225D;  /* 亮玫红 */
-}
-
-/* ── 青碧色 ── */
-.theme-teal {
-  --theme-primary: #0D9488;
-  --theme-primary-hover: #0F766E;
-  --theme-primary-light: #F0FDFA;
-  --theme-primary-lighter: #F6FEFC;
-  --theme-ring: #0D9488;
-  --theme-nav-bg: #184A40;
-  --theme-input: #E4EDEB;
-  --theme-glow-bar: #13C2C2;  /* 亮青 */
-}
-
-/* ── 石墨灰 ── */
-.theme-slate {
-  --theme-primary: #475569;
-  --theme-primary-hover: #334155;
-  --theme-primary-light: #F1F5F9;
-  --theme-primary-lighter: #F8FAFC;
-  --theme-ring: #475569;
-  --theme-nav-bg: #384250;
-  --theme-input: #E5E8EC;
-  --theme-glow-bar: #8C9EFF;  /* 亮靛 — 与灰色高对比 */
+.theme-sakura {
+  --theme-primary: #EC4899;
+  --theme-primary-hover: #DB2777;
+  --theme-primary-light: #FDF2F8;
+  --theme-primary-lighter: #FEF7FB;
+  --theme-primary-foreground: #FFFFFF;
+  --theme-ring: #EC4899;
+  --theme-nav-bg: #4A1030;
+  --theme-input: #F2E5ED;
+  --theme-glow-bar: #F472B6;
+  --theme-secondary: #F472B6;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   高冲击视觉配色 — 10 套追加主题
+   高冲击拼色系
+   主色（导航栏）→ 主题名  |  辅色（按钮/标签线/卡片色条/泛光）
    ═══════════════════════════════════════════════════════════ */
 
-/* ── 警戒红 + 暗夜灰 ── */
-.theme-crimson {
-  --theme-primary: #D10B1E;
-  --theme-primary-hover: #A50918;
-  --theme-primary-light: #FBEBED;
-  --theme-primary-lighter: #FDF5F6;
-  --theme-ring: #D10B1E;
-  --theme-nav-bg: #111111;
-  --theme-input: #E7E1E6;
-  --theme-glow-bar: #FF3D51;  /* 亮红泛光 */
-}
-
-/* ── 电光桃 + 深夜黑 ── */
-.theme-neon {
-  --theme-primary: #DF2C88;
-  --theme-primary-hover: #B61B6B;
-  --theme-primary-light: #FCEEF5;
-  --theme-primary-lighter: #FEF7FA;
-  --theme-ring: #DF2C88;
-  --theme-nav-bg: #000000;
-  --theme-input: #E8E2EB;
-  --theme-glow-bar: #FF3DA1;  /* 亮桃泛光 */
-}
-
-/* ── 暮海蓝 + 莓果粉 ── */
-.theme-dusk {
+/* 暮海蓝 + 莓果粉 — 精确色值 */
+.theme-dusk-berry {
   --theme-primary: #BC5A8C;
-  --theme-primary-hover: #9C406F;
-  --theme-primary-light: #FAF2F6;
-  --theme-primary-lighter: #FCF8FA;
+  --theme-primary-hover: #A04470;
+  --theme-primary-light: #FBF5F8;
+  --theme-primary-lighter: #FDF9FB;
+  --theme-primary-foreground: #FFFFFF;
   --theme-ring: #BC5A8C;
   --theme-nav-bg: #4F467D;
-  --theme-input: #E6E5EB;
-  --theme-glow-bar: #4F467D;  /* 主色泛光 */
+  --theme-input: #EDE8EE;
+  --theme-glow-bar: #BC5A8C;
+  --theme-secondary: #4F467D;
 }
 
-/* ── 松林绿 + 沙丘金 ── */
-.theme-forest {
+/* 深海蓝 + 荧光青 — 精确色值 */
+.theme-ocean-lime {
+  --theme-primary: #9FD60B;
+  --theme-primary-hover: #7FB000;
+  --theme-primary-light: #F6FDE8;
+  --theme-primary-lighter: #FBFEF4;
+  --theme-primary-foreground: #0F172A;
+  --theme-ring: #9FD60B;
+  --theme-nav-bg: #2767C4;
+  --theme-input: #EAF0F8;
+  --theme-glow-bar: #9FD60B;
+  --theme-secondary: #2767C4;
+}
+
+/* 松林绿 + 沙丘金 — 精确色值 */
+.theme-forest-gold {
   --theme-primary: #C9A954;
   --theme-primary-hover: #AB8B36;
   --theme-primary-light: #FBF8F1;
   --theme-primary-lighter: #FDFCF8;
+  --theme-primary-foreground: #0F172A;
   --theme-ring: #C9A954;
   --theme-nav-bg: #145A33;
-  --theme-input: #E6E9E8;
-  --theme-glow-bar: #145A33;  /* 主色泛光 */
+  --theme-input: #EAEDEA;
+  --theme-glow-bar: #C9A954;
+  --theme-secondary: #145A33;
 }
 
-/* ── 古铜金 + 暗域黑 ── */
-.theme-gold {
-  --theme-primary: #D8B241;
-  --theme-primary-hover: #B69225;
-  --theme-primary-light: #FCF9F0;
-  --theme-primary-lighter: #FDFCF7;
-  --theme-ring: #D8B241;
-  --theme-nav-bg: #000000;
-  --theme-input: #E7E9E7;
-  --theme-glow-bar: #FFCF3D;  /* 亮金泛光 */
-}
-
-/* ── 熔岩橙 + 炭岩灰 ── */
-.theme-lava {
-  --theme-primary: #FF6B0A;
-  --theme-primary-hover: #D15400;
-  --theme-primary-light: #FFF3EB;
-  --theme-primary-lighter: #FFF9F5;
-  --theme-ring: #FF6B0A;
-  --theme-nav-bg: #222222;
-  --theme-input: #E9E6E5;
-  --theme-glow-bar: #FF8B3D;  /* 亮橙泛光 */
+/* 皇云紫 + 闪光黄 — 精确色值 */
+.theme-royal-lemon {
+  --theme-primary: #FFDC1E;
+  --theme-primary-hover: #E5C500;
+  --theme-primary-light: #FFFDEB;
+  --theme-primary-lighter: #FFFEF5;
+  --theme-primary-foreground: #0F172A;
+  --theme-ring: #FFDC1E;
+  --theme-nav-bg: #501E78;
+  --theme-input: #F2EDE8;
+  --theme-glow-bar: #FFDC1E;
+  --theme-secondary: #501E78;
 }
 
 @theme {
-  /* ── 主色：引用主题 CSS 变量，切换 .theme-* 类即可全局变色 ── */
   --color-primary: var(--theme-primary);
-  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-foreground: var(--theme-primary-foreground, hsl(0 0% 100%));
   --color-primary-hover: var(--theme-primary-hover);
   --color-primary-light: var(--theme-primary-light);
   --color-primary-lighter: var(--theme-primary-lighter);
 
-  /* 背景/前景 */
-  --color-background: #F7F8FA;
-  --color-foreground: #1D2129;
+  --color-background: #FAFAF8;
+  --color-foreground: #1C1917;
 
-  /* 卡片 */
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: #1D2129;
+  --color-card-foreground: #1C1917;
 
-  /* 柔和底色 */
-  --color-muted: #ECEEF2;
-  --color-muted-foreground: #4E5969;
+  --color-muted: #F0EFED;
+  --color-muted-foreground: #57534E;
 
-  /* 边框 / 输入框 — 跟随主题色系微调 */
   --color-border: var(--theme-input);
-  --color-border-light: #F2F3F5;
+  --color-border-light: #F0EFED;
   --color-input: var(--theme-input);
   --color-ring: var(--theme-ring);
 
-  /* 语义色 */
   --color-destructive: hsl(0 84% 60%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-success: #00B42A;
-  --color-success-light: #E8FFEA;
-  --color-warning: #FF7D00;
-  --color-warning-light: #FFF7E8;
-  --color-danger: #F53F3F;
-  --color-danger-light: #FFECE8;
+  --color-success: #10B981;
+  --color-success-light: #ECFDF5;
+  --color-warning: #F59E0B;
+  --color-warning-light: #FFFBEB;
+  --color-danger: #EF4444;
+  --color-danger-light: #FEF2F2;
 
-  /* 文本层级 */
-  --color-text-primary: #1D2129;
-  --color-text-secondary: #4E5969;
-  --color-text-tertiary: #86909C;
-  --color-text-disabled: #C9CDD4;
+  --color-text-primary: #1C1917;
+  --color-text-secondary: #57534E;
+  --color-text-tertiary: #A8A29E;
+  --color-text-disabled: #D6D3D1;
 
-  /* 导航 — 跟随主题色系 */
   --color-nav-bg: var(--theme-nav-bg);
   --color-nav-text: #FFFFFF;
   --color-glow-bar: var(--theme-glow-bar);
 
-  /* accent / secondary / popover */
-  --color-accent: #ECEEF2;
-  --color-accent-foreground: #1D2129;
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: #1D2129;
-  --color-secondary: #ECEEF2;
-  --color-secondary-foreground: #1D2129;
+  --color-secondary-accent: var(--theme-secondary, var(--theme-glow-bar));
 
-  /* 圆角：ArcoDesign 克制风格 8px */
+  --color-accent: #F0EFED;
+  --color-accent-foreground: #1C1917;
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: #1C1917;
+  --color-secondary: #F0EFED;
+  --color-secondary-foreground: #1C1917;
+
   --radius: 0.5rem;
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 0.25rem);
   --radius-xl: calc(var(--radius) + 0.5rem);
 
-  /* 阴影层级 */
   --shadow-card: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.08);
   --shadow-dropdown: 0 8px 24px rgba(0,0,0,0.12);
@@ -227,46 +174,39 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* 全局默认禁止窗口拖拽，仅导航栏通过 JS API 可拖拽 */
 html, body {
   -webkit-app-region: no-drag;
 }
 
 body {
   font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  background-color: #F7F8FA;
-  color: #1D2129;
+  background-color: #FAFAF8;
+  color: #1C1917;
   margin: 0;
 }
 
-/* 确保聊天内容区域文本可选（pywebview frameless 窗口兼容） */
 [data-slot="scroll-area-viewport"] {
   user-select: text;
   -webkit-user-select: text;
 }
 
-/* 代码块中文本允许选中 */
 pre, code {
   user-select: text;
   -webkit-user-select: text;
 }
 
-/* === ArcoDesign 风格滚动条 === */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #F7F8FA; }
-::-webkit-scrollbar-thumb { background: #C9CDD4; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #86909C; }
+::-webkit-scrollbar-track { background: #FAFAF8; }
+::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
 
-/* ── 回复光效泛光动画 ── */
 @keyframes glow-bloom {
   0%, 100% { opacity: 0.5; transform: scaleY(0.6); }
   50% { opacity: 1; transform: scaleY(1); }
 }
 
-/* === 全局选中态 === */
-::selection { background: #E8F3FF; color: #0E42D2; }
+::selection { background: var(--theme-secondary, #EDE9FE); color: #7C3AED; }
 
-/* === 窗口拖拽区域控制（pywebview frameless 窗口） === */
 .app-region-drag {
   -webkit-app-region: drag;
 }
@@ -274,16 +214,12 @@ pre, code {
   -webkit-app-region: no-drag;
 }
 
-/* === StreamMD 段落换行保留 === */
-/* StreamMD 硬编码 <p class="smd-paragraph">，忽略自定义 p 组件。
-   确保 AI 回复中单 \n 换行可见（LLM 常用单 \n 分隔要点，而非标准 Markdown \n\n） */
 .smd-paragraph {
   white-space: pre-line;
 }
 
-/* === 代码块 === */
 .prose pre {
-  background: #1D2129;
+  background: #1C1917;
   color: #E8E8E8;
   border-radius: 6px;
   font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
