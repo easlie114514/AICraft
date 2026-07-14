@@ -35,6 +35,7 @@ interface RAGConfig {
   has_api_key: boolean
   embedding_model: string
   embedding_api_base: string
+  chunk_max_tokens: number
 }
 
 const EMBEDDING_MODELS = [
@@ -58,6 +59,7 @@ export default function RAGPage() {
   const [showKey, setShowKey] = useState(false)
   const [embedModel, setEmbedModel] = useState('BAAI/bge-large-zh-v1.5')
   const [apiBase, setApiBase] = useState('https://api.siliconflow.cn/v1')
+  const [chunkMaxTokens, setChunkMaxTokens] = useState(800)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; dimension?: number; error?: string } | null>(null)
   const [configSaving, setConfigSaving] = useState(false)
@@ -88,6 +90,7 @@ export default function RAGPage() {
       setEmbedMode(data.embedding_mode)
       setEmbedModel(data.embedding_model)
       setApiBase(data.embedding_api_base)
+      setChunkMaxTokens(data.chunk_max_tokens || 800)
       // 不清空 apiKey — 保持用户已输入的内容
     } catch { /* ignore */ }
     setConfigLoading(false)
@@ -127,6 +130,12 @@ export default function RAGPage() {
   const handleApiBaseBlur = () => {
     if (apiBase.trim() && apiBase !== ragConfig?.embedding_api_base) {
       saveRagConfig({ embedding_api_base: apiBase.trim() })
+    }
+  }
+
+  const handleChunkTokensBlur = () => {
+    if (chunkMaxTokens > 0 && chunkMaxTokens !== ragConfig?.chunk_max_tokens) {
+      saveRagConfig({ chunk_max_tokens: String(chunkMaxTokens) })
     }
   }
 
@@ -239,6 +248,24 @@ export default function RAGPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Chunk 分片 Token 上限 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  分片 Token 上限
+                  {isLocalMode && <span className="ml-1 text-muted-foreground/60">（本地模式固定 200）</span>}
+                </Label>
+                <Input
+                  type="number"
+                  min={100}
+                  max={8192}
+                  value={isLocalMode ? 200 : chunkMaxTokens}
+                  onChange={(e) => setChunkMaxTokens(Number(e.target.value))}
+                  onBlur={handleChunkTokensBlur}
+                  disabled={isLocalMode}
+                  className="h-8 text-sm"
+                />
               </div>
 
               {/* API 地址 */}

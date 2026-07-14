@@ -99,8 +99,9 @@ async def get_rag_config():
         "embedding_mode": config.get("embedding_mode", "auto"),
         "embedding_api_key_masked": masked_key,
         "has_api_key": bool(config.get("embedding_api_key")),
-        "embedding_model": config.get("embedding_model", "BAAI/bge-large-zh-v1.5"),
+        "embedding_model": config.get("embedding_model", "BAAI/bge-m3"),
         "embedding_api_base": config.get("embedding_api_base", "https://api.siliconflow.cn/v1"),
+        "chunk_max_tokens": config.get("chunk_max_tokens", 800),
     }
 
 
@@ -118,6 +119,8 @@ async def update_rag_config(data: dict):
         config["embedding_model"] = data["embedding_model"]
     if "embedding_api_base" in data:
         config["embedding_api_base"] = data["embedding_api_base"]
+    if "chunk_max_tokens" in data:
+        config["chunk_max_tokens"] = int(data["chunk_max_tokens"])
     save_json(CONFIG_DIR / "rag_config.json", config)
     return {"success": True}
 
