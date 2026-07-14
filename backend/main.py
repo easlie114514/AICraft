@@ -77,7 +77,8 @@ if frontend_fonts.exists():
     app.mount("/fonts", StaticFiles(directory=str(frontend_fonts)), name="fonts")
 
 # 前端主题白名单（与 settings router 保持一致）
-_VALID_THEMES = {"blue", "green", "purple", "orange", "rose", "teal", "amber", "pink", "slate"}
+_VALID_THEMES = {"blue", "purple", "orange", "rose", "teal", "slate",
+                "crimson", "neon", "dusk", "forest", "gold", "lava"}
 
 # 生产模式：根路径返回 index.html（注入主题种子脚本避免首次加载闪烁）
 @app.get("/")
