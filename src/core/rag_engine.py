@@ -473,7 +473,7 @@ class RAGEngine:
             print(f"[RAG] warmup 失败: {type(e).__name__}: {e}")
             return False
 
-    def search(self, query: str, top_k: int = 5) -> list[str]:
+    def search(self, query: str, top_k: int | None = None) -> list[str]:
         """检索相关文档片段
 
         流程: 向量粗排 -> 去重 -> 精排（API优先 / 本地降级）-> 阈值过滤
@@ -482,6 +482,8 @@ class RAGEngine:
         print(f"[RAG] 查询: {query[:80]}")
         try:
             config = self._get_rag_config()
+            if top_k is None:
+                top_k = config.get("top_k", 20)
             rerank_cfg = config.get("reranking", {})
             rerank_enabled = rerank_cfg.get("enabled", False)
             coarse_k = top_k * 4 if rerank_enabled else top_k
