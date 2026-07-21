@@ -24,7 +24,7 @@ function SettingsSkeleton() {
               <div className="h-3 w-32 bg-muted/40 rounded" />
             </div>
           </div>
-          <div className="rounded-xl border border-border overflow-hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="flex items-center justify-between gap-6 px-4 py-3.5 animate-pulse">
               <div className="space-y-2">
                 <div className="h-4 w-28 bg-muted/50 rounded" />
@@ -127,7 +127,7 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
             <>
               {/* ── 对话体验 ── */}
               <SectionLabel icon={Smile} title="对话体验" description="聊天界面的展示和行为设置" />
-              <div className="rounded-xl border border-border overflow-hidden mb-6">
+              <div className="rounded-xl border border-border bg-card overflow-hidden mb-6">
                 <SettingRow
                   title="显示 AI 情绪画像"
                   description="在聊天界面底部显示当前角色的像素风情绪头像"
@@ -145,7 +145,7 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
 
               {/* ── 工具与性能 ── */}
               <SectionLabel icon={Zap} title="工具与性能" description="工具调用和行为控制" />
-              <div className="rounded-xl border border-border overflow-hidden mb-6">
+              <div className="rounded-xl border border-border bg-card overflow-hidden mb-6">
                 <SettingRow
                   title="最大工具调用轮次"
                   description="LLM 连续调用工具的最大轮次，超过后自动停止（1-100）"
@@ -161,7 +161,7 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
 
               {/* ── 关于 ── */}
               <SectionLabel icon={Info} title="关于" description="版本信息和更新" />
-              <div className="rounded-xl border border-border overflow-hidden">
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
                 <SettingRow
                   title="当前版本"
                   description={`v${currentVersion || "..."}`}

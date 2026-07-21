@@ -20,7 +20,7 @@
           };
 
           var t = localStorage.getItem('aicraft_theme');
-          var c = THEMES[t] || THEMES.blue;
+          var c = THEMES[t] || THEMES.sky;
           var s = document.documentElement.style;
           // --theme-* 供直接引用 var(--theme-*) 的组件使用（如 ReplyGlowBar）
           s.setProperty('--theme-primary', c.primary, 'important');

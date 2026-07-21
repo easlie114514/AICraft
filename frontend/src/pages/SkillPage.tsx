@@ -96,7 +96,7 @@ export default function SkillPage() {
             value={dirInput}
             readOnly
             placeholder="Skills 目录路径"
-            className="font-mono text-sm bg-muted/30 cursor-default"
+            className="font-mono text-sm bg-card cursor-default"
           />
           <InputGroupAddon align="inline-end">
             <InputGroupButton onClick={handleOpenDir} title="在资源管理器中打开 Skills 文件夹" size="icon-sm">

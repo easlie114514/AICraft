@@ -204,7 +204,7 @@ export default function MemoryPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 rounded-lg"
+          className="flex-1 rounded-lg bg-card border border-border"
         />
         <Button variant="outline" size="icon" onClick={handleSearch} className="shrink-0">
           <Search className="h-4 w-4" />

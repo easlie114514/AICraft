@@ -122,11 +122,11 @@
   --color-card: hsl(0 0% 100%);
   --color-card-foreground: #1C1917;
 
-  --color-muted: #F0EFED;
+  --color-muted: #EBE9E6;
   --color-muted-foreground: #57534E;
 
-  --color-border: var(--theme-input);
-  --color-border-light: #F0EFED;
+  --color-border: #D6D3D1;
+  --color-border-light: #E8E5E2;
   --color-input: var(--theme-input);
   --color-ring: var(--theme-ring);
 
