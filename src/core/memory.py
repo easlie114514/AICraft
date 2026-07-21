@@ -81,6 +81,26 @@ class MemoryManager:
             })
         return notes
 
+    def read_note(self, filename: str) -> dict | None:
+        """读取指定记忆片段的完整内容"""
+        safe_name = Path(filename).name
+        if not safe_name.endswith(".md"):
+            return None
+        path = self.notes_dir / safe_name
+        if not path.exists():
+            return None
+        content = path.read_text(encoding="utf-8")
+        kind = "long_term" if safe_name == "long_term_memory.md" else "compact"
+        return {
+            "name": path.stem,
+            "filename": safe_name,
+            "content": content,
+            "path": str(path),
+            "kind": kind,
+            "chars": len(content),
+            "tokens": estimate_tokens(content),
+        }
+
     def delete_note(self, filename: str) -> bool:
         """删除指定的记忆片段文件"""
         # 安全检查：只允许删除 project-notes 目录下的 .md 文件
