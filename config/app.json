@@ -1,8 +1,9 @@
 {
   "current_profile": "default",
-  "theme": "blue",
+  "theme": "sky",
   "language": "zh-CN",
   "skills_dir": "",
   "show_emotion_portrait": true,
-  "debug_mode": false
+  "debug_mode": true,
+  "max_tool_rounds": 25
 }

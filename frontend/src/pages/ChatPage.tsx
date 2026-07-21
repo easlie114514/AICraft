@@ -324,7 +324,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       <div className="shrink-0 p-4 space-y-2 bg-nav-bg">
 
         {/* ── 工具栏行：开关 + 选择器 ── */}
-        <div className="flex items-center justify-between bg-muted rounded-lg px-3 py-1.5">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center bg-white shadow-sm border border-border/20 rounded-lg px-3 py-1.5">
           {/* 左：功能开关 */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           </div>
 
           {/* 右：模型 / 角色 / Token / 新场景 */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 justify-self-end">
             <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? '')}>
               <SelectTrigger className="w-[160px] h-8 text-sm">
                 <SelectValue placeholder="模型" />

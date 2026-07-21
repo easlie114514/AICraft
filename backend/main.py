@@ -77,8 +77,8 @@ if frontend_fonts.exists():
     app.mount("/fonts", StaticFiles(directory=str(frontend_fonts)), name="fonts")
 
 # 前端主题白名单（与 settings router 保持一致）
-_VALID_THEMES = {"blue", "purple", "orange", "rose", "teal", "slate",
-                "crimson", "neon", "dusk", "forest", "gold", "lava"}
+_VALID_THEMES = {"sky", "mint", "sakura", "dusk-berry", "ocean-lime",
+                "forest-gold", "royal-lemon"}
 
 # 生产模式：根路径返回 index.html（注入主题种子脚本避免首次加载闪烁）
 @app.get("/")
@@ -92,11 +92,11 @@ async def root():
             app_config_path = Path(__file__).resolve().parent.parent / "config" / "app.json"
             if app_config_path.exists():
                 app_config = json.loads(app_config_path.read_text(encoding="utf-8"))
-                server_theme = app_config.get("theme", "blue")
+                server_theme = app_config.get("theme", "sky")
             else:
-                server_theme = "blue"
+                server_theme = "sky"
         except Exception:
-            server_theme = "blue"
+            server_theme = "sky"
         # 只在有效主题且 localStorage 无值时才注入（不覆盖用户当前会话的选择）
         if server_theme in _VALID_THEMES:
             seed_script = (

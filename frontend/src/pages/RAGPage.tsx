@@ -274,7 +274,7 @@ export default function RAGPage() {
           {/* ── Embedding 配置 ── */}
           <SectionLabel icon={Settings2} title="Embedding 配置" description="向量化模型、API 连接与检索参数" />
 
-          <div className="rounded-xl border border-border overflow-hidden mb-4">
+          <div className="rounded-xl border border-border bg-card overflow-hidden mb-4">
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr]">
               {/* ── 左栏：Embedding 模式 ── */}
               <div className="flex flex-col justify-center gap-2 p-5 lg:border-r border-border">

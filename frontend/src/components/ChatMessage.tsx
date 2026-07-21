@@ -128,7 +128,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
         className={cn(
           'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text',
           isUser
-            ? 'bg-primary-light text-text-primary rounded-tr-md'
+            ? 'bg-primary/10 text-text-primary rounded-tr-md'
             : 'bg-white border border-border/30 rounded-tl-md shadow-sm'
         )}
       >

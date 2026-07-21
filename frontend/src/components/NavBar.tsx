@@ -56,7 +56,7 @@ export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
                   ? 'text-white bg-[linear-gradient(to_top,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.04)_40%,transparent_60%)]'
                   : 'text-white/60 hover:text-white/80 border-transparent'
               )}
-              style={activeTab === tab.key ? { borderBottomColor: 'var(--color-secondary-accent)' } : undefined}
+              style={activeTab === tab.key ? { borderBottomColor: 'var(--color-glow-bar)' } : undefined}
             >
               {tab.label}
             </button>
