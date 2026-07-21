@@ -281,7 +281,25 @@ async def chat_websocket(ws: WebSocket):
                     try:
                         sc_model_config = get_current_model_config()
                         compact_model = select_model_for_task("memory_compact", sc_model_config)
-                        asyncio.create_task(_compact_current_scene(sc_history, compact_model, sc_role))
+                        async def _compact_and_maybe_merge():
+                            await _compact_current_scene(sc_history, compact_model, sc_role)
+                            # 检查是否需要合并（纳入两种 compact 文件）
+                            try:
+                                all_compacts = (
+                                    list(deps.memory_manager.notes_dir.glob("auto_compact_*.md"))
+                                    + list(deps.memory_manager.notes_dir.glob("scene_compact_*.md"))
+                                )
+                                if len(all_compacts) >= memory_merge_threshold:
+                                    merge_path = await deps.memory_manager.merge_compacts(compact_model)
+                                    if merge_path:
+                                        await ws.send_json({
+                                            "type": "inject_info",
+                                            "subtype": "memory",
+                                            "items": [f"记忆: 已将 {len(all_compacts)} 个片段合并为长期记忆"]
+                                        })
+                            except Exception:
+                                pass
+                        asyncio.create_task(_compact_and_maybe_merge())
                     except Exception:
                         pass
 
@@ -979,7 +997,10 @@ async def chat_websocket(ws: WebSocket):
                                         })
 
                                         # ── 检查是否需要自动合并 ──
-                                        compact_count = len(list(deps.memory_manager.notes_dir.glob("auto_compact_*.md")))
+                                        compact_count = len(
+                                            list(deps.memory_manager.notes_dir.glob("auto_compact_*.md"))
+                                            + list(deps.memory_manager.notes_dir.glob("scene_compact_*.md"))
+                                        )
                                         if compact_count >= memory_merge_threshold:
                                             merge_path = await deps.memory_manager.merge_compacts(compact_model)
                                             if merge_path:

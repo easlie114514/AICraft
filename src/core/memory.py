@@ -136,7 +136,11 @@ class MemoryManager:
                 total += len(content)
 
         # 2. 最近的compact补充
-        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"), reverse=True)
+        compacts = sorted(
+            list(self.notes_dir.glob("auto_compact_*.md")) +
+            list(self.notes_dir.glob("scene_compact_*.md")),
+            reverse=True
+        )
         for f in compacts:
             content = f.read_text(encoding="utf-8")
             remaining = max_chars - total
@@ -157,7 +161,10 @@ class MemoryManager:
 
     def get_memory_stats(self) -> dict:
         """获取记忆系统统计信息"""
-        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
+        compacts = sorted(
+            list(self.notes_dir.glob("auto_compact_*.md")) +
+            list(self.notes_dir.glob("scene_compact_*.md"))
+        )
         compact_count = len(compacts)
         compact_total_chars = sum(f.stat().st_size for f in compacts)
         compact_total_tokens = 0
@@ -272,7 +279,10 @@ class MemoryManager:
         Returns:
             生成的长期记忆文件路径，失败或无可合并内容则返回 None
         """
-        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
+        compacts = sorted(
+            list(self.notes_dir.glob("auto_compact_*.md")) +
+            list(self.notes_dir.glob("scene_compact_*.md"))
+        )
         if not compacts:
             return None
 
