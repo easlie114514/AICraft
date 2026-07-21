@@ -218,7 +218,7 @@ def ensure_user_dirs():
         profile_model.parent.mkdir(parents=True, exist_ok=True)
         save_json(profile_model, {
             "model_id": "",
-            "role": "通用助手",
+            "role": "Aiki",
             "web_search": False,
             "rag": False,
             "memory": True,
