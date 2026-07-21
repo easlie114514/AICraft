@@ -205,7 +205,7 @@ pre, code {
   50% { opacity: 1; transform: scaleY(1); }
 }
 
-::selection { background: var(--theme-secondary, #EDE9FE); color: #7C3AED; }
+::selection { background: var(--theme-primary); color: var(--theme-primary-foreground); }
 
 .app-region-drag {
   -webkit-app-region: drag;
