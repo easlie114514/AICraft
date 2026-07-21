@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
 import { api } from '@/lib/api'
 import { getSkillIcon, getSkillCategory } from './skill-icons'
 
@@ -90,20 +89,19 @@ export default function SkillPage() {
       </div>
 
       {/* 根目录设置 */}
-      <div className="shrink-0 flex items-center gap-2 mb-4">
-        <InputGroup className="flex-1 rounded-lg">
-          <InputGroupInput
-            value={dirInput}
-            readOnly
-            placeholder="Skills 目录路径"
-            className="font-mono text-sm bg-card cursor-default"
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton onClick={handleOpenDir} title="在资源管理器中打开 Skills 文件夹" size="icon-sm">
-              <FolderOpen className="h-4 w-4" />
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
+      <div className="shrink-0 flex items-center bg-card rounded-lg border border-border px-3 h-10 mb-4">
+        <span className="flex-1 font-mono text-sm text-text-secondary truncate select-all">
+          {dirInput || 'Skills 目录路径'}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleOpenDir}
+          title="在资源管理器中打开 Skills 文件夹"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+        >
+          <FolderOpen className="h-4 w-4" />
+        </Button>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
