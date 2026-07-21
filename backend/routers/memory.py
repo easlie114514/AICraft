@@ -56,6 +56,16 @@ async def list_notes():
     return notes
 
 
+@router.get("/memory/notes/{filename}")
+async def read_note(filename: str):
+    """读取指定记忆片段的完整内容"""
+    deps = get_deps()
+    note = deps.memory_manager.read_note(filename)
+    if not note:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return note
+
+
 @router.delete("/memory/notes/{filename}")
 async def delete_note(filename: str):
     """删除指定记忆片段"""

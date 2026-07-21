@@ -81,6 +81,26 @@ class MemoryManager:
             })
         return notes
 
+    def read_note(self, filename: str) -> dict | None:
+        """读取指定记忆片段的完整内容"""
+        safe_name = Path(filename).name
+        if not safe_name.endswith(".md"):
+            return None
+        path = self.notes_dir / safe_name
+        if not path.exists():
+            return None
+        content = path.read_text(encoding="utf-8")
+        kind = "long_term" if safe_name == "long_term_memory.md" else "compact"
+        return {
+            "name": path.stem,
+            "filename": safe_name,
+            "content": content,
+            "path": str(path),
+            "kind": kind,
+            "chars": len(content),
+            "tokens": estimate_tokens(content),
+        }
+
     def delete_note(self, filename: str) -> bool:
         """删除指定的记忆片段文件"""
         # 安全检查：只允许删除 project-notes 目录下的 .md 文件
@@ -136,7 +156,11 @@ class MemoryManager:
                 total += len(content)
 
         # 2. 最近的compact补充
-        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"), reverse=True)
+        compacts = sorted(
+            list(self.notes_dir.glob("auto_compact_*.md")) +
+            list(self.notes_dir.glob("scene_compact_*.md")),
+            reverse=True
+        )
         for f in compacts:
             content = f.read_text(encoding="utf-8")
             remaining = max_chars - total
@@ -157,7 +181,10 @@ class MemoryManager:
 
     def get_memory_stats(self) -> dict:
         """获取记忆系统统计信息"""
-        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
+        compacts = sorted(
+            list(self.notes_dir.glob("auto_compact_*.md")) +
+            list(self.notes_dir.glob("scene_compact_*.md"))
+        )
         compact_count = len(compacts)
         compact_total_chars = sum(f.stat().st_size for f in compacts)
         compact_total_tokens = 0
@@ -272,7 +299,10 @@ class MemoryManager:
         Returns:
             生成的长期记忆文件路径，失败或无可合并内容则返回 None
         """
-        compacts = sorted(self.notes_dir.glob("auto_compact_*.md"))
+        compacts = sorted(
+            list(self.notes_dir.glob("auto_compact_*.md")) +
+            list(self.notes_dir.glob("scene_compact_*.md"))
+        )
         if not compacts:
             return None
 

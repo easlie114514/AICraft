@@ -84,6 +84,7 @@ export default function MemoryPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [notes, setNotes] = useState<Note[]>([])
   const [viewConv, setViewConv] = useState<Record<string, unknown> | null>(null)
+  const [viewNote, setViewNote] = useState<{ name: string; content: string; kind: string } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState('conversations')
@@ -143,6 +144,15 @@ export default function MemoryPage() {
   const handleDeleteConv = async (id: string) => {
     await api.delete(`/memory/conversations/${encodeURIComponent(id)}`)
     loadConversations()
+  }
+
+  const handleViewNote = async (filename: string) => {
+    try {
+      const data = await api.get<{ name: string; content: string; kind: string }>(
+        `/memory/notes/${encodeURIComponent(filename)}`
+      )
+      setViewNote(data)
+    } catch { /* ignore */ }
   }
 
   const handleDeleteNote = async (filename: string) => {
@@ -328,14 +338,26 @@ export default function MemoryPage() {
                           <span className="text-sm font-medium truncate">{n.name}</span>
                           <span className="text-[10px] text-muted-foreground shrink-0">{formatTokens(n.tokens)}</span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteNote(n.filename)}
-                          className="text-muted-foreground hover:text-destructive shrink-0 ml-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewNote(n.filename)}
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="查看全文"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteNote(n.filename)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="删除"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 truncate">{n.preview}</p>
                     </CardContent>
@@ -673,6 +695,29 @@ export default function MemoryPage() {
           </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewConv(null)} >关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Note Dialog */}
+      <Dialog open={!!viewNote} onOpenChange={() => setViewNote(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <FileText className="h-4 w-4" />
+              {viewNote?.name}
+              <Badge variant={viewNote?.kind === 'long_term' ? 'default' : 'outline'} className="rounded-lg text-[11px]">
+                {viewNote?.kind === 'long_term' ? '长期记忆' : '短期记忆'}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[55vh]">
+            <div className="text-sm whitespace-pre-wrap leading-relaxed text-text-secondary">
+              {viewNote?.content || '(空)'}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewNote(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
