@@ -62,20 +62,31 @@ class MemoryManager:
     # ── 项目笔记 ──
 
     def list_notes(self) -> list[dict]:
-        """列出所有项目笔记"""
-        if not self.notes_dir.exists():
-            return []
+        """列出所有项目笔记（含短期片段 + 长期记忆）"""
         notes = []
-        for f in sorted(self.notes_dir.glob("*.md"), reverse=True):
-            content = f.read_text(encoding="utf-8")
-            # 区分 compact 和长期记忆
-            kind = "long_term" if f.name == "long_term_memory.md" else "compact"
-            notes.append({
-                "name": f.stem,
-                "filename": f.name,
-                "preview": content[:100],
-                "path": str(f),
-                "kind": kind,
+        # 1. 短期记忆片段（project-notes/ 下的 compact 文件）
+        if self.notes_dir.exists():
+            for f in sorted(self.notes_dir.glob("*.md"), reverse=True):
+                content = f.read_text(encoding="utf-8")
+                notes.append({
+                    "name": f.stem,
+                    "filename": f.name,
+                    "preview": content[:100],
+                    "path": str(f),
+                    "kind": "compact",
+                    "chars": len(content),
+                    "tokens": estimate_tokens(content),
+                })
+        # 2. 长期记忆（memory/long_term_memory.md）
+        long_term_path = MEMORY_DIR / "long_term_memory.md"
+        if long_term_path.exists():
+            content = long_term_path.read_text(encoding="utf-8")
+            notes.insert(0, {  # 置顶
+                "name": "📌 长期记忆",
+                "filename": "long_term_memory.md",
+                "preview": content[:200],
+                "path": str(long_term_path),
+                "kind": "long_term",
                 "chars": len(content),
                 "tokens": estimate_tokens(content),
             })
