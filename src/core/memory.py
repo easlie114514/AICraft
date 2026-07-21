@@ -97,7 +97,10 @@ class MemoryManager:
         safe_name = Path(filename).name
         if not safe_name.endswith(".md"):
             return None
+        # 长期记忆在 MEMORY_DIR，短期片段在 notes_dir
         path = self.notes_dir / safe_name
+        if not path.exists():
+            path = MEMORY_DIR / safe_name
         if not path.exists():
             return None
         content = path.read_text(encoding="utf-8")
@@ -114,11 +117,13 @@ class MemoryManager:
 
     def delete_note(self, filename: str) -> bool:
         """删除指定的记忆片段文件"""
-        # 安全检查：只允许删除 project-notes 目录下的 .md 文件
         safe_name = Path(filename).name  # 防止路径穿越
         if not safe_name.endswith(".md"):
             return False
+        # 长期记忆在 MEMORY_DIR，短期片段在 notes_dir
         path = self.notes_dir / safe_name
+        if not path.exists():
+            path = MEMORY_DIR / safe_name
         if path.exists():
             path.unlink()
             return True
