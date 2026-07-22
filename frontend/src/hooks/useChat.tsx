@@ -16,6 +16,8 @@ export interface ChatMessage {
   thinkingDuration?: number
   scene?: number
   subtype?: string
+  readOnly?: boolean
+  convDivider?: string
 }
 
 export interface ContextBudgetInfo {
@@ -46,6 +48,7 @@ type ChatAction =
   | { type: 'SET_ERROR'; content: string }
   | { type: 'NEW_SCENE' }
   | { type: 'LOAD_CONVERSATION'; messages: Array<{ role: string; content: string; timestamp?: string }>; convId: string }
+  | { type: 'PREPEND_MESSAGES'; messages: ChatMessage[] }
 
 // ── Reducer (same logic, now at module level) ──
 
@@ -211,6 +214,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       }))
       return { ...state, messages: loadedMsgs, streaming: false, error: null }
     }
+    case 'PREPEND_MESSAGES': {
+      return { ...state, messages: [...action.messages, ...state.messages] }
+    }
     default:
       return state
   }
@@ -240,6 +246,9 @@ interface ChatContextValue {
   emotion: string | null
   emotionConfig: { available: string[]; enabled: boolean } | null
   setEmotionConfig: (config: { available: string[]; enabled: boolean } | null) => void
+  hasOlderConversations: boolean
+  loadingOlder: boolean
+  loadOlderConversation: () => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -257,6 +266,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null)
   const convIdRef = useRef<string>(localStorage.getItem('aicraft_last_conv_id') || '')
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── 历史对话加载 ──
+  const [hasOlderConversations, setHasOlderConversations] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const allConvIdsRef = useRef<string[]>([])
+  const loadedConvIdsRef = useRef<Set<string>>(new Set())
 
   const connect = useCallback(() => {
     // Clean up existing
@@ -315,6 +330,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               convIdRef.current = data.conv_id || ''
               localStorage.setItem('aicraft_last_conv_id', data.conv_id || '')
               dispatch({ type: 'LOAD_CONVERSATION', messages: data.messages, convId: data.conv_id || '' })
+              // 异步拉取全量对话列表，判断是否有更早对话
+              const currentId = data.conv_id || ''
+              loadedConvIdsRef.current = new Set(currentId ? [currentId] : [])
+              fetch('/api/memory/conversations')
+                .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+                .then((list: Array<{ id: string }>) => {
+                  allConvIdsRef.current = list
+                    .map((c) => c.id)
+                    .filter((id) => id !== currentId)
+                  console.log('[conv_loaded] conversation list fetched', { currentId, total: list.length, older: allConvIdsRef.current.length })
+                  setHasOlderConversations(allConvIdsRef.current.length > 0)
+                }).catch((err) => {
+                  console.error('[conv_loaded] failed to fetch conversation list', err)
+                })
             }
             break
           case 'token_stats':
@@ -448,6 +477,86 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setTokenStats(null)
   }, [])
 
+  const loadOlderConversation = useCallback(async () => {
+    console.log('[loadOlder] click', { loadingOlder, allLen: allConvIdsRef.current.length, loaded: [...loadedConvIdsRef.current] })
+    if (loadingOlder || allConvIdsRef.current.length === 0) return
+    setLoadingOlder(true)
+    try {
+      // 找到最靠前的未加载对话（最近的未加载）
+      const nextConvId = allConvIdsRef.current.find((id) => !loadedConvIdsRef.current.has(id))
+      console.log('[loadOlder] nextConvId', nextConvId)
+      if (!nextConvId) {
+        setHasOlderConversations(false)
+        setLoadingOlder(false)
+        return
+      }
+      const resp = await fetch(`/api/memory/conversations/${encodeURIComponent(nextConvId)}`)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const conv = await resp.json() as {
+        id?: string
+        created?: string
+        model?: string
+        role?: string
+        messages?: Array<{ role: string; content: string; timestamp?: string }>
+      }
+      console.log('[loadOlder] conv loaded', { id: conv?.id, msgCount: conv?.messages?.length })
+      if (!conv || !conv.messages) {
+        loadedConvIdsRef.current.add(nextConvId)
+        setHasOlderConversations(allConvIdsRef.current.some((id) => !loadedConvIdsRef.current.has(id)))
+        setLoadingOlder(false)
+        return
+      }
+      loadedConvIdsRef.current.add(nextConvId)
+
+      // 分隔条
+      const createdLabel = conv.created
+        ? new Date(conv.created).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+          })
+        : nextConvId
+      const dividerText = `${createdLabel} · ${conv.model || '?'} · ${conv.role || '?'}`
+      const dividerMsg: ChatMessage = {
+        id: nextId(),
+        role: 'divider',
+        content: dividerText,
+        timestamp: Date.now() - 1,
+        readOnly: true,
+      }
+
+      // 历史消息（只展示 user/assistant，排除 system/tool）
+      const historyMsgs: ChatMessage[] = []
+      for (const m of conv.messages) {
+        const r = m.role
+        if (r === 'user' || r === 'assistant') {
+          historyMsgs.push({
+            id: nextId(),
+            role: r as ChatMessage['role'],
+            content: m.content || '',
+            timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now() - 1,
+            readOnly: true,
+          })
+        }
+      }
+
+      console.log('[loadOlder] dispatching PREPEND', { dividerText, historyCount: historyMsgs.length })
+
+      // 分隔条 + 历史消息，插入头部
+      const toPrepend = [dividerMsg, ...historyMsgs]
+      dispatch({ type: 'PREPEND_MESSAGES', messages: toPrepend })
+
+      // 更新是否还有更多
+      setHasOlderConversations(
+        allConvIdsRef.current.some((id) => !loadedConvIdsRef.current.has(id))
+      )
+    } catch (err: unknown) {
+      console.error('[loadOlder] failed', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      dispatch({ type: 'SET_ERROR', content: `加载更早对话失败: ${msg}` })
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [loadingOlder])
+
   const respondPermission = useCallback(
     (id: string, action: 'allow_once' | 'allow_always' | 'allow_session' | 'deny' | 'deny_always') => {
       setPermissionRequest(null)
@@ -468,6 +577,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       sendMessage, stopStreaming, newScene,
       tokenStats, permissionRequest, respondPermission,
       emotion, emotionConfig, setEmotionConfig,
+      hasOlderConversations, loadingOlder, loadOlderConversation,
     }}>
       {children}
     </ChatContext.Provider>
@@ -500,5 +610,8 @@ export function useChat() {
     emotion: ctx.emotion,
     emotionConfig: ctx.emotionConfig,
     setEmotionConfig: ctx.setEmotionConfig,
+    hasOlderConversations: ctx.hasOlderConversations,
+    loadingOlder: ctx.loadingOlder,
+    loadOlderConversation: ctx.loadOlderConversation,
   }
 }
