@@ -23,7 +23,7 @@ interface Props {
  */
 function normalizeMarkdown(text: string): string {
   // ── 0. 剥离 [EMOTION:xxx] 标记（仅移除标签本身，保留前后换行/空白）──
-  text = text.replace(/\[EMOTION:\w+\]/g, '')
+  text = text.replace(/\[EMOTI(?:TI)?ON:\w+\]/g, '')
 
   // ── 预处理：标题/列表修复 + 多头标记拆分 ──
   // 循环直到稳定：每次迭代修复行首标题空格→拆分内嵌标题→下一次迭代再修复新露出的行首标题
