@@ -889,13 +889,13 @@ async def chat_websocket(ws: WebSocket):
 
                             # 检测完整 EMOTION 标签（用于情绪画像）
                             acc = text_buffer + content
-                            m = re.search(r'\[EMOTION:(\w+)\]', acc)
+                            m = re.search(r'\[EMOTI(?:TI)?ON:(\w+)\]', acc)
                             if m:
                                 captured_emotion = m.group(1)
                                 text_buffer = ""
                             else:
                                 # 缓冲末尾可能被截断的 [EMOTION:xxx 片段
-                                pm = re.search(r'\[(?:E(?:M(?:O(?:T(?:I(?:O(?:N:?\w*)?)?)?)?)?)?)?$', acc)
+                                pm = re.search(r'\[(?:E(?:M(?:O(?:T(?:I(?:T(?:I(?:O(?:N:?\w*)?)?)?|O(?:N:?\w*)?))?)?)?)?)?$', acc)
                                 text_buffer = pm.group(0) if pm else ""
 
                             # 原样发送（含纯空白 chunk，如 \n —— 丢失会导致换行缺失）
