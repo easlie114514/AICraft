@@ -83,6 +83,35 @@ class WindowAPI:
         if win:
             win.destroy()
 
+    def restart(self):
+        """重启应用：隐藏的帮助进程等旧进程退出后，用 python.exe 正常启动（与手动启动一致）"""
+        import subprocess
+
+        if getattr(sys, 'frozen', False):
+            cmd = [sys.executable]
+        else:
+            cmd = [sys.executable, os.path.join(ROOT, "run.py")]
+
+        # pythonw.exe 无窗口运行等待器：等 2 秒（旧进程退出释放端口），
+        # 然后用 python.exe + CREATE_NO_WINDOW 启动（隐藏控制台，但保留完整 python.exe 行为）
+        helper_code = (
+            "import subprocess, sys, time\n"
+            "time.sleep(2)\n"
+            f"subprocess.Popen({cmd!r}, cwd={ROOT!r},"
+            " creationflags=0x08000000 if sys.platform == 'win32' else 0)\n"
+        )
+
+        pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        subprocess.Popen(
+            [pythonw, "-c", helper_code],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+        )
+
+        # 关闭当前窗口，主进程退出释放端口
+        win = webview.active_window()
+        if win:
+            win.destroy()
+
     def resize_window(self, edge: str, dx: int, dy: int):
         """拖拽边框缩放窗口（纯 Win32 API，线程安全）"""
         hwnd = self._ensure_hwnd()

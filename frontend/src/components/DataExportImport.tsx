@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Download, Upload, HardDrive, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react"
+import { Download, Upload, HardDrive, CheckCircle2, AlertTriangle, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SettingRow, SectionLabel } from "@/components/settings-ui"
@@ -107,7 +107,17 @@ export default function DataExportImport() {
     }
   }
 
-  // ── UI ──
+  // ── 重启应用 ──
+
+  const handleRestart = () => {
+    const api = (window as any).pywebview?.api
+    if (api?.restart) {
+      api.restart()
+    } else {
+      // 回退：浏览器开发模式下刷新页面
+      window.location.reload()
+    }
+  }
 
   return (
     <>
@@ -212,11 +222,22 @@ export default function DataExportImport() {
               {importResult?.ok ? (
                 <div className="flex items-start gap-2 text-xs text-green-600 dark:text-green-400 animate-in fade-in duration-200">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">
-                    导入完成：新增 {importResult.extracted ?? 0} 项，覆盖还原 {importResult.overwritten ?? importResult.skipped ?? 0} 项
-                    {importResult.failed?.length ? `，${importResult.failed.length} 项失败` : ""}
-                    。建议重启应用以确保数据生效。
-                  </span>
+                  <div className="flex flex-col gap-2">
+                    <span className="leading-relaxed">
+                      导入完成：新增 {importResult.extracted ?? 0} 项，覆盖还原 {importResult.overwritten ?? importResult.skipped ?? 0} 项
+                      {importResult.failed?.length ? `，${importResult.failed.length} 项失败` : ""}
+                      。部分数据需重启后生效。
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRestart}
+                      className="self-start"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      重启应用
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400 animate-in fade-in duration-200">
