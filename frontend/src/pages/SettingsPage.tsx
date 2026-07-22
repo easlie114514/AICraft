@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { api } from '@/lib/api'
 import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
+import DataExportImport from '@/components/DataExportImport'
 import { SettingRow, SectionLabel, NumberStepper } from '@/components/settings-ui'
 
 // ─── Skeleton ─────────────────────────────────────────────────────
@@ -158,6 +159,9 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
                   />
                 </SettingRow>
               </div>
+
+              {/* ── 数据管理 ── */}
+              <DataExportImport />
 
               {/* ── 关于 ── */}
               <SectionLabel icon={Info} title="关于" description="版本信息和更新" />
