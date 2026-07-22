@@ -18,6 +18,7 @@ import { useChat } from '@/hooks/useChat'
 import { api } from '@/lib/api'
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD = 60
+const SCROLL_NEAR_TOP_THRESHOLD = 60
 
 interface ModelOption {
   name: string
@@ -31,7 +32,7 @@ interface RoleOption {
 }
 
 export default function ChatPage({ isActive }: { isActive?: boolean }) {
-  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, debugMode, setDebugMode, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, debugMode, setDebugMode, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig, hasOlderConversations, loadingOlder, loadOlderConversation } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
@@ -44,6 +45,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   const [emotionVersion, setEmotionVersion] = useState(0)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [isNearBottom, setIsNearBottom] = useState(true)
+  const [isNearTop, setIsNearTop] = useState(true)
 
   // ── Smart auto-scroll: once user scrolls up during streaming, stop following ──
   const userPausedScrollRef = useRef(false)
@@ -147,15 +149,17 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     }
   }, [])
 
-  // Check if near bottom; if user scrolls away during streaming, pause auto-scroll
-  const checkNearBottom = useCallback(() => {
+  // Check if near bottom/top; if user scrolls away during streaming, pause auto-scroll
+  const checkScrollPosition = useCallback(() => {
     const el = viewportRef.current
     if (!el) return
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    const near = dist <= SCROLL_NEAR_BOTTOM_THRESHOLD
-    setIsNearBottom(near)
+    const nearBottom = dist <= SCROLL_NEAR_BOTTOM_THRESHOLD
+    setIsNearBottom(nearBottom)
+    const nearTop = el.scrollTop <= SCROLL_NEAR_TOP_THRESHOLD
+    setIsNearTop(nearTop)
     // User scrolled away during streaming → pause auto-follow until stream ends
-    if (!near && streamingRef.current) {
+    if (!nearBottom && streamingRef.current) {
       userPausedScrollRef.current = true
     }
   }, [])
@@ -214,7 +218,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       <ScrollArea
         className="flex-1 min-h-0 px-4 bg-background rounded-b-[20px]"
         viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
-        onScroll={checkNearBottom}
+        onScroll={checkScrollPosition}
       >
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
@@ -246,6 +250,20 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           </div>
         ) : (
           <div className="py-4 space-y-0 relative">
+            {/* 加载更早对话 — 滚动到顶时出现 */}
+            {hasOlderConversations && isNearTop && (
+              <div className="flex justify-center pb-3">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={loadOlderConversation}
+                  disabled={loadingOlder}
+                  className="rounded-full shadow-lg hover:shadow-xl h-8 px-4 text-xs"
+                >
+                  加载更早对话
+                </Button>
+              </div>
+            )}
             {messages
               .filter((msg) => {
                 // 调试模式：显示全部

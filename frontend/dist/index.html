@@ -5,37 +5,51 @@
     <link rel="icon" type="image/png" href="/logo_craft.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AICraft</title>
-    <!-- 同步写入关键 CSS 变量到 :root，彻底消灭主题闪烁 -->
+    <!-- 同步写入 CSS 变量到 :root，绕过 CSS 文件加载依赖，彻底消灭主题闪烁 -->
     <script>
       (function() {
         try {
           var THEMES = {
-            blue:   { primary: '#165DFF', hover: '#0E42D2', light: '#E8F3FF', lighter: '#F2F7FF', ring: '#165DFF', nav: '#1E3A74', input: '#E4E8F0' },
-            green:  { primary: '#16A34A', hover: '#15803D', light: '#F0FDF4', lighter: '#F7FEF9', ring: '#16A34A', nav: '#184A2C', input: '#E2EBE5' },
-            purple: { primary: '#7C3AED', hover: '#6D28D9', light: '#F5F3FF', lighter: '#FAF9FF', ring: '#7C3AED', nav: '#36285E', input: '#E9E5F0' },
-            orange: { primary: '#EA580C', hover: '#C2410C', light: '#FFF7ED', lighter: '#FFFBEB', ring: '#EA580C', nav: '#4C2A12', input: '#EDE7E1' },
-            rose:   { primary: '#DC2626', hover: '#B91C1C', light: '#FEF2F2', lighter: '#FFF7F7', ring: '#DC2626', nav: '#5C1E26', input: '#F0E6E7' },
-            teal:   { primary: '#0D9488', hover: '#0F766E', light: '#F0FDFA', lighter: '#F6FEFC', ring: '#0D9488', nav: '#184A40', input: '#E4EDEB' },
-            amber:  { primary: '#F59E0B', hover: '#D97706', light: '#FFFCEB', lighter: '#FFFEF5', ring: '#F59E0B', nav: '#4C3614', input: '#EDEAE2' },
-            pink:   { primary: '#DB2777', hover: '#BE185D', light: '#FDF2F8', lighter: '#FFF7FB', ring: '#DB2777', nav: '#581A3E', input: '#F0E4EC' },
-            slate:  { primary: '#475569', hover: '#334155', light: '#F1F5F9', lighter: '#F8FAFC', ring: '#475569', nav: '#384250', input: '#E5E8EC' },
+            sky:          { primary: '#0EA5E9', hover: '#0284C7', light: '#F0F9FF', lighter: '#F7FDFF', fg: '#FFFFFF', ring: '#0EA5E9', nav: '#0C4A6E', input: '#E6F2F8', glow: '#38BDF8', secondary: '#38BDF8' },
+            mint:         { primary: '#10B981', hover: '#059669', light: '#ECFDF5', lighter: '#F6FEF9', fg: '#FFFFFF', ring: '#10B981', nav: '#064E3B', input: '#E6F5EE', glow: '#34D399', secondary: '#34D399' },
+            sakura:       { primary: '#EC4899', hover: '#DB2777', light: '#FDF2F8', lighter: '#FEF7FB', fg: '#FFFFFF', ring: '#EC4899', nav: '#4A1030', input: '#F2E5ED', glow: '#F472B6', secondary: '#F472B6' },
+            'dusk-berry':  { primary: '#BC5A8C', hover: '#A04470', light: '#FBF5F8', lighter: '#FDF9FB', fg: '#FFFFFF', ring: '#BC5A8C', nav: '#4F467D', input: '#EDE8EE', glow: '#BC5A8C', secondary: '#4F467D' },
+            'ocean-lime':  { primary: '#9FD60B', hover: '#7FB000', light: '#F6FDE8', lighter: '#FBFEF4', fg: '#0F172A', ring: '#9FD60B', nav: '#2767C4', input: '#EAF0F8', glow: '#9FD60B', secondary: '#2767C4' },
+            'forest-gold': { primary: '#C9A954', hover: '#AB8B36', light: '#FBF8F1', lighter: '#FDFCF8', fg: '#0F172A', ring: '#C9A954', nav: '#145A33', input: '#EAEDEA', glow: '#C9A954', secondary: '#145A33' },
+            'royal-lemon': { primary: '#FFDC1E', hover: '#E5C500', light: '#FFFDEB', lighter: '#FFFEF5', fg: '#0F172A', ring: '#FFDC1E', nav: '#501E78', input: '#F2EDE8', glow: '#FFDC1E', secondary: '#501E78' },
           };
+
           var t = localStorage.getItem('aicraft_theme');
-          var c = THEMES[t] || THEMES.blue;
+          var c = THEMES[t] || THEMES.sky;
           var s = document.documentElement.style;
+          // --theme-* 供直接引用 var(--theme-*) 的组件使用（如 ReplyGlowBar）
           s.setProperty('--theme-primary', c.primary, 'important');
           s.setProperty('--theme-primary-hover', c.hover, 'important');
           s.setProperty('--theme-primary-light', c.light, 'important');
           s.setProperty('--theme-primary-lighter', c.lighter, 'important');
+          s.setProperty('--theme-primary-foreground', c.fg, 'important');
           s.setProperty('--theme-ring', c.ring, 'important');
           s.setProperty('--theme-nav-bg', c.nav, 'important');
           s.setProperty('--theme-input', c.input, 'important');
-          document.documentElement.classList.add('theme-' + (THEMES[t] ? t : 'blue'));
+          s.setProperty('--theme-glow-bar', c.glow, 'important');
+          s.setProperty('--theme-secondary', c.secondary, 'important');
+          // --color-* 供 Tailwind 工具类使用（bg-primary → var(--color-primary)）
+          // 绕过 CSS @theme 映射，CSS 文件未加载时也能正确解析
+          s.setProperty('--color-primary', c.primary, 'important');
+          s.setProperty('--color-primary-hover', c.hover, 'important');
+          s.setProperty('--color-primary-light', c.light, 'important');
+          s.setProperty('--color-primary-lighter', c.lighter, 'important');
+          s.setProperty('--color-ring', c.ring, 'important');
+          s.setProperty('--color-nav-bg', c.nav, 'important');
+          s.setProperty('--color-input', c.input, 'important');
+          s.setProperty('--color-glow-bar', c.glow, 'important');
+          s.setProperty('--color-secondary-accent', c.secondary, 'important');
+          document.documentElement.classList.add('theme-' + (THEMES[t] ? t : 'sky'));
         } catch(e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-DHd5lN3w.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B9esdWny.css">
+    <script type="module" crossorigin src="/assets/index-BFs8Ae7I.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CWNJxpMf.css">
   </head>
   <body>
     <div id="root"></div>
