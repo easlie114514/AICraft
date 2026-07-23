@@ -112,6 +112,16 @@ class WindowAPI:
         if win:
             win.destroy()
 
+    def pick_directory(self) -> str | None:
+        """打开原生文件夹选择对话框，返回用户选择的目录路径，取消返回 None"""
+        win = webview.active_window()
+        if win is None:
+            return None
+        selected = win.create_file_dialog(webview.FOLDER_DIALOG)
+        if selected and len(selected) > 0:
+            return selected[0]
+        return None
+
     def resize_window(self, edge: str, dx: int, dy: int):
         """拖拽边框缩放窗口（纯 Win32 API，线程安全）"""
         hwnd = self._ensure_hwnd()

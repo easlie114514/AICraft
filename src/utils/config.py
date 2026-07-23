@@ -187,9 +187,13 @@ def _check_version_upgrade() -> None:
         return
 
     # ── 版本升级钩子 ──
-    # 在此处按需添加各版本升级逻辑，例如：
+    # 在此处按需添加各版本配置格式迁移逻辑，例如：
     # if stored < "1.2.0":
     #     _migrate_to_1_2_0()
+    #
+    # 注意：跨版本的完整用户数据迁移（config/、memory/、chroma_db/ 等），
+    # 请使用手动迁移功能：POST /api/data/migrate-from-old-version
+    # 或在 Settings → 从旧版迁移 中操作。
 
     # 更新存储的版本号
     save_json(VERSION_FILE, {"version": CURRENT_VERSION})

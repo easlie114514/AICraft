@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Download, Upload, HardDrive, CheckCircle2, AlertTriangle, Loader2, RefreshCw } from "lucide-react"
+import { Download, Upload, HardDrive, FolderOpen, CheckCircle2, AlertTriangle, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SettingRow, SectionLabel } from "@/components/settings-ui"
@@ -24,6 +24,19 @@ interface ImportResponse {
   detail?: string
 }
 
+interface MigrationResponse {
+  ok: boolean
+  old_version?: string
+  migrated_count?: number
+  skipped_count?: number
+  error_count?: number
+  migrated?: string[]
+  skipped?: string[]
+  errors?: string[]
+  summary?: string
+  detail?: string
+}
+
 export default function DataExportImport() {
   // ── 导出状态 ──
   const [exporting, setExporting] = useState(false)
@@ -35,6 +48,13 @@ export default function DataExportImport() {
   const [importResult, setImportResult] = useState<ImportResponse | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── 迁移状态 ──
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState<MigrationResponse | null>(null)
+  const [migrationError, setMigrationError] = useState<string | null>(null)
+  const [fallbackPath, setFallbackPath] = useState("")
+  const [usingPywebview, setUsingPywebview] = useState(true)
 
   // ── 错误消息自动清除，成功结果保持到页面切换 ──
   useEffect(() => {
@@ -48,6 +68,12 @@ export default function DataExportImport() {
     const timer = setTimeout(() => setImportError(null), 8000)
     return () => clearTimeout(timer)
   }, [importError])
+
+  useEffect(() => {
+    if (!migrationError) return
+    const timer = setTimeout(() => setMigrationError(null), 8000)
+    return () => clearTimeout(timer)
+  }, [migrationError])
 
   // ── 导出 ──
 
@@ -104,6 +130,57 @@ export default function DataExportImport() {
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
+    }
+  }
+
+  // ── 从旧版迁移 ──
+
+  const handleMigrate = async (dirPath: string) => {
+    setMigrating(true)
+    setMigrationResult(null)
+    setMigrationError(null)
+
+    try {
+      const res = await fetch("/api/data/migrate-from-old-version", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_dir: dirPath }),
+      })
+      const data: MigrationResponse = await res.json()
+
+      if (!res.ok) {
+        setMigrationError(data.detail || "迁移失败")
+      } else {
+        setMigrationResult(data)
+      }
+    } catch {
+      setMigrationError("网络错误，迁移失败")
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  const handlePickDirectory = async () => {
+    const api = (window as any).pywebview?.api
+    if (api?.pick_directory) {
+      setUsingPywebview(true)
+      try {
+        const path = await api.pick_directory()
+        if (path) {
+          await handleMigrate(path)
+        }
+      } catch {
+        // pywebview 调用失败，回退到文本输入
+        setUsingPywebview(false)
+      }
+    } else {
+      setUsingPywebview(false)
+    }
+  }
+
+  const handleFallbackSubmit = () => {
+    if (fallbackPath.trim()) {
+      handleMigrate(fallbackPath.trim())
     }
   }
 
@@ -243,6 +320,118 @@ export default function DataExportImport() {
                 <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400 animate-in fade-in duration-200">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{importError}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        <Separator />
+
+        {/* ── 从旧版迁移 ── */}
+        <SettingRow
+          title="从旧版迁移"
+          description="选择旧版 AICraft 根目录，将用户数据（配置、模型、对话、记忆、知识库等）迁移到当前版本"
+        >
+          {usingPywebview ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePickDirectory}
+              disabled={migrating}
+            >
+              {migrating ? (
+                <span className="inline-flex items-center gap-1">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  迁移中...
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  选择目录
+                </span>
+              )}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="输入旧版目录路径..."
+                value={fallbackPath}
+                onChange={(e) => setFallbackPath(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleFallbackSubmit()}
+                className="h-8 w-56 text-xs border border-border rounded-lg bg-background text-text-primary px-2.5 placeholder:text-text-tertiary"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFallbackSubmit}
+                disabled={migrating || !fallbackPath.trim()}
+              >
+                {migrating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  "迁移"
+                )}
+              </Button>
+            </div>
+          )}
+        </SettingRow>
+
+        {/* 迁移结果通知 */}
+        {(migrationResult || migrationError) && (
+          <>
+            <Separator />
+            <div className="px-4 py-3">
+              {migrationResult?.ok ? (
+                <div className="flex items-start gap-2 text-xs animate-in fade-in duration-200">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600 dark:text-green-400" />
+                  <div className="flex flex-col gap-2">
+                    <span className="leading-relaxed text-green-600 dark:text-green-400">
+                      {migrationResult.summary}
+                    </span>
+                    {migrationResult.old_version && (
+                      <span className="text-text-tertiary">
+                        来源版本：v{migrationResult.old_version}
+                      </span>
+                    )}
+                    {migrationResult.migrated && migrationResult.migrated.length > 0 && (
+                      <details className="text-text-tertiary">
+                        <summary className="cursor-pointer hover:text-text-primary text-[11px]">
+                          查看详情（{migrationResult.migrated_count} 项已迁移{migrationResult.skipped_count ? `，${migrationResult.skipped_count} 项已跳过` : ""}）
+                        </summary>
+                        <ul className="mt-1 ml-2 space-y-0.5 list-disc list-inside max-h-32 overflow-y-auto text-[11px]">
+                          {migrationResult.migrated.map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {migrationResult.errors && migrationResult.errors.length > 0 && (
+                      <div className="text-red-500 dark:text-red-400">
+                        {migrationResult.errors.length} 项错误：
+                        <ul className="ml-2 list-disc list-inside">
+                          {migrationResult.errors.slice(0, 5).map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRestart}
+                      className="self-start"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      重启应用
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400 animate-in fade-in duration-200">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{migrationError}</span>
                 </div>
               )}
             </div>

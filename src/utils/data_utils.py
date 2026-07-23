@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -99,6 +100,28 @@ _EXPORT_ITEMS: list[tuple[str, bool, set[str] | None]] = [
 ]
 
 
+# ── 迁移清单（从旧版目录拷贝用户数据）──
+# 与 _EXPORT_ITEMS 互为镜像，差异：
+#   - 包含 chroma_db/ 和 workspace/（export 因体积原因跳过）
+#   - 包含 exports/（历史备份归档）
+#   - config/ 按整目录处理，不做单文件枚举
+#   - 同样排除 onnx/（嵌入模型）和出厂角色/Skill
+
+_MIGRATION_ITEMS: list[tuple[str, bool, set[str] | None]] = [
+    ("config", True, None),
+    ("models", True, {"onnx"}),
+    ("memory", True, None),
+    ("chroma_db", True, None),
+    ("workspace", True, None),
+    ("roles", True, _get_factory_role_names()),
+    ("skills", True, _get_factory_skill_names()),
+    ("rag", True, None),
+    ("exports", True, None),
+    ("app.md", False, None),
+    (".version", False, None),
+]
+
+
 # ═══════════════════════════════════════════════════════════
 # 数据类
 # ═══════════════════════════════════════════════════════════
@@ -117,6 +140,14 @@ class ImportResult:
     extracted: int = 0    # 新增文件
     overwritten: int = 0  # 覆盖还原
     failed: list[str] = field(default_factory=list)
+
+
+@dataclass
+class MigrationResult:
+    migrated: list[str] = field(default_factory=list)   # 已迁移的相对路径
+    skipped: list[str] = field(default_factory=list)    # 目标已存在的路径
+    errors: list[str] = field(default_factory=list)     # 拷贝失败的错误信息
+    old_version: str = ""                                # 检测到的旧版本号
 
 
 # ═══════════════════════════════════════════════════════════
@@ -273,6 +304,112 @@ def extract_import_zip(zip_path: Path, target_dir: Path = USER_DIR) -> ImportRes
 
     except Exception as e:
         result.failed.append(f"导入失败: {e}")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
+# 从旧版目录迁移用户数据
+# ═══════════════════════════════════════════════════════════
+
+
+def _clear_factory_cache() -> None:
+    """重置出厂角色/Skill 名称缓存
+
+    迁移完成后用户目录中可能出现新的角色和 Skill，
+    需要清除缓存以便下次检测时重新扫描。
+    """
+    global _FACTORY_ROLE_NAMES, _FACTORY_SKILL_NAMES
+    _FACTORY_ROLE_NAMES = None
+    _FACTORY_SKILL_NAMES = None
+
+
+def migrate_from_old_version(
+    old_root: Path,
+    target_dir: Path = USER_DIR,
+) -> MigrationResult:
+    """从旧版 AICraft 目录拷贝用户数据到当前 USER_DIR
+
+    Args:
+        old_root: 旧版 AICraft 根目录（包含 .version 文件）
+        target_dir: 目标用户数据目录，默认 USER_DIR
+
+    Returns:
+        MigrationResult(migrated, skipped, errors, old_version)
+
+    迁移策略：
+        - 拷贝（非移动），旧目录原封不动
+        - 目标已有文件跳过（不覆盖），保护新版默认配置
+        - 出厂角色和 Skill 自动排除
+        - 读取旧版 .version 记录来源版本号
+    """
+    result = MigrationResult()
+
+    # 1. 校验旧目录
+    if not old_root.exists():
+        result.errors.append(f"目录不存在: {old_root}")
+        return result
+    if not old_root.is_dir():
+        result.errors.append(f"路径不是目录: {old_root}")
+        return result
+
+    old_version_file = old_root / ".version"
+    if not old_version_file.exists():
+        result.errors.append(
+            f"所选目录不是有效的 AICraft 用户数据目录（未找到 .version 文件）"
+        )
+        return result
+
+    # 2. 读取旧版本号
+    try:
+        vdata = load_json(old_version_file)
+        result.old_version = vdata.get("version", "unknown")
+    except Exception:
+        result.old_version = "unknown"
+
+    # 3. 确保目标目录存在
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 4. 遍历迁移清单
+    for rel_path, is_dir, exclude_names in _MIGRATION_ITEMS:
+        src = old_root / rel_path
+        if not src.exists():
+            continue
+
+        try:
+            if not is_dir:
+                # ── 单文件 ──
+                dst = target_dir / rel_path
+                if dst.exists():
+                    result.skipped.append(rel_path)
+                else:
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    result.migrated.append(rel_path)
+            else:
+                # ── 目录：递归拷贝文件 ──
+                for f in src.rglob("*"):
+                    if not f.is_file():
+                        continue
+                    rel = f.relative_to(src)
+                    # 检查排除列表
+                    if exclude_names:
+                        top_name = rel.parts[0] if rel.parts else ""
+                        if top_name in exclude_names:
+                            continue
+                    dst_file = target_dir / rel_path / rel
+                    rel_str = f"{rel_path}/{rel.as_posix()}"
+                    if dst_file.exists():
+                        result.skipped.append(rel_str)
+                    else:
+                        dst_file.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(f, dst_file)
+                        result.migrated.append(rel_str)
+        except OSError as e:
+            result.errors.append(f"{rel_path}: {e}")
+
+    # 5. 清除出厂缓存（用户目录中可能有了新的角色/Skill）
+    _clear_factory_cache()
 
     return result
 
