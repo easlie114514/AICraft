@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from src.utils.config import USER_DIR
-from src.utils.data_utils import create_export_zip, extract_import_zip
+from src.utils.data_utils import create_export_zip, extract_import_zip, migrate_from_old_version, MigrationResult
 
 router = APIRouter(tags=["data"])
 
@@ -20,6 +20,10 @@ EXPORTS_DIR = USER_DIR / "exports"
 
 class ImportFromPathRequest(BaseModel):
     path: str
+
+
+class MigrateFromOldVersionRequest(BaseModel):
+    old_dir: str
 
 
 # ── 导出 ──
@@ -116,7 +120,57 @@ async def import_from_path(body: ImportFromPathRequest):
         raise HTTPException(status_code=500, detail=f"导入失败: {e}") from e
 
 
+# ── 从旧版目录迁移 ──
+
+
+@router.post("/data/migrate-from-old-version")
+async def migrate_from_old_version_endpoint(body: MigrateFromOldVersionRequest):
+    """从旧版 AICraft 目录拷贝用户数据到当前版本的 USER_DIR
+
+    拷贝 config/、models/（排除 onnx/）、memory/、chroma_db/、
+    workspace/、roles/（仅用户自建）、skills/（仅用户自建）、
+    rag/、exports/、app.md、.version。
+
+    目标已存在的文件会被跳过（不覆盖），出厂角色和 Skill 自动排除。
+    """
+    old_dir = Path(body.old_dir)
+
+    if not old_dir.exists():
+        raise HTTPException(status_code=400, detail="所选目录不存在")
+    if not old_dir.is_dir():
+        raise HTTPException(status_code=400, detail="请选择一个目录，而不是文件")
+
+    version_file = old_dir / ".version"
+    if not version_file.exists():
+        raise HTTPException(status_code=400,
+                            detail="所选目录不是有效的 AICraft 用户数据目录（未找到 .version 文件）")
+
+    result = migrate_from_old_version(old_dir)
+
+    return _build_migration_response(result)
+
+
 # ── 辅助 ──
+
+
+def _build_migration_response(result: MigrationResult) -> dict:
+    """将 MigrationResult 转为 API 响应"""
+    parts = [f"迁移完成：{len(result.migrated)} 项已复制，{len(result.skipped)} 项已跳过"]
+    if result.errors:
+        parts.append(f"{len(result.errors)} 项错误")
+    summary = "，".join(parts)
+
+    return {
+        "ok": True,
+        "old_version": result.old_version,
+        "migrated_count": len(result.migrated),
+        "skipped_count": len(result.skipped),
+        "error_count": len(result.errors),
+        "migrated": result.migrated[:100],
+        "skipped": result.skipped[:100],
+        "errors": result.errors[:50],
+        "summary": summary,
+    }
 
 
 def _build_import_response(result) -> dict:
