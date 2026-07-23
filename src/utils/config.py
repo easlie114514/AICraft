@@ -65,7 +65,7 @@ NOTES_DIR = MEMORY_DIR / "project-notes"
 
 # ── 版本号（用于首次启动/升级检测） ──
 VERSION_FILE = USER_DIR / ".version"
-CURRENT_VERSION = "1.1.0"
+CURRENT_VERSION = "1.1.1"
 
 
 def resolve_path(p: str | Path) -> Path:
