@@ -216,6 +216,9 @@ def ensure_user_dirs():
     # MCP / RAG 默认文件不在此复制——由 init_deps() 统一处理首次初始化，
     # 以便正确替换 {workspace_dir} 等占位符后再持久化。
 
+    # 首次启动：将出厂 RAG 文档复制到用户 rag 目录，统一 RAG 文档根目录
+    _copy_factory_rag_docs()
+
     # model.json 特殊处理：不存在时从模板复制
     profile_model = PROFILES_DIR / "default" / "model.json"
     if not profile_model.exists():
@@ -287,6 +290,36 @@ def _copy_factory_skills() -> None:
         if dst.exists():
             continue
         shutil.copytree(str(src), str(dst))
+
+
+def _copy_factory_rag_docs() -> None:
+    """将出厂 RAG 文档复制到用户 rag 目录（首次初始化用）
+
+    打包模式下 APP_DIR/rag/（_internal/data/rag/）存放出厂文档，
+    USER_DIR/rag/ 存放用户 sources.json 和用户文档。
+    首次启动时把出厂文档复制到 USER_DIR/rag/，统一 RAG 文档根目录。
+
+    只补缺失目录，不覆盖已有文件，不复制 sources.json。
+    """
+    import shutil
+    factory_rag = APP_DIR / "rag"
+    user_rag = USER_DIR / "rag"
+
+    if not factory_rag.exists():
+        return
+    if factory_rag.resolve() == user_rag.resolve():
+        return  # 开发模式，无需复制
+
+    for item in factory_rag.iterdir():
+        if item.name == "sources.json":
+            continue  # 工厂 sources.json 不复制（由 init_deps 生成用户版）
+        dst = user_rag / item.name
+        if dst.exists():
+            continue
+        if item.is_dir():
+            shutil.copytree(str(item), str(dst))
+        else:
+            shutil.copy2(str(item), str(dst))
 
 
 def _copy_if_missing(src: Path, dst: Path):

@@ -5,6 +5,13 @@ import sys
 from pathlib import Path
 ROOT = Path(SPECPATH)
 
+# 收集 rag/ 下的所有文件和子目录（显式列出，避免 PyInstaller 跳过中文名目录）
+_rag_items = []
+for _item in (ROOT / 'rag').iterdir():
+    _src = str(_item)
+    _dst = 'data/rag/' + _item.name
+    _rag_items.append((_src, _dst))
+
 a = Analysis(
     [str(ROOT / 'run.py')],
     pathex=[],
@@ -13,7 +20,7 @@ a = Analysis(
         # 出厂只读数据 → _internal/data/
         (str(ROOT / 'skills'), 'data/skills'),
         (str(ROOT / 'roles'), 'data/roles'),
-        (str(ROOT / 'rag'), 'data/rag'),
+        *_rag_items,
         (str(ROOT / 'models' / 'onnx'), 'data/models/onnx'),
         (str(ROOT / 'frontend' / 'dist'), 'data/frontend/dist'),
         (str(ROOT / 'config' / 'defaults'), 'data/config/defaults'),
