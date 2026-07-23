@@ -84,28 +84,40 @@ class WindowAPI:
             win.destroy()
 
     def restart(self):
-        """重启应用：隐藏的帮助进程等旧进程退出后，用 python.exe 正常启动（与手动启动一致）"""
+        """重启应用：等旧进程退出后重新启动，新窗口自动置顶"""
         import subprocess
 
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable]
+            # 打包模式：pythonw.exe 不存在于 PyInstaller onedir 输出中。
+            # 改用临时 bat 文件避免 cmd 嵌套引号冲突，同时设置
+            # AICRAFT_RESTART 环境变量让新进程启动后自动置顶窗口。
+            import tempfile
+            fd, bat_path = tempfile.mkstemp(suffix='.bat', prefix='_aicraft_restart_')
+            with os.fdopen(fd, 'w') as f:
+                f.write('@echo off\n')
+                f.write('timeout /t 2 /nobreak >nul\n')
+                f.write('set AICRAFT_RESTART=1\n')
+                f.write(f'start "" "{sys.executable}"\n')
+            subprocess.Popen(
+                ['cmd', '/c', bat_path],
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+            )
         else:
-            cmd = [sys.executable, os.path.join(ROOT, "run.py")]
-
-        # pythonw.exe 无窗口运行等待器：等 2 秒（旧进程退出释放端口），
-        # 然后用 python.exe + CREATE_NO_WINDOW 启动（隐藏控制台，但保留完整 python.exe 行为）
-        helper_code = (
-            "import subprocess, sys, time\n"
-            "time.sleep(2)\n"
-            f"subprocess.Popen({cmd!r}, cwd={ROOT!r},"
-            " creationflags=0x08000000 if sys.platform == 'win32' else 0)\n"
-        )
-
-        pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-        subprocess.Popen(
-            [pythonw, "-c", helper_code],
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
-        )
+            pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            helper_code = (
+                "import subprocess, sys, time, os\n"
+                "time.sleep(2)\n"
+                "env = os.environ.copy()\n"
+                'env[\"AICRAFT_RESTART\"] = \"1\"\n'
+                f"subprocess.Popen({[sys.executable, os.path.join(ROOT, 'run.py')]!r},"
+                f" cwd={ROOT!r},"
+                " env=env,"
+                " creationflags=0x08000000 if sys.platform == 'win32' else 0)\n"
+            )
+            subprocess.Popen(
+                [pythonw, "-c", helper_code],
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+            )
 
         # 关闭当前窗口，主进程退出释放端口
         win = webview.active_window()
@@ -226,6 +238,24 @@ def main():
         frameless=True,
         easy_drag=False,
     )
+
+    # 重启后自动将窗口置于最前（AICRAFT_RESTART 由 restart() 中的帮助进程设置）
+    if os.environ.get("AICRAFT_RESTART"):
+        def _bring_to_front():
+            _t = 0.0
+            while _t < 3.0:
+                hwnd = ctypes.windll.user32.FindWindowW(None, "AICraft")
+                if hwnd:
+                    # ALT 键技巧绕过 Windows 前台锁定，然后置顶窗口
+                    ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)  # VK_MENU down
+                    ctypes.windll.user32.keybd_event(0x12, 0, 0x2, 0)  # VK_MENU up
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    ctypes.windll.user32.BringWindowToTop(hwnd)
+                    break
+                time.sleep(0.2)
+                _t += 0.2
+        threading.Thread(target=_bring_to_front, daemon=True).start()
 
     webview.start(debug=False)
 
