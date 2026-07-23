@@ -1,11 +1,26 @@
 """RAG引擎 - 文档索引与检索"""
 
+import builtins
 import hashlib
 import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+_orig_print = builtins.print
+
+def _p(*args, **kwargs):
+    """安全的 print，在 Windows GBK 控制台下不会因 UnicodeEncodeError 崩溃"""
+    try:
+        _orig_print(*args, **kwargs)
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        try:
+            safe = [str(a).encode('ascii', errors='replace').decode('ascii') for a in args]
+            _orig_print(*safe, **kwargs)
+        except Exception:
+            pass
 
 from src.utils.config import RAG_STATE_DIR, load_json, save_json, CHROMA_DIR, resolve_path, CONFIG_DIR
 from src.core.embedding import get_embedding_function
@@ -57,7 +72,7 @@ def _deduplicate_chunks(chunks: list[str], threshold: float = 0.75) -> list[str]
             keep.append(chunk)
             keep_ngrams.append(c_ngrams)
     if len(keep) < len(chunks):
-        print(f"[RAG] 去重: {len(chunks)} -> {len(keep)} 条 (移除 {len(chunks) - len(keep)} 条重复)")
+        _p(f"[RAG] 去重: {len(chunks)} -> {len(keep)} 条 (移除 {len(chunks) - len(keep)} 条重复)")
     return keep
 
 
@@ -82,7 +97,7 @@ def _distance_filter(docs, distances, threshold=1.2):
     kept = len(filtered)
     dropped = len(docs) - kept
     if dropped > 0:
-        print(f"[RAG] 距离过滤: {len(docs)} -> {kept} 条 (阈值 {threshold}, 移除 {dropped} 条)")
+        _p(f"[RAG] 距离过滤: {len(docs)} -> {kept} 条 (阈值 {threshold}, 移除 {dropped} 条)")
     return [d for d, _ in filtered], [dist for _, dist in filtered]
 
 
@@ -107,6 +122,20 @@ def _mmr_rerank(docs, doc_embeddings, query_embedding, lambda_param=0.7, top_n=5
         selected.append(best_idx)
         remaining.remove(best_idx)
     return [docs[i] for i in selected]
+
+
+def _global_sort_and_truncate(
+    results: list[str],
+    distances: list[float],
+    top_k: int,
+) -> tuple[list[str], list[float]]:
+    """按 distance 全局排序后截断至 top_k，确保多数据源结果公平竞争"""
+    if not distances or len(distances) != len(results):
+        return results[:top_k], distances[:top_k] if distances else []
+    pairs = sorted(zip(results, distances), key=lambda x: x[1])
+    sorted_results = [doc for doc, _ in pairs[:top_k]]
+    sorted_distances = [d for _, d in pairs[:top_k]]
+    return sorted_results, sorted_distances
 
 
 
@@ -153,20 +182,34 @@ class RAGEngine:
 
     @staticmethod
     def _resolve_source_path(path: str) -> str:
-        """加载时解析路径：相对→绝对；过时绝对路径自动自愈"""
+        """加载时解析路径：相对→绝对；过时绝对路径自动自愈
+
+        相对路径解析优先级：
+        1. USER_DIR（用户 rag/ 目录，首次启动已从出厂复制文档）
+        2. APP_DIR（出厂只读文档兜底，如 _internal/data/rag/）
+        打包模式下两者不同，开发模式下两者相同。
+        """
         from pathlib import Path
-        from src.utils.config import BASE_DIR
+        from src.utils.config import BASE_DIR, USER_DIR
         p = Path(path)
         if p.is_absolute():
             if p.exists():
                 return str(p)
-            # 自愈：绝对路径不存在，尝试在当前 BASE_DIR 下查找同名路径
-            healed = RAGEngine._heal_source_path(path, BASE_DIR)
-            if healed is not None:
-                return healed
+            # 自愈：绝对路径不存在，尝试在 USER_DIR / BASE_DIR 下查找同名路径
+            for base in (USER_DIR, BASE_DIR):
+                healed = RAGEngine._heal_source_path(path, base)
+                if healed is not None:
+                    return healed
             return str(p)
-        # 相对路径 → 绝对
-        return str(resolve_path(path))
+        # 相对路径 → 优先 USER_DIR（用户文档主目录），其次 APP_DIR（出厂兜底）
+        user_resolved = (USER_DIR / path).resolve()
+        if user_resolved.exists():
+            return str(user_resolved)
+        resolved = (BASE_DIR / path).resolve()
+        if resolved.exists():
+            return str(resolved)
+        # 都不存在时返回 USER_DIR 路径，让后续代码报清晰的错误
+        return str(user_resolved)
 
     @staticmethod
     def _heal_source_path(abs_path: str, base_dir) -> str | None:
@@ -182,16 +225,20 @@ class RAGEngine:
 
     @staticmethod
     def _relativize_source_path(path: str) -> str:
-        """保存时：将项目内绝对路径转回相对路径，保证跨机器可移植"""
+        """保存时：将项目内绝对路径转回相对路径，保证跨机器可移植
+
+        优先尝试相对于 USER_DIR（用户数据主目录），其次 BASE_DIR（出厂兜底）。
+        """
         from pathlib import Path
-        from src.utils.config import BASE_DIR
+        from src.utils.config import BASE_DIR, USER_DIR
         p = Path(path)
         if p.is_absolute():
-            try:
-                rel = p.relative_to(BASE_DIR)
-                return rel.as_posix()
-            except ValueError:
-                pass
+            for base in (USER_DIR, BASE_DIR):
+                try:
+                    rel = p.relative_to(base)
+                    return rel.as_posix()
+                except ValueError:
+                    pass
         return path
 
     # ── Embedding 配置 ──
@@ -210,10 +257,10 @@ class RAGEngine:
             api_base = config.get("embedding_api_base", "https://api.siliconflow.cn/v1")
             return get_embedding_function(mode=mode, api_key=api_key, model=model, api_base=api_base)
         except ValueError as e:
-            print(f"[RAG] Embedding 不可用: {e}")
+            _p(f"[RAG] Embedding 不可用: {e}")
             return None
         except Exception as e:
-            print(f"[RAG] Embedding 初始化异常: {type(e).__name__}: {e}")
+            _p(f"[RAG] Embedding 初始化异常: {type(e).__name__}: {e}")
             return None
 
     def _get_reranker(self):
@@ -229,7 +276,7 @@ class RAGEngine:
             api_base = config.get("embedding_api_base", "https://api.siliconflow.cn/v1")
             return get_reranker(mode=mode, api_key=api_key, model=model, api_base=api_base)
         except Exception as e:
-            print(f"[RAG] Reranker 初始化异常: {type(e).__name__}: {e}")
+            _p(f"[RAG] Reranker 初始化异常: {type(e).__name__}: {e}")
             return None
 
 
@@ -312,8 +359,8 @@ class RAGEngine:
         save_json(self.CONFIG_PATH, data)
 
     def add_source(self, name: str, path: str, source_type: str = "local") -> RAGSource:
-        """添加数据源（相对路径自动解析为绝对路径）"""
-        resolved_path = str(resolve_path(path))
+        """添加数据源（相对路径自动解析为绝对路径，优先 USER_DIR）"""
+        resolved_path = self._resolve_source_path(path)
         source = RAGSource(name=name, path=resolved_path, source_type=source_type)
         self.sources.append(source)
         self.save_sources()
@@ -346,7 +393,7 @@ class RAGEngine:
 
         doc_dir = resolve_path(source.path)
         if not doc_dir.exists():
-            print(f"[RAG] 目录不存在，无法索引: {doc_dir}")
+            _p(f"[RAG] 目录不存在，无法索引: {doc_dir}")
             return 0
 
         config = self._get_rag_config()
@@ -362,7 +409,7 @@ class RAGEngine:
             collection = client.get_collection(col_name, embedding_function=embed_fn)
             existing = collection.metadata or {}
             if existing.get("rag_model") != model_name or existing.get("rag_mode") != mode:
-                print(f"[RAG] 模型变更 ({existing.get('rag_model')}->{model_name}), 自动重建: {col_name}")
+                _p(f"[RAG] 模型变更 ({existing.get('rag_model')}->{model_name}), 自动重建: {col_name}")
                 client.delete_collection(col_name)
                 collection = client.create_collection(
                     name=col_name, metadata=want_meta, embedding_function=embed_fn,
@@ -416,23 +463,31 @@ class RAGEngine:
                 chunks = splitter.split(text, doc_type)
                 if chunks:
                     ids = [f"{source.name}_{count}_{i}" for i in range(len(chunks))]
-                    # 自己调 embedding，绕过 ChromaDB 内部序列化可能的模型名丢失
-                    embeddings = embed_fn(chunks)
-                    collection.upsert(
-                        documents=chunks,
-                        embeddings=embeddings,
-                        ids=ids,
-                        metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
-                    )
+                    # API 模式：自己调 embedding，绕过 ChromaDB 内部序列化可能的模型名丢失
+                    # 本地 ONNX 模式：embed_fn 为 None，由 ChromaDB 内部使用默认 ONNX embedding
+                    if embed_fn is not None:
+                        embeddings = embed_fn(chunks)
+                        collection.upsert(
+                            documents=chunks,
+                            embeddings=embeddings,
+                            ids=ids,
+                            metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
+                        )
+                    else:
+                        collection.upsert(
+                            documents=chunks,
+                            ids=ids,
+                            metadatas=[{"source": str(f), "rag_name": source.name}] * len(chunks)
+                        )
                     count += 1
             except Exception as e:
                 err_msg = str(e)
                 if "dimension" in err_msg.lower() or "embedding" in err_msg.lower():
-                    print(f"[RAG] 索引失败 {f}: embedding 不兼容，请清空旧数据后重新索引")
+                    _p(f"[RAG] 索引失败 {f}: embedding 不兼容，请清空旧数据后重新索引")
                 elif "400" in err_msg or "20015" in err_msg:
-                    print(f"[RAG] 索引失败 {f}: API 参数错误，请检查模型名称或 API Key")
+                    _p(f"[RAG] 索引失败 {f}: API 参数错误，请检查模型名称或 API Key")
                 else:
-                    print(f"[RAG] 索引文件失败 {f}: {type(e).__name__}: {e}")
+                    _p(f"[RAG] 索引文件失败 {f}: {type(e).__name__}: {e}")
                 continue
 
         source.file_count = count
@@ -470,7 +525,7 @@ class RAGEngine:
                 client.delete_collection("warmup_test")
                 return True
         except Exception as e:
-            print(f"[RAG] warmup 失败: {type(e).__name__}: {e}")
+            _p(f"[RAG] warmup 失败: {type(e).__name__}: {e}")
             return False
 
     def search(self, query: str, top_k: int | None = None) -> list[str]:
@@ -478,15 +533,17 @@ class RAGEngine:
 
         流程: 向量粗排 -> 去重 -> 精排（API优先 / 本地降级）-> 阈值过滤
         """
-        print(f"\n{'='*60}")
-        print(f"[RAG] 查询: {query[:80]}")
+        _p(f"\n{'='*60}")
+        _p(f"[RAG] 查询: {query[:80]}")
         try:
             config = self._get_rag_config()
             if top_k is None:
                 top_k = config.get("top_k", 20)
             rerank_cfg = config.get("reranking", {})
             rerank_enabled = rerank_cfg.get("enabled", False)
-            coarse_k = top_k * 4 if rerank_enabled else top_k
+            # 多数据源场景：coarse_k 需要足够大，确保每个源都有候选进入最终 top_k
+            # 无精排时也取 3x，避免先检索的源完全挤掉后面的源
+            coarse_k = top_k * 4 if rerank_enabled else top_k * 3
 
             embed_fn = self._get_embed_fn()
 
@@ -494,7 +551,7 @@ class RAGEngine:
             client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 
             # 阶段1: 粗排
-            print(f"[RAG] 阶段1 粗排: coarse_k={coarse_k}, rerank={'ON' if rerank_enabled else 'OFF'}")
+            _p(f"[RAG] 阶段1 粗排: coarse_k={coarse_k}, rerank={'ON' if rerank_enabled else 'OFF'}")
             results: list[str] = []
             results_distances: list[float] = []
             results_embeddings: list[list[float]] = []
@@ -521,29 +578,29 @@ class RAGEngine:
                         results_distances.extend(dists if dists else [0.0] * len(docs))
                         results_embeddings.extend(embs if embs else [[0.0]] * len(docs))
 
-                        print(f"  [{source.name}] 粗排 top-{len(docs)}:")
+                        _p(f"  [{source.name}] 粗排 top-{len(docs)}:")
                         for j, (d, dist) in enumerate(zip(docs, dists)):
                             preview = d[:60].replace('\n', ' ')
-                            print(f"    #{j+1} dist={dist:.3f} | {preview}...")
+                            _p(f"    #{j+1} dist={dist:.3f} | {preview}...")
                     else:
-                        print(f"  [{source.name}] 无结果 (总数={collection.count()})")
+                        _p(f"  [{source.name}] 无结果 (总数={collection.count()})")
                 except ValueError as e:
                     if "Embedding function conflict" in str(e) or "dimension" in str(e).lower():
-                        print(f"  [{source.name}] 跳过: embedding 维度不兼容，需重新索引")
+                        _p(f"  [{source.name}] 跳过: embedding 维度不兼容，需重新索引")
                     else:
-                        print(f"  [{source.name}] 跳过: {e}")
+                        _p(f"  [{source.name}] 跳过: {e}")
                     continue
                 except Exception as e:
-                    print(f"  [{source.name}] 失败: {type(e).__name__}: {e}")
+                    _p(f"  [{source.name}] 失败: {type(e).__name__}: {e}")
 
             if not results:
-                print(f"[RAG] 无结果\n{'='*60}\n")
+                _p(f"[RAG] 无结果\n{'='*60}\n")
                 return []
 
-            print(f"[RAG] 粗排合计: {len(results)} 条")
+            _p(f"[RAG] 粗排合计: {len(results)} 条")
 
             # 阶段2: 去重
-            print(f"[RAG] 阶段2 去重")
+            _p(f"[RAG] 阶段2 去重")
             kept_docs = _deduplicate_chunks(results)
             if len(kept_docs) < len(results):
                 used_indices: list[int] = []
@@ -560,40 +617,40 @@ class RAGEngine:
                 results_embeddings = [results_embeddings[i] for i in used_indices if i < len(results_embeddings)]
             else:
                 results = kept_docs
-            print(f"  去重后: {len(results)} 条")
+            _p(f"  去重后: {len(results)} 条")
             for j, (d, dist) in enumerate(zip(results, results_distances)):
                 preview = d[:60].replace('\n', ' ')
-                print(f"    #{j+1} dist={dist:.3f} | {preview}...")
+                _p(f"    #{j+1} dist={dist:.3f} | {preview}...")
 
             # 阶段3: 精排
-            print(f"[RAG] 阶段3 精排")
+            _p(f"[RAG] 阶段3 精排")
             if rerank_enabled and len(results) > top_k:
                 reranker = self._get_reranker()
                 if reranker is not None:
                     try:
                         scored = reranker.rerank(query, results, top_n=top_k)
                         threshold = rerank_cfg.get("relevance_threshold", 0.3)
-                        print(f"  API 精排结果:")
+                        _p(f"  API 精排结果:")
                         for j, (doc, score) in enumerate(scored):
                             mark = "v" if score >= threshold else "x"
                             preview = doc[:60].replace('\n', ' ')
-                            print(f"    #{j+1} score={score:.3f} {mark} | {preview}...")
+                            _p(f"    #{j+1} score={score:.3f} {mark} | {preview}...")
                         filtered = [(doc, score) for doc, score in scored if score >= threshold]
                         if filtered:
                             results = [doc for doc, _ in filtered]
-                            print(f"  阈值过滤({threshold}): {len(scored)} -> {len(results)} 条")
+                            _p(f"  阈值过滤({threshold}): {len(scored)} -> {len(results)} 条")
                         else:
                             results = [scored[0][0]] if scored else results[:1]
-                            print(f"  全部低于阈值，取 top-1 兜底")
+                            _p(f"  全部低于阈值，取 top-1 兜底")
                     except Exception as e:
-                        print(f"  API 精排失败: {type(e).__name__}: {e}")
+                        _p(f"  API 精排失败: {type(e).__name__}: {e}")
                     finally:
                         try:
                             reranker.close()
                         except Exception:
                             pass
                 else:
-                    print(f"  本地降级: 距离过滤 + MMR")
+                    _p(f"  本地降级: 距离过滤 + MMR")
                     if results_distances:
                         before = len(results)
                         results, results_distances = _distance_filter(
@@ -601,7 +658,7 @@ class RAGEngine:
                             threshold=rerank_cfg.get("distance_threshold", 1.2),
                         )
                         if len(results) < before:
-                            print(f"  距离过滤: {before} -> {len(results)} 条")
+                            _p(f"  距离过滤: {before} -> {len(results)} 条")
                     if results_embeddings and len(results) > top_k and embed_fn is not None:
                         try:
                             before = len(results)
@@ -611,30 +668,36 @@ class RAGEngine:
                                 lambda_param=rerank_cfg.get("mmr_lambda", 0.7),
                                 top_n=top_k,
                             )
-                            print(f"  MMR 重排: {before} -> {len(results)} 条")
+                            _p(f"  MMR 重排: {before} -> {len(results)} 条")
                         except Exception as e:
-                            print(f"  MMR 失败: {type(e).__name__}: {e}")
-                            results = results[:top_k]
+                            _p(f"  MMR 失败: {type(e).__name__}: {e}")
+                            results, results_distances = _global_sort_and_truncate(
+                                results, results_distances, top_k
+                            )
                     else:
-                        results = results[:top_k]
-                        print(f"  截断至 top-{top_k}")
+                        results, results_distances = _global_sort_and_truncate(
+                            results, results_distances, top_k
+                        )
+                        _p(f"  截断至 top-{top_k}")
             else:
                 if len(results) > top_k:
-                    results = results[:top_k]
-                    print(f"  未启用精排，截断至 top-{top_k}")
+                    results, results_distances = _global_sort_and_truncate(
+                        results, results_distances, top_k
+                    )
+                    _p(f"  未启用精排，截断至 top-{top_k}")
                 else:
-                    print(f"  候选数 <= top_k，跳过精排")
+                    _p(f"  候选数 <= top_k，跳过精排")
 
-            print(f"\n[RAG] 最终 Top-{len(results)}:")
+            _p(f"\n[RAG] 最终 Top-{len(results)}:")
             for j, doc in enumerate(results):
                 preview = doc[:80].replace('\n', ' ')
-                print(f"  #{j+1} {preview}...")
-            print(f"{'='*60}\n")
+                _p(f"  #{j+1} {preview}...")
+            _p(f"{'='*60}\n")
 
             return results
         except Exception as e:
-            print(f"[RAG] search 异常: {type(e).__name__}: {e}")
-            print(f"{'='*60}\n")
+            _p(f"[RAG] search 异常: {type(e).__name__}: {e}")
+            _p(f"{'='*60}\n")
             return []
 
     def get_chroma_stats(self) -> dict[str, int]:
