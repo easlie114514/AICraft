@@ -387,44 +387,46 @@ export default function MCPPage() {
       {/* Add MCP Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+          <DialogHeader icon={Shield}>
             <DialogTitle>添加 MCP 连接</DialogTitle>
             <DialogDescription>配置 MCP 服务器连接信息</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>连接名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: Jira MCP" />
-            </div>
-            <div className="space-y-2">
-              <Label>连接类型</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v ?? 'sse' })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sse">SSE</SelectItem>
-                  <SelectItem value="stdio">Stdio</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {form.type === 'sse' ? (
-              <div className="space-y-2">
-                <Label>URL</Label>
-                <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="http://localhost:8080/sse" />
+          <div className="space-y-3 py-4">
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-secondary">连接名称</Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: Jira MCP" />
               </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>命令</Label>
-                  <Input value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} placeholder="例如: npx" />
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-secondary">连接类型</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v ?? 'sse' })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sse">SSE</SelectItem>
+                    <SelectItem value="stdio">Stdio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.type === 'sse' ? (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-text-secondary">URL</Label>
+                  <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="http://localhost:8080/sse" />
                 </div>
-                <div className="space-y-2">
-                  <Label>参数（空格分隔）</Label>
-                  <Input value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} placeholder="例如: -y @modelcontextprotocol/server-filesystem" />
-                </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-text-secondary">命令</Label>
+                    <Input value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} placeholder="例如: npx" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-text-secondary">参数（空格分隔）</Label>
+                    <Input value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} placeholder="例如: -y @modelcontextprotocol/server-filesystem" />
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>

@@ -80,13 +80,22 @@ function DialogContent({
   )
 }
 
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+function DialogHeader({ className, icon: Icon, children, ...props }: React.ComponentProps<"div"> & {
+  icon?: React.ComponentType<{ className?: string }>
+}) {
   return (
     <div
       data-slot="dialog-header"
       className={cn("flex flex-col gap-2", className)}
       {...props}
-    />
+    >
+      {Icon && (
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-primary" />
+        </div>
+      )}
+      {children}
+    </div>
   )
 }
 

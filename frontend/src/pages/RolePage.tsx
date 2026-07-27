@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
+
 import EmotionSlotGrid, { type EmotionKey } from '@/components/EmotionSlotGrid'
 import EmotionCropModal from '@/components/EmotionCropModal'
 import { api } from '@/lib/api'
@@ -251,47 +251,60 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
       {/* Add Role Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
+          <DialogHeader className="shrink-0" icon={User}>
             <DialogTitle>创建角色</DialogTitle>
             <DialogDescription>定义 AI 的角色和行为</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0">
-            <div className="space-y-2">
-              <Label>角色名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  placeholder="例如: 代码助手" />
-            </div>
-            <div className="space-y-2">
-              <Label>角色内容 (System Prompt)</Label>
-              <Textarea
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-                rows={8}
-                className="max-h-[300px]"
-                placeholder="描述 AI 的角色和行为..."
-              />
+          <div className="space-y-3 py-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0">
+            {/* ── 基本信息 ── */}
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-secondary">角色名称</Label>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-lg font-bold text-primary">
+                      {form.name.trim() ? form.name.trim()[0].toUpperCase() : '?'}
+                    </span>
+                  </div>
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="例如: 代码助手"
+                    className="flex-1 bg-card"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-secondary">角色内容 (System Prompt)</Label>
+                <Textarea
+                  value={form.content}
+                  onChange={(e) => setForm({ ...form, content: e.target.value })}
+                  rows={8}
+                  className="max-h-[300px] bg-card"
+                  placeholder="描述 AI 的角色和行为..."
+                />
+                <p className="text-[11px] text-text-tertiary text-right">{form.content.length} 字符</p>
+              </div>
             </div>
 
             {/* ── 人味（Human Touch）设定 ── */}
-            <Separator className="my-2" />
-            <div className="space-y-3">
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>人味设定</Label>
-                  <p className="text-xs text-text-secondary mt-0.5">让对话更自然，像和真人聊天</p>
+                  <span className="text-sm font-medium text-text-primary">人味设定</span>
+                  <p className="text-xs text-text-tertiary mt-0.5">让对话更自然，像和真人聊天</p>
                 </div>
                 <Switch
                   checked={humanTouchEnabled}
-                  onCheckedChange={async (v) => {
-                    setHumanTouchEnabled(v)
-                  }}
+                  onCheckedChange={(v) => setHumanTouchEnabled(v)}
                 />
               </div>
               {humanTouchEnabled && (
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { lvl: 1, title: '轻度口语化', desc: '自然口语表达' },
-                    { lvl: 2, title: '适度情绪化', desc: '带情绪和主见' },
-                    { lvl: 3, title: '完全拟人', desc: '有脾气能接梗' },
+                    { lvl: 1, emoji: '💬', title: '轻度口语化', desc: '自然口语表达' },
+                    { lvl: 2, emoji: '😄', title: '适度情绪化', desc: '带情绪和主见' },
+                    { lvl: 3, emoji: '🤪', title: '完全拟人', desc: '有脾气能接梗' },
                   ].map((item) => (
                     <button
                       key={item.lvl}
@@ -300,10 +313,10 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                       className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
                         humanTouchLevel === item.lvl
                           ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/20'
-                          : 'border-border bg-transparent text-text-secondary hover:border-primary/30 hover:bg-muted/50'
+                          : 'border-border bg-card text-text-secondary hover:border-primary/30 hover:bg-muted/50'
                       }`}
                     >
-                      <div className="text-xs font-medium">{item.title}</div>
+                      <div className="text-xs font-medium">{item.emoji} {item.title}</div>
                       <div className="text-[10px] opacity-55 mt-0.5">{item.desc}</div>
                     </button>
                   ))}
@@ -313,7 +326,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
           </div>
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => { setShowAdd(false); setHumanTouchEnabled(false); setHumanTouchLevel(1) }} >取消</Button>
-            <Button onClick={handleAdd} >创建</Button>
+            <Button onClick={handleAdd} >创建角色</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -321,12 +334,14 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
       {/* View Role Dialog */}
       <Dialog open={!!showView} onOpenChange={() => setShowView(null)}>
         <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
+          <DialogHeader className="shrink-0" icon={Eye}>
             <DialogTitle>{showView?.name}</DialogTitle>
             <DialogDescription>角色 System Prompt 内容</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-            <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-lg">{showView?.content}</pre>
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-2">
+            <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+              <pre className="text-sm whitespace-pre-wrap leading-relaxed text-text-secondary">{showView?.content || '(空)'}</pre>
+            </div>
           </div>
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => {
@@ -346,38 +361,22 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
 
       {/* Edit Role Dialog */}
       <Dialog open={!!showEdit} onOpenChange={() => { setShowEdit(null); setEmotionEnabled(false); setEmotionAvailable([]); setHumanTouchEnabled(false); setHumanTouchLevel(1) }}>
-        <DialogContent className="sm:max-w-[720px] max-h-[90vh] flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
+        <DialogContent className="sm:max-w-[1000px] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0" icon={Pencil}>
             <DialogTitle>编辑角色</DialogTitle>
             <DialogDescription>修改角色名称和 System Prompt</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0">
-            <div className="space-y-2">
-              <Label>角色名称</Label>
-              <Input
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                placeholder="角色名称"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>角色内容 (System Prompt)</Label>
-              <Textarea
-                value={editForm.content}
-                onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                rows={8}
-                className="max-h-[300px]"
-                placeholder="描述 AI 的角色和行为..."
-              />
-            </div>
-
-            {/* ── 情绪画像配置 ── */}
-            {showEdit && (
-              <>
-                <Separator className="my-2" />
-                <div className="space-y-3">
+          <div className="flex-1 min-h-0 relative">
+            {/* ── 右列：配置面板（在文档流中，决定容器高度）── */}
+            <div className="ml-[58%] w-[42%] py-4 space-y-3">
+              {/* ── 情绪画像配置 ── */}
+              {showEdit && (
+                <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>情绪画像</Label>
+                    <div>
+                      <span className="text-sm font-medium text-text-primary">情绪画像</span>
+                      <p className="text-xs text-text-tertiary mt-0.5">像素风情绪头像</p>
+                    </div>
                     <Switch
                       checked={emotionEnabled}
                       onCheckedChange={async (v) => {
@@ -390,31 +389,25 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                       }}
                     />
                   </div>
-
-                  {emotionEnabled && (
-                    <EmotionSlotGrid
-                      roleName={showEdit.name}
-                      available={emotionAvailable}
-                      version={emotionVersion}
-                      onSlotClick={(key) => {
-                        setCropEmotionKey(key)
-                        setShowCropModal(true)
-                      }}
-                    />
-                  )}
+                  <EmotionSlotGrid
+                    roleName={showEdit.name}
+                    available={emotionAvailable}
+                    version={emotionVersion}
+                    onSlotClick={(key) => {
+                      setCropEmotionKey(key)
+                      setShowCropModal(true)
+                    }}
+                  />
                 </div>
-              </>
-            )}
+              )}
 
-            {/* ── 人味（Human Touch）设定 ── */}
-            {showEdit && (
-              <>
-                <Separator className="my-2" />
-                <div className="space-y-3">
+              {/* ── 人味（Human Touch）设定 ── */}
+              {showEdit && (
+                <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>人味设定</Label>
-                      <p className="text-xs text-text-secondary mt-0.5">让对话更自然，像和真人聊天</p>
+                      <span className="text-sm font-medium text-text-primary">人味设定</span>
+                      <p className="text-xs text-text-tertiary mt-0.5">表达方式控制</p>
                     </div>
                     <Switch
                       checked={humanTouchEnabled}
@@ -427,13 +420,12 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                       }}
                     />
                   </div>
-
                   {humanTouchEnabled && (
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { lvl: 1, title: '轻度口语化', desc: '自然口语表达' },
-                        { lvl: 2, title: '适度情绪化', desc: '带情绪和主见' },
-                        { lvl: 3, title: '完全拟人', desc: '有脾气能接梗' },
+                        { lvl: 1, emoji: '💬', title: '轻度口语化', desc: '自然口语表达' },
+                        { lvl: 2, emoji: '😄', title: '适度情绪化', desc: '带情绪和主见' },
+                        { lvl: 3, emoji: '🤪', title: '完全拟人', desc: '有脾气能接梗' },
                       ].map((item) => (
                         <button
                           key={item.lvl}
@@ -448,18 +440,50 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                           className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
                             humanTouchLevel === item.lvl
                               ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/20'
-                              : 'border-border bg-transparent text-text-secondary hover:border-primary/30 hover:bg-muted/50'
+                              : 'border-border bg-card text-text-secondary hover:border-primary/30 hover:bg-muted/50'
                           }`}
                         >
-                          <div className="text-xs font-medium">{item.title}</div>
+                          <div className="text-xs font-medium">{item.emoji} {item.title}</div>
                           <div className="text-[10px] opacity-55 mt-0.5">{item.desc}</div>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-              </>
-            )}
+              )}
+            </div>
+
+            {/* ── 左列：基本信息（absolute 定位，高度由右列决定）── */}
+            <div className="absolute inset-y-0 left-0 w-[58%] overflow-y-auto py-4 pr-2">
+              <div className="rounded-xl border border-border/50 bg-muted/20 p-4 flex flex-col h-full">
+                <div className="space-y-1.5 shrink-0">
+                  <Label className="text-xs text-text-secondary">角色名称</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-lg font-bold text-primary">
+                        {editForm.name.trim() ? editForm.name.trim()[0].toUpperCase() : '?'}
+                      </span>
+                    </div>
+                    <Input
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      placeholder="角色名称"
+                      className="flex-1 bg-card"
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col min-h-0 space-y-1.5 mt-3">
+                  <Label className="text-xs text-text-secondary shrink-0">角色内容 (System Prompt)</Label>
+                  <Textarea
+                    value={editForm.content}
+                    onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                    className="flex-1 min-h-[120px] bg-card"
+                    placeholder="描述 AI 的角色和行为..."
+                  />
+                  <p className="text-[11px] text-text-tertiary text-right shrink-0">{editForm.content.length} 字符</p>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setShowEdit(null)} >取消</Button>

@@ -237,43 +237,45 @@ export default function ModelPage() {
       {/* ── DeepSeek一键接入 Dialog ── */}
       <Dialog open={showChannel} onOpenChange={setShowChannel}>
         <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>DeepSeek一键接入</DialogTitle>
+          <DialogHeader icon={Zap}>
+            <DialogTitle>DeepSeek 一键接入</DialogTitle>
             <DialogDescription>填入 API Key 即可自动创建 DeepSeek V4 Pro + Flash 模型配置</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-3 py-4">
             {/* API Key */}
-            <div className="space-y-2">
-              <Label>API Key</Label>
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-2">
+              <Label className="text-xs text-text-secondary">API Key</Label>
               <Input
                 type="password"
                 placeholder="sk-..."
                 value={channelApiKey}
                 onChange={(e) => setChannelApiKey(e.target.value)}
-                
               />
             </div>
 
             {/* 只读：端点 & 将自动创建的模型 */}
             {deepseekChannel && (
-              <div className="space-y-2 rounded-xl bg-muted/50 p-3 border border-border/50">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">端点</span>
-                  <span className="font-mono text-foreground">{deepseekChannel.base_url}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">协议</span>
-                  <span className="font-mono text-foreground">{deepseekChannel.protocol}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">将自动创建</span>
-                  <span className="text-foreground">
-                    {deepseekChannel.models.map((m) => (
-                      <Badge key={m.model_id} variant="secondary" className="rounded-lg ml-1 text-[10px]">
-                        {m.name}
-                      </Badge>
-                    ))}
-                  </span>
+              <div className="rounded-xl border border-border/50 bg-muted/20 p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-4 right-4 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-tertiary">端点</span>
+                    <span className="font-mono text-text-primary">{deepseekChannel.base_url}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-tertiary">协议</span>
+                    <span className="font-mono text-text-primary">{deepseekChannel.protocol}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-tertiary">将自动创建</span>
+                    <span>
+                      {deepseekChannel.models.map((m) => (
+                        <Badge key={m.model_id} variant="secondary" className="rounded-lg ml-1 text-[10px]">
+                          {m.name}
+                        </Badge>
+                      ))}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -282,7 +284,6 @@ export default function ModelPage() {
             <Button variant="outline" onClick={() => setShowChannel(false)} >取消</Button>
             <Button
               onClick={handleAddChannel}
-              className="bg-primary text-white"
               disabled={!channelApiKey.trim()}
             >
               保存
@@ -294,7 +295,7 @@ export default function ModelPage() {
       {/* ── 自定义模型 Dialog ── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+          <DialogHeader icon={Plus}>
             <DialogTitle>自定义模型</DialogTitle>
             <DialogDescription>手动配置 LLM API 连接信息</DialogDescription>
           </DialogHeader>

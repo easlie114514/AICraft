@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Eye, Trash2, Search, RefreshCw, FileText, MessageSquare, Settings2, Merge, RotateCcw, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -679,21 +679,41 @@ export default function MemoryPage() {
 
       {/* View Conversation Dialog */}
       <Dialog open={!!viewConv} onOpenChange={() => setViewConv(null)}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-mono">对话 {viewConv?.id as string || ''}</DialogTitle>
+        <DialogContent className="sm:max-w-[680px] max-h-[88vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0" icon={MessageSquare}>
+            <DialogTitle>对话记录</DialogTitle>
+            <DialogDescription>
+              {(viewConv?.id as string)?.slice(0, 8) ?? ''} &middot; {((viewConv?.messages || []) as Array<{ role: string }>).length} 条消息
+            </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[50vh]">
-            <div className="space-y-3">
+          {/* 对话内容 — 带边框的流式聊天区 */}
+          <div className="flex-1 min-h-0 rounded-xl border border-border bg-muted/10 overflow-y-auto">
+            <div className="p-4 space-y-2.5">
               {((viewConv?.messages || []) as Array<{ role: string; content: string }>).map((m, i) => (
-                <div key={i} className={`text-sm ${m.role === 'user' ? 'text-primary' : m.role === 'assistant' ? '' : 'text-muted-foreground'}`}>
-                  <span className="font-medium text-xs text-muted-foreground">{m.role}</span>
-                  <p className="whitespace-pre-wrap mt-0.5">{m.content?.slice(0, 500)}{m.content?.length > 500 ? '...' : ''}</p>
-                </div>
+                m.role === 'user' ? (
+                  <div key={i} className="flex justify-end">
+                    <div className="max-w-[80%] rounded-2xl rounded-br-md bg-primary text-primary-foreground px-3.5 py-2.5 text-sm leading-relaxed shadow-sm">
+                      <p className="whitespace-pre-wrap break-all">{m.content}</p>
+                    </div>
+                  </div>
+                ) : m.role === 'assistant' ? (
+                  <div key={i} className="flex justify-start gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-[11px] font-bold text-primary">AI</span>
+                    </div>
+                    <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-card border border-border/60 px-3.5 py-2.5 text-sm leading-relaxed shadow-sm">
+                      <p className="whitespace-pre-wrap break-all">{m.content}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i} className="flex justify-center py-1">
+                    <span className="text-[11px] text-text-tertiary">{m.content}</span>
+                  </div>
+                )
               ))}
             </div>
-          </ScrollArea>
-          <DialogFooter>
+          </div>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setViewConv(null)} >关闭</Button>
           </DialogFooter>
         </DialogContent>
@@ -701,22 +721,29 @@ export default function MemoryPage() {
 
       {/* View Note Dialog */}
       <Dialog open={!!viewNote} onOpenChange={() => setViewNote(null)}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm">
-              <FileText className="h-4 w-4" />
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0" icon={FileText}>
+            <DialogTitle className="flex items-center gap-2">
               {viewNote?.name}
               <Badge variant={viewNote?.kind === 'long_term' ? 'default' : 'outline'} className="rounded-lg text-[11px]">
                 {viewNote?.kind === 'long_term' ? '长期记忆' : '短期记忆'}
               </Badge>
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[55vh]">
-            <div className="text-sm whitespace-pre-wrap leading-relaxed text-text-secondary">
-              {viewNote?.content || '(空)'}
+          {/* 元信息 */}
+          <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 flex items-center gap-4 text-[11px] text-text-tertiary">
+            <span>类型：{viewNote?.kind === 'long_term' ? '长期记忆' : '短期记忆'}</span>
+            <span className="text-border">|</span>
+            <span>字符数：{viewNote?.content?.length ?? 0}</span>
+          </div>
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+              <div className="text-sm whitespace-pre-wrap leading-relaxed text-text-secondary">
+                {viewNote?.content || '(空)'}
+              </div>
             </div>
           </ScrollArea>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setViewNote(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
