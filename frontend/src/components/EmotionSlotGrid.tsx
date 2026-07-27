@@ -39,7 +39,7 @@ export default function EmotionSlotGrid({
             type="button"
             onClick={() => onSlotClick(key)}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors cursor-pointer border-2",
+              "aspect-square flex flex-col items-center justify-center gap-1 p-2 rounded-lg transition-colors cursor-pointer border-2",
               configured
                 ? "border-border bg-card hover:border-primary/40"
                 : "border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 bg-transparent"
@@ -49,17 +49,17 @@ export default function EmotionSlotGrid({
               <img
                 src={`/api/roles/${encodeURIComponent(roleName)}/emotion/${key}?v=${version}`}
                 alt={label}
-                className="w-16 h-16 object-contain rounded"
+                className="w-12 h-12 object-contain rounded"
               />
             ) : (
-              <span className="w-16 h-16 flex items-center justify-center text-2xl text-muted-foreground/40">
+              <span className="text-2xl text-muted-foreground/30">
                 {icon}
               </span>
             )}
-            <span className="text-xs text-text-secondary">{label}</span>
+            <span className="text-[11px] text-text-secondary leading-tight">{label}</span>
             <span className={cn(
-              "text-[10px]",
-              configured ? "text-green-600" : "text-muted-foreground/50"
+              "text-[10px] leading-tight",
+              configured ? "text-green-600" : "text-muted-foreground/40"
             )}>
               {configured ? '已配' : '空'}
             </span>
