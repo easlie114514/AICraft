@@ -15,6 +15,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from backend.deps import get_deps
+from src.core.role_loader import load_human_touch_config, write_human_touch_config
 from src.utils.config import get_current_role_name, set_current_role_name, ROLES_DIR, USER_ROLES_DIR
 
 router = APIRouter(tags=["roles"])
@@ -277,4 +278,36 @@ async def delete_emotion_image(name: str, key: str):
         config = _read_emotion_config(writable)
         config["enabled"] = False
         _write_emotion_config(writable, config)
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════
+# 人味（Human Touch）配置管理 API
+# ═══════════════════════════════════════════════════════════
+
+
+@router.get("/roles/{name}/human-touch")
+async def get_human_touch_config(name: str):
+    """获取角色人味设置"""
+    deps = get_deps()
+    role = deps.role_loader.get_role(name)
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    config = load_human_touch_config(name)
+    return {"enabled": config.get("enabled", False), "level": config.get("level", 1)}
+
+
+@router.put("/roles/{name}/human-touch")
+async def update_human_touch_config(name: str, data: dict):
+    """更新角色人味设置"""
+    deps = get_deps()
+    role = deps.role_loader.get_role(name)
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    enabled = bool(data.get("enabled", False))
+    level = int(data.get("level", 1))
+    level = level if level in {1, 2, 3} else 1
+
+    write_human_touch_config(name, {"enabled": enabled, "level": level})
     return {"ok": True}
