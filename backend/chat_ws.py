@@ -18,6 +18,7 @@ from src.core.context_budget import ContextBudget
 from src.core.permission_guard import PermissionGuard
 from src.core.evaluator import evaluate_response, format_eval_for_user
 from src.core.token_tracker import token_tracker
+from src.core.role_loader import load_human_touch_config, build_human_touch_prompt
 from src.utils.config import get_context_config, load_app_context, load_json, CONFIG_DIR, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
 
 
@@ -546,6 +547,12 @@ async def chat_websocket(ws: WebSocket):
                         deps.role_loader.build_system_prompt(role_name or None),
                         1
                     ))
+                    # ── 人味引导（P1 — 行为层，定义表达方式）──
+                    _ht_config = load_human_touch_config(new_role)
+                    if _ht_config.get("enabled", False):
+                        _ht_prompt = build_human_touch_prompt(_ht_config.get("level", 1))
+                        if _ht_prompt:
+                            system_pieces.append(("human_touch_guidance", _ht_prompt, 1))
                     system_pieces.append((
                         "date_info",
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
@@ -574,6 +581,12 @@ async def chat_websocket(ws: WebSocket):
                         deps.role_loader.build_system_prompt(role_name or None),
                         1
                     ))
+                    # ── 人味引导（P1 — 行为层，定义表达方式）──
+                    _ht_config = load_human_touch_config(new_role)
+                    if _ht_config.get("enabled", False):
+                        _ht_prompt = build_human_touch_prompt(_ht_config.get("level", 1))
+                        if _ht_prompt:
+                            system_pieces.append(("human_touch_guidance", _ht_prompt, 1))
                     system_pieces.append((
                         "date_info",
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",

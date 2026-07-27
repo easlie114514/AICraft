@@ -34,6 +34,9 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
   const [emotionVersion, setEmotionVersion] = useState(0)
   const [showCropModal, setShowCropModal] = useState(false)
   const [cropEmotionKey, setCropEmotionKey] = useState<EmotionKey>('neutral')
+  // 人味设置状态
+  const [humanTouchEnabled, setHumanTouchEnabled] = useState(false)
+  const [humanTouchLevel, setHumanTouchLevel] = useState(1)
 
   const loadRoles = useCallback(async () => {
     setLoading(true)
@@ -56,8 +59,17 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
   const handleAdd = async () => {
     if (!form.name.trim()) return
     await api.post('/roles', form)
+    // 创建后保存人味配置
+    if (humanTouchEnabled) {
+      await api.put(`/roles/${encodeURIComponent(form.name.trim())}/human-touch`, {
+        enabled: humanTouchEnabled,
+        level: humanTouchLevel,
+      }).catch(() => {})
+    }
     setShowAdd(false)
     setForm({ name: '', content: '' })
+    setHumanTouchEnabled(false)
+    setHumanTouchLevel(1)
     loadRoles()
     notify()
   }
@@ -207,6 +219,15 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                             setEmotionEnabled(false)
                             setEmotionAvailable([])
                           })
+                        api.get<{ enabled: boolean; level: number }>(`/roles/${encodeURIComponent(r.name)}/human-touch`)
+                          .then((data) => {
+                            setHumanTouchEnabled(data.enabled)
+                            setHumanTouchLevel(data.level)
+                          })
+                          .catch(() => {
+                            setHumanTouchEnabled(false)
+                            setHumanTouchLevel(1)
+                          })
                       }} title="编辑">
                         <Pencil className="h-4 w-4 mr-1" />
                         编辑
@@ -249,9 +270,49 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                 placeholder="描述 AI 的角色和行为..."
               />
             </div>
+
+            {/* ── 人味（Human Touch）设定 ── */}
+            <Separator className="my-2" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>人味设定</Label>
+                  <p className="text-xs text-text-secondary mt-0.5">让对话更自然，像和真人聊天</p>
+                </div>
+                <Switch
+                  checked={humanTouchEnabled}
+                  onCheckedChange={async (v) => {
+                    setHumanTouchEnabled(v)
+                  }}
+                />
+              </div>
+              {humanTouchEnabled && (
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { lvl: 1, title: '轻度口语化', desc: '自然口语表达' },
+                    { lvl: 2, title: '适度情绪化', desc: '带情绪和主见' },
+                    { lvl: 3, title: '完全拟人', desc: '有脾气能接梗' },
+                  ].map((item) => (
+                    <button
+                      key={item.lvl}
+                      type="button"
+                      onClick={() => setHumanTouchLevel(item.lvl)}
+                      className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                        humanTouchLevel === item.lvl
+                          ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/20'
+                          : 'border-border bg-transparent text-text-secondary hover:border-primary/30 hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="text-xs font-medium">{item.title}</div>
+                      <div className="text-[10px] opacity-55 mt-0.5">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter className="shrink-0">
-            <Button variant="outline" onClick={() => setShowAdd(false)} >取消</Button>
+            <Button variant="outline" onClick={() => { setShowAdd(false); setHumanTouchEnabled(false); setHumanTouchLevel(1) }} >取消</Button>
             <Button onClick={handleAdd} >创建</Button>
           </DialogFooter>
         </DialogContent>
@@ -284,7 +345,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
       </Dialog>
 
       {/* Edit Role Dialog */}
-      <Dialog open={!!showEdit} onOpenChange={() => { setShowEdit(null); setEmotionEnabled(false); setEmotionAvailable([]) }}>
+      <Dialog open={!!showEdit} onOpenChange={() => { setShowEdit(null); setEmotionEnabled(false); setEmotionAvailable([]); setHumanTouchEnabled(false); setHumanTouchLevel(1) }}>
         <DialogContent className="sm:max-w-[720px] max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>编辑角色</DialogTitle>
@@ -340,6 +401,61 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                         setShowCropModal(true)
                       }}
                     />
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ── 人味（Human Touch）设定 ── */}
+            {showEdit && (
+              <>
+                <Separator className="my-2" />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>人味设定</Label>
+                      <p className="text-xs text-text-secondary mt-0.5">让对话更自然，像和真人聊天</p>
+                    </div>
+                    <Switch
+                      checked={humanTouchEnabled}
+                      onCheckedChange={async (v) => {
+                        setHumanTouchEnabled(v)
+                        await api.put(`/roles/${encodeURIComponent(showEdit.name)}/human-touch`, {
+                          enabled: v,
+                          level: v ? humanTouchLevel : 1,
+                        })
+                      }}
+                    />
+                  </div>
+
+                  {humanTouchEnabled && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { lvl: 1, title: '轻度口语化', desc: '自然口语表达' },
+                        { lvl: 2, title: '适度情绪化', desc: '带情绪和主见' },
+                        { lvl: 3, title: '完全拟人', desc: '有脾气能接梗' },
+                      ].map((item) => (
+                        <button
+                          key={item.lvl}
+                          type="button"
+                          onClick={async () => {
+                            setHumanTouchLevel(item.lvl)
+                            await api.put(`/roles/${encodeURIComponent(showEdit.name)}/human-touch`, {
+                              enabled: true,
+                              level: item.lvl,
+                            })
+                          }}
+                          className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                            humanTouchLevel === item.lvl
+                              ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/20'
+                              : 'border-border bg-transparent text-text-secondary hover:border-primary/30 hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="text-xs font-medium">{item.title}</div>
+                          <div className="text-[10px] opacity-55 mt-0.5">{item.desc}</div>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               </>
