@@ -193,22 +193,22 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   聊天背景图案 — 柔光 + 七巧板几何分割
-   应用在 main（全局页）和 ScrollArea（聊天消息区）
+   背景图案 — 柔光 + 七巧板几何分割
+   全局应用：main（所有页面）+ 聊天消息区 ScrollArea
    主题色自动适配
    ═══════════════════════════════════════════════════════════ */
 main,
-[data-slot="scroll-area"] {
+.chat-bg-pattern {
   background-image:
     /* 顶部主光源 — 主题色柔光从上方洒入 */
     radial-gradient(ellipse 90% 50% at 50% 0%, color-mix(in srgb, var(--theme-primary) 18%, transparent) 0%, transparent 60%),
-    /* 右下补光 */
-    radial-gradient(ellipse 40% 35% at 88% 92%, color-mix(in srgb, var(--theme-primary) 12%, transparent) 0%, transparent 55%),
+    /* 右下角贴边点缀光 — 紧贴角落，极淡 */
+    radial-gradient(ellipse 18% 14% at 98% 98%, color-mix(in srgb, var(--theme-primary) 6%, transparent) 0%, transparent 100%),
     /* ═══ 七巧板几何 — 两个对角大三角，互不交叉 ═══ */
-    /* 左上大三角 */
-    linear-gradient(to bottom right, rgba(255,255,255,0.50) 0%, rgba(255,255,255,0.50) 30%, transparent 30%),
-    /* 右下大三角 */
-    linear-gradient(to top left, rgba(255,255,255,0.44) 0%, rgba(255,255,255,0.44) 30%, transparent 30%);
+    /* 左上大三角 — 延伸到对角线 35%，更明显的白色块面 */
+    linear-gradient(to bottom right, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.62) 35%, transparent 35%),
+    /* 右下大三角 — 延伸到对角线 35%，更明显的白色块面 */
+    linear-gradient(to top left, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.55) 35%, transparent 35%);
   background-attachment: fixed;
 }
 

@@ -216,7 +216,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative bg-nav-bg">
       {/* Messages */}
       <ScrollArea
-        className="flex-1 min-h-0 px-4 bg-background rounded-b-[20px]"
+        className="flex-1 min-h-0 px-4 bg-background rounded-b-[20px] chat-bg-pattern"
         viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
         onScroll={checkScrollPosition}
       >
