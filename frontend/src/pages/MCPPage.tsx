@@ -126,7 +126,15 @@ export default function MCPPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
       <div className="shrink-0 flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-text-primary">MCP 连接</h2>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-text-primary">MCP 连接</h2>
+            <p className="text-xs text-text-tertiary">管理 MCP 服务器连接与工具权限</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={loadConnections}>
             <RefreshCw className="h-4 w-4" />
