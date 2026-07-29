@@ -20,6 +20,7 @@
   --theme-input: #E6F2F8;
   --theme-glow-bar: #38BDF8;
   --theme-secondary: #38BDF8;
+  --theme-background: #F4F8FB;
 }
 
 .theme-mint {
@@ -33,6 +34,7 @@
   --theme-input: #E6F5EE;
   --theme-glow-bar: #34D399;
   --theme-secondary: #34D399;
+  --theme-background: #F3FAF6;
 }
 
 .theme-sakura {
@@ -46,6 +48,7 @@
   --theme-input: #F2E5ED;
   --theme-glow-bar: #F472B6;
   --theme-secondary: #F472B6;
+  --theme-background: #FBF6F9;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -65,6 +68,7 @@
   --theme-input: #EDE8EE;
   --theme-glow-bar: #BC5A8C;
   --theme-secondary: #4F467D;
+  --theme-background: #F7F4F8;
 }
 
 /* 深海蓝 + 荧光青 — 精确色值 */
@@ -79,6 +83,7 @@
   --theme-input: #EAF0F8;
   --theme-glow-bar: #9FD60B;
   --theme-secondary: #2767C4;
+  --theme-background: #F8FAF4;
 }
 
 /* 松林绿 + 沙丘金 — 精确色值 */
@@ -93,6 +98,7 @@
   --theme-input: #EAEDEA;
   --theme-glow-bar: #C9A954;
   --theme-secondary: #145A33;
+  --theme-background: #FAF8F3;
 }
 
 /* 皇云紫 + 闪光黄 — 精确色值 */
@@ -107,6 +113,7 @@
   --theme-input: #F2EDE8;
   --theme-glow-bar: #FFDC1E;
   --theme-secondary: #501E78;
+  --theme-background: #FCFAF3;
 }
 
 @theme {
@@ -116,7 +123,7 @@
   --color-primary-light: var(--theme-primary-light);
   --color-primary-lighter: var(--theme-primary-lighter);
 
-  --color-background: #FAFAF8;
+  --color-background: var(--theme-background);
   --color-foreground: #1C1917;
 
   --color-card: hsl(0 0% 100%);
@@ -180,9 +187,29 @@ html, body {
 
 body {
   font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  background-color: #FAFAF8;
+  background-color: var(--color-background);
   color: #1C1917;
   margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   聊天背景图案 — 柔光 + 七巧板几何分割
+   应用在 main（全局页）和 ScrollArea（聊天消息区）
+   主题色自动适配
+   ═══════════════════════════════════════════════════════════ */
+main,
+[data-slot="scroll-area"] {
+  background-image:
+    /* 顶部主光源 — 主题色柔光从上方洒入 */
+    radial-gradient(ellipse 90% 50% at 50% 0%, color-mix(in srgb, var(--theme-primary) 18%, transparent) 0%, transparent 60%),
+    /* 右下补光 */
+    radial-gradient(ellipse 40% 35% at 88% 92%, color-mix(in srgb, var(--theme-primary) 12%, transparent) 0%, transparent 55%),
+    /* ═══ 七巧板几何 — 两个对角大三角，互不交叉 ═══ */
+    /* 左上大三角 */
+    linear-gradient(to bottom right, rgba(255,255,255,0.50) 0%, rgba(255,255,255,0.50) 30%, transparent 30%),
+    /* 右下大三角 */
+    linear-gradient(to top left, rgba(255,255,255,0.44) 0%, rgba(255,255,255,0.44) 30%, transparent 30%);
+  background-attachment: fixed;
 }
 
 [data-slot="scroll-area-viewport"] {
@@ -196,7 +223,7 @@ pre, code {
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #FAFAF8; }
+::-webkit-scrollbar-track { background: var(--color-background); }
 ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
 
