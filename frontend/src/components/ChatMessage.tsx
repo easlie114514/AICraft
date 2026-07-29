@@ -128,8 +128,8 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
         className={cn(
           'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text',
           isUser
-            ? 'bg-primary/15 text-text-primary rounded-tr-md border border-primary/25'
-            : 'bg-white border border-border rounded-tl-md'
+            ? 'bg-gradient-to-b from-primary/8 to-primary/18 text-text-primary rounded-tr-md border border-primary/25 shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.65)]'
+            : 'bg-gradient-to-b from-[#FEFDFB]/65 to-[#FCFAF6]/78 text-text-primary rounded-tl-md border border-border/60 shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.75)]'
         )}
       >
         {isUser ? (
