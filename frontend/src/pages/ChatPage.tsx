@@ -32,7 +32,7 @@ interface RoleOption {
 }
 
 export default function ChatPage({ isActive }: { isActive?: boolean }) {
-  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, debugMode, setDebugMode, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig, hasOlderConversations, loadingOlder, loadOlderConversation } = useChat()
+  const { messages, streaming, error, contextInfo, sceneCount, toggles, setToggles, debugMode, setDebugMode, sendMessage, stopStreaming, newScene, tokenStats, permissionRequest, respondPermission, emotion, emotionConfig, setEmotionConfig, hasOlderConversations, hasPreviousConversations, loadingOlder, loadLastConversation, loadOlderConversation } = useChat()
 
   const hasMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant').length > 0
   const [input, setInput] = useState('')
@@ -191,14 +191,23 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       setInput('')
       lastUserMessageRef.current = text
     }
-    // Reset pause and force scroll to bottom when user sends a message
     userPausedScrollRef.current = false
     setIsNearBottom(true)
     scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles, retry)
-    // Ensure scroll after DOM update — the immediate scrollToBottom above targets
-    // the pre-send scrollHeight; once the new message commits, scrollHeight grows and
-    // the scroll-event handler may flip isNearBottom+paused before the effect runs.
+    requestAnimationFrame(() => {
+      userPausedScrollRef.current = false
+      scrollToBottom()
+    })
+  }
+
+  const handleSuggestionClick = (text: string) => {
+    if (streaming) return
+    lastUserMessageRef.current = text
+    userPausedScrollRef.current = false
+    setIsNearBottom(true)
+    scrollToBottom()
+    sendMessage(text, selectedModel, selectedRole, toggles, false)
     requestAnimationFrame(() => {
       userPausedScrollRef.current = false
       scrollToBottom()
@@ -220,6 +229,22 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
         viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
         onScroll={checkScrollPosition}
       >
+        <div className="relative h-full">
+        {/* 继续上次对话 — 绝对定位在顶部，不影响欢迎内容居中 */}
+        {!hasMessages && hasPreviousConversations && (
+          <div className="absolute top-0 left-0 right-0 flex justify-center pt-3 z-10">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={loadLastConversation}
+              disabled={loadingOlder}
+              className="rounded-full shadow-lg hover:shadow-xl h-8 px-4 text-xs"
+            >
+              继续上次对话
+            </Button>
+          </div>
+        )}
+
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
             {/* 欢迎图标 */}
@@ -232,15 +257,15 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             {/* 新手引导 — 点击填入输入框 */}
             <div className="flex flex-wrap gap-2 justify-center mt-6 max-w-md">
               {[
+                '用角色设计师帮我创建一个新角色',
+                'AICraft 怎么上手呢？',
                 '帮我写一段 Python 代码',
                 '解释一下什么是 RAG',
-                '帮我设计一个 AI 角色',
-                '分析这段文字的情感',
               ].map((s) => (
                 <button
                   key={s}
                   type="button"
-                  onClick={() => setInput(s)}
+                  onClick={() => handleSuggestionClick(s)}
                   className="px-3.5 py-2 text-sm rounded-xl border border-border/50 bg-white hover:border-primary/30 hover:bg-primary-light/40 hover:text-primary transition-all duration-200 text-text-secondary shadow-sm hover:shadow-md"
                 >
                   {s}
@@ -315,6 +340,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             )}
           </div>
         )}
+      </div>
       </ScrollArea>
 
       {/* ── 泛光条（聊天区与 Input 交接处，偏上 4px）── */}
