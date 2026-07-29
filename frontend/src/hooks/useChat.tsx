@@ -248,6 +248,8 @@ interface ChatContextValue {
   setEmotionConfig: (config: { available: string[]; enabled: boolean } | null) => void
   hasOlderConversations: boolean
   loadingOlder: boolean
+  hasPreviousConversations: boolean
+  loadLastConversation: () => void
   loadOlderConversation: () => void
 }
 
@@ -269,6 +271,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // ── 历史对话加载 ──
   const [hasOlderConversations, setHasOlderConversations] = useState(false)
+  const [hasPreviousConversations, setHasPreviousConversations] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const allConvIdsRef = useRef<string[]>([])
   const loadedConvIdsRef = useRef<Set<string>>(new Set())
@@ -388,8 +391,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     ws.onopen = () => {
       // 启动时获取 token 统计
       ws.send(JSON.stringify({ type: 'get_token_stats' }))
-      // 启动时自动恢复上一次对话（无 convId 时后端自动找最近对话）
-      ws.send(JSON.stringify({ type: 'load_conv', conv_id: convIdRef.current }))
+      // 检查是否有历史对话（用于显示"继续上次对话"按钮）
+      fetch('/api/memory/conversations')
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+        .then((list: Array<{ id: string }>) => {
+          allConvIdsRef.current = list.map((c) => c.id)
+          setHasPreviousConversations(list.length > 0)
+        })
+        .catch(() => {})
     }
 
     ws.onerror = () => {
@@ -476,6 +485,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // 重置当前场景的 token 统计（后端已重置，前端也清零等待推送）
     setTokenStats(null)
   }, [])
+
+  const loadLastConversation = useCallback(async () => {
+    if (loadingOlder || allConvIdsRef.current.length === 0) return
+    setLoadingOlder(true)
+    try {
+      const lastConvId = allConvIdsRef.current[0]
+      const resp = await fetch(`/api/memory/conversations/${encodeURIComponent(lastConvId)}`)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const conv = await resp.json() as {
+        id?: string; created?: string; model?: string; role?: string
+        messages?: Array<{ role: string; content: string; timestamp?: string }>
+      }
+      if (!conv || !conv.messages) { setLoadingOlder(false); return }
+
+      // 设置为当前对话
+      convIdRef.current = lastConvId
+      localStorage.setItem('aicraft_last_conv_id', lastConvId)
+      loadedConvIdsRef.current = new Set([lastConvId])
+
+      // 加载消息（替换空状态）
+      dispatch({ type: 'LOAD_CONVERSATION', messages: conv.messages, convId: lastConvId })
+
+      // 剩余旧对话
+      allConvIdsRef.current = allConvIdsRef.current.filter((id) => id !== lastConvId)
+      setHasPreviousConversations(false)
+      setHasOlderConversations(allConvIdsRef.current.length > 0)
+    } catch (err: unknown) {
+      console.error('[loadLast] failed', err)
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [loadingOlder])
 
   const loadOlderConversation = useCallback(async () => {
     console.log('[loadOlder] click', { loadingOlder, allLen: allConvIdsRef.current.length, loaded: [...loadedConvIdsRef.current] })
@@ -577,7 +618,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       sendMessage, stopStreaming, newScene,
       tokenStats, permissionRequest, respondPermission,
       emotion, emotionConfig, setEmotionConfig,
-      hasOlderConversations, loadingOlder, loadOlderConversation,
+      hasOlderConversations, loadingOlder, hasPreviousConversations, loadLastConversation, loadOlderConversation,
     }}>
       {children}
     </ChatContext.Provider>
@@ -612,6 +653,8 @@ export function useChat() {
     setEmotionConfig: ctx.setEmotionConfig,
     hasOlderConversations: ctx.hasOlderConversations,
     loadingOlder: ctx.loadingOlder,
+    hasPreviousConversations: ctx.hasPreviousConversations,
+    loadLastConversation: ctx.loadLastConversation,
     loadOlderConversation: ctx.loadOlderConversation,
   }
 }
