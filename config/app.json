@@ -1,9 +1,9 @@
 {
   "current_profile": "default",
-  "theme": "sky",
+  "theme": "mint",
   "language": "zh-CN",
   "skills_dir": "",
   "show_emotion_portrait": true,
-  "debug_mode": true,
+  "debug_mode": false,
   "max_tool_rounds": 25
 }

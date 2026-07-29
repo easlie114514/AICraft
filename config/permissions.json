@@ -1,6 +1,7 @@
 {
   "trusted_paths": [
-    "{PROJECT_ROOT}"
+    "{PROJECT_ROOT}",
+    "{USER_DATA}"
   ],
   "denied_paths": [
     "C:/Windows/**",
@@ -10,7 +11,10 @@
     "**/WinSxS/**",
     "**/.git/config",
     "**/.ssh/**",
-    "\\"
+    "\\",
+    "C:\\Users\\HS\\.apifox-ai-agent-debugger",
+    "C:\\",
+    "."
   ],
   "prompt_timeout_seconds": 60
 }

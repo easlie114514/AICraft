@@ -5,15 +5,7 @@
       "path": "rag/使用指导",
       "type": "local",
       "enabled": true,
-      "file_count": 0,
-      "indexed": false
-    },
-    {
-      "name": "小鸡毛与哆啦A梦的离谱怪兽大作战",
-      "path": "rag/故事",
-      "type": "local",
-      "enabled": true,
-      "file_count": 1,
+      "file_count": 3,
       "indexed": true
     }
   ]
