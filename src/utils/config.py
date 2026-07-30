@@ -9,6 +9,7 @@ Author: Easlie_YHQ
 
 import json
 import os
+import platform
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,29 @@ else:
 
 # 向后兼容：BASE_DIR 指向 APP_DIR
 BASE_DIR = APP_DIR
+
+
+def get_platform_info() -> str:
+    """获取当前运行环境信息，用于注入 system prompt。
+
+    在项目启动时自动检测操作系统版本、架构和项目路径，
+    返回单行格式化字符串供 LLM 阅读，帮助其适配 Windows 环境。
+
+    返回示例：
+    "当前运行环境：Windows 10 (AMD64)，项目根目录：D:\\AICraft，
+     Shell 为 cmd.exe，文件操作请使用 Windows 风格。"
+    """
+    sys_name = platform.system()        # Windows
+    sys_release = platform.release()    # 10 / 11 / ...
+    sys_arch = platform.machine()       # AMD64 / ARM64
+
+    return (
+        f"当前运行环境：{sys_name} {sys_release}（{sys_arch}），"
+        f"项目根目录：{BASE_DIR}，"
+        f"Shell 为 cmd.exe，"
+        f"路径使用反斜杠分隔，执行文件操作和 shell 命令时请使用 Windows 风格"
+    )
+
 
 # ── 只读目录（出厂数据，打包后不可写） ──
 SKILLS_DIR = APP_DIR / "skills"
