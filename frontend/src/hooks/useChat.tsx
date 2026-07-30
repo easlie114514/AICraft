@@ -6,7 +6,7 @@ import type { PermissionRequest } from '@/components/PermissionDialog'
 
 export interface ChatMessage {
   id: string
-  role: 'user' | 'assistant' | 'tool_call' | 'tool_result' | 'system' | 'inject' | 'divider'
+  role: 'user' | 'assistant' | 'tool_call' | 'tool_result' | 'tool' | 'system' | 'inject' | 'divider'
   content: string
   timestamp: number
   toolName?: string
@@ -55,6 +55,19 @@ type ChatAction =
 let msgId = 0
 function nextId() {
   return `msg_${++msgId}_${Date.now()}`
+}
+
+/** 安全地把消息 content 转为字符串（兼容 Anthropic 多模态 content blocks 数组格式） */
+function normalizeContent(c: unknown): string {
+  if (typeof c === 'string') return c
+  if (c == null) return ''
+  if (Array.isArray(c)) {
+    return c
+      .filter((block: any) => block?.type === 'text')
+      .map((block: any) => block?.text || '')
+      .join('\n')
+  }
+  return ''
 }
 
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
@@ -206,12 +219,26 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       }
     }
     case 'LOAD_CONVERSATION': {
-      const loadedMsgs = action.messages.map((m) => ({
-        id: nextId(),
-        role: m.role as ChatMessage['role'],
-        content: m.content,
-        timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now() - 1,
-      }))
+      const loadedMsgs: ChatMessage[] = []
+      for (const m of action.messages) {
+        const r = m.role
+        // 跳过 system / tool 消息（历史对话加载时不展示）
+        if (r === 'system' || r === 'tool' || r === 'tool_call' || r === 'tool_result') {
+          continue
+        }
+        // 跳过仅含 tool_calls 但没有文本内容的 assistant 消息（空气泡）
+        if (r === 'assistant' && !m.content && (m as any).tool_calls) {
+          continue
+        }
+        loadedMsgs.push({
+          id: nextId(),
+          role: r as ChatMessage['role'],
+          content: normalizeContent(m.content),
+          timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now() - 1,
+          thinking: (m as any).thinking || undefined,
+          thinkingDuration: (m as any).thinking_duration || undefined,
+        })
+      }
       return { ...state, messages: loadedMsgs, streaming: false, error: null }
     }
     case 'PREPEND_MESSAGES': {
@@ -564,17 +591,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         readOnly: true,
       }
 
-      // 历史消息（只展示 user/assistant，排除 system/tool）
+      // 历史消息（只展示 user/assistant，跳过仅含 tool_calls 无文本的 assistant）
       const historyMsgs: ChatMessage[] = []
       for (const m of conv.messages) {
         const r = m.role
         if (r === 'user' || r === 'assistant') {
+          // 跳过仅含 tool_calls 但没有文本内容的 assistant 消息（空气泡）
+          if (r === 'assistant' && !m.content && (m as any).tool_calls) {
+            continue
+          }
           historyMsgs.push({
             id: nextId(),
             role: r as ChatMessage['role'],
-            content: m.content || '',
+            content: normalizeContent(m.content),
             timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now() - 1,
             readOnly: true,
+            thinking: normalizeContent((m as any).thinking) || undefined,
+            thinkingDuration: (m as any).thinking_duration || undefined,
           })
         }
       }

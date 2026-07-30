@@ -38,8 +38,8 @@ interface Props {
 
 export default function ChatMessage({ message, convId, userMessage, onRetry, streaming }: Props) {
   const { id, role, content, timestamp, thinking, thinkingDuration } = message
-  const isThinkingStreaming = thinking && thinking.trim() && thinkingDuration === undefined
-  const hasThinking = thinking && thinking.trim()
+  const isThinkingStreaming = typeof thinking === 'string' && thinking.trim() && thinkingDuration === undefined
+  const hasThinking = typeof thinking === 'string' && thinking.trim()
 
   // ── 反馈状态 ──
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
@@ -109,8 +109,8 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
     )
   }
 
-  if (role === 'tool_call' || role === 'tool_result') {
-    return null // handled by ToolCallCard
+  if (role === 'tool_call' || role === 'tool_result' || role === 'tool') {
+    return null // 工具调用/结果消息由 ToolCallCard 处理，不单独渲染气泡
   }
 
   const isUser = role === 'user'
@@ -160,7 +160,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
             ) : null}
 
             {/* 正式回复 */}
-            {content ? <MarkdownRenderer content={content} streaming={streaming} /> : null}
+            {typeof content === 'string' && content ? <MarkdownRenderer content={content} streaming={streaming} /> : null}
           </div>
         )}
       </div>

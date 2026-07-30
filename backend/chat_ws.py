@@ -346,10 +346,15 @@ async def chat_websocket(ws: WebSocket):
                             for m in saved["messages"]:
                                 r = m.get("role", "")
                                 if r in ("user", "assistant"):
+                                    # 跳过仅含 tool_calls 但没有文本内容的 assistant 消息
+                                    if r == "assistant" and not m.get("content") and m.get("tool_calls"):
+                                        continue
                                     display_msgs.append({
                                         "role": r,
                                         "content": m.get("content", ""),
                                         "timestamp": m.get("timestamp", "") or fallback_ts,
+                                        "thinking": m.get("thinking", ""),
+                                        "thinking_duration": m.get("thinking_duration", 0),
                                     })
                             if display_msgs:
                                 await ws.send_json({

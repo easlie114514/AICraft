@@ -311,7 +311,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                   return msg.subtype === 'auto_routing' || msg.subtype === 'context_reset'
                 }
                 // 非调试模式：隐藏工具调用卡
-                if (msg.role === 'tool_call' || msg.role === 'tool_result') {
+                if (msg.role === 'tool_call' || msg.role === 'tool_result' || msg.role === 'tool') {
                   return false
                 }
                 return true
