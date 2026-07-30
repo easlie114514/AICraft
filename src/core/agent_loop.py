@@ -675,6 +675,8 @@ def _is_anthropic_provider(model_config: dict) -> bool:
     protocol = model_config.get("protocol", "").lower()
     if protocol == "anthropic":
         return True
+    if protocol:  # 显式声明了其他协议（如 "openai"），不走 Anthropic
+        return False
     provider = model_config.get("provider", "").lower()
     return provider in ("deepseek", "anthropic")
 
