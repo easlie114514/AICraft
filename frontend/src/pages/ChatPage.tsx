@@ -254,11 +254,24 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             <h3 className="text-xl font-semibold text-text-primary mb-1.5">欢迎使用 AICraft</h3>
             <p className="text-sm text-text-secondary max-w-xs">AI 对话 · 技能调用 · 知识检索 · 角色定制</p>
 
-            {/* 新手引导 — 点击填入输入框 */}
-            <div className="flex flex-wrap gap-2 justify-center mt-6 max-w-md">
+            {/* 新手引导 — 两行各2个，点击直接发送 */}
+            <div className="flex flex-wrap gap-2 justify-center mt-6">
               {[
                 '用角色设计师帮我创建一个新角色',
                 'AICraft 怎么上手呢？',
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => handleSuggestionClick(s)}
+                  className="px-3.5 py-2 text-sm rounded-xl border border-border/50 bg-white hover:border-primary/30 hover:bg-primary-light/40 hover:text-primary transition-all duration-200 text-text-secondary shadow-sm hover:shadow-md"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center mt-2">
+              {[
                 '查一下当前百度热搜前三的新闻',
                 '写一个html欢迎页放在桌面上',
               ].map((s) => (
