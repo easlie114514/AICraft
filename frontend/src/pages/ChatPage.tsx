@@ -259,8 +259,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
               {[
                 '用角色设计师帮我创建一个新角色',
                 'AICraft 怎么上手呢？',
-                '帮我写一段 Python 代码',
-                '解释一下什么是 RAG',
+                '查一下当前百度热搜前三的新闻',
+                '写一个html欢迎页放在桌面上',
               ].map((s) => (
                 <button
                   key={s}
