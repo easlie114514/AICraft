@@ -137,13 +137,19 @@ function normalizeMarkdown(text: string): string {
   return result.join('\n')
 }
 
+function safeMarkdownText(text: unknown): string {
+  if (typeof text === 'string') return normalizeMarkdown(text)
+  return ''
+}
+
 export default function MarkdownRenderer({ content, streaming }: Props) {
-  const streamKey = streaming ? 'streaming' : `done-${content.length}`
+  const md = safeMarkdownText(content)
+  const streamKey = streaming ? 'streaming' : `done-${md.length}`
 
   return (
     <StreamMD
       key={streamKey}
-      text={normalizeMarkdown(content)}
+      text={md}
       theme="none"
       showCursor={false}
       components={{
