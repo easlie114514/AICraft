@@ -48,16 +48,18 @@ EXECUTE_PYTHON_TOOL = Tool(
 EXECUTE_SHELL_TOOL = Tool(
     name="execute_shell",
     description=(
-        "Execute a shell command and return stdout/stderr. "
+        "Execute a Windows shell command (cmd.exe) and return stdout/stderr. "
         "Useful for file operations, package installation, or running scripts. "
-        "Commands run with a 30-second timeout."
+        "Commands run with a 30-second timeout. "
+        "Use Windows-style commands: dir (not ls), type (not cat), "
+        "findstr (not grep), del (not rm), etc."
     ),
     inputSchema={
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "Shell command to execute",
+                "description": "Windows cmd.exe command to execute (use dir/type/del/findstr, not ls/cat/rm/grep)",
             },
         },
         "required": ["command"],

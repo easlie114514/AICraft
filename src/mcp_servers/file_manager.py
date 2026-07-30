@@ -99,7 +99,7 @@ READ_FILE_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the file to read",
+                "description": "Absolute path (Windows, e.g. D:\\AICraft\\workspace\\file.txt)",
             },
             "offset": {
                 "type": "integer",
@@ -125,7 +125,7 @@ WRITE_FILE_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the file to write",
+                "description": "Absolute path (Windows, e.g. D:\\AICraft\\workspace\\output.txt)",
             },
             "content": {
                 "type": "string",
@@ -148,7 +148,7 @@ EDIT_FILE_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the file to edit",
+                "description": "Absolute path (Windows) to the file to edit",
             },
             "old_string": {
                 "type": "string",
@@ -179,7 +179,7 @@ DELETE_FILE_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the file to delete",
+                "description": "Absolute path (Windows) to the file to delete",
             },
         },
         "required": ["path"],
@@ -194,7 +194,7 @@ CREATE_DIRECTORY_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the directory to create",
+                "description": "Absolute path (Windows) to the directory to create",
             },
         },
         "required": ["path"],
@@ -212,7 +212,7 @@ LIST_DIRECTORY_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the directory to list",
+                "description": "Absolute path (Windows, e.g. D:\\AICraft\\workspace)",
             },
         },
         "required": ["path"],
@@ -231,7 +231,7 @@ SEARCH_FILES_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the directory to search in",
+                "description": "Absolute path (Windows) to the directory to search in",
             },
             "pattern": {
                 "type": "string",
@@ -253,11 +253,11 @@ MOVE_FILE_TOOL = Tool(
         "properties": {
             "source": {
                 "type": "string",
-                "description": "Absolute path to the source file/directory",
+                "description": "Absolute path (Windows) to the source file/directory",
             },
             "destination": {
                 "type": "string",
-                "description": "Absolute path to the destination",
+                "description": "Absolute path (Windows) to the destination",
             },
         },
         "required": ["source", "destination"],
@@ -275,7 +275,7 @@ GET_FILE_INFO_TOOL = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute path to the file or directory",
+                "description": "Absolute path (Windows) to the file or directory",
             },
         },
         "required": ["path"],
