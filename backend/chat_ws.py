@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+import platform
 import re
+import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -558,6 +560,15 @@ async def chat_websocket(ws: WebSocket):
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
                         1
                     ))
+                    # ── 运行环境（P1 — 让 LLM 知道 Windows 环境）──
+                    system_pieces.append((
+                        "platform_info",
+                        f"当前运行环境：Windows {platform.release()}，"
+                        f"路径分隔符为反斜杠（如 D:\\AICraft\\workspace），"
+                        f"Shell 为 cmd.exe，"
+                        f"执行文件操作和 shell 命令时请使用 Windows 风格",
+                        1
+                    ))
 
                     # 注入项目上下文 (P2 — 用户主动开启，非角色设定)
                     if project_context_enabled:
@@ -590,6 +601,15 @@ async def chat_websocket(ws: WebSocket):
                     system_pieces.append((
                         "date_info",
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
+                        1
+                    ))
+                    # ── 运行环境（P1 — 让 LLM 知道 Windows 环境）──
+                    system_pieces.append((
+                        "platform_info",
+                        f"当前运行环境：Windows {platform.release()}，"
+                        f"路径分隔符为反斜杠（如 D:\\AICraft\\workspace），"
+                        f"Shell 为 cmd.exe，"
+                        f"执行文件操作和 shell 命令时请使用 Windows 风格",
                         1
                     ))
 
