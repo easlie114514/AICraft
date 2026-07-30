@@ -2,9 +2,7 @@
 
 import asyncio
 import json
-import platform
 import re
-import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -21,7 +19,7 @@ from src.core.permission_guard import PermissionGuard
 from src.core.evaluator import evaluate_response, format_eval_for_user
 from src.core.token_tracker import token_tracker
 from src.core.role_loader import load_human_touch_config, build_human_touch_prompt
-from src.utils.config import get_context_config, load_app_context, load_json, CONFIG_DIR, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
+from src.utils.config import get_context_config, load_app_context, load_json, get_platform_info, CONFIG_DIR, NOTES_DIR, ROLES_DIR, USER_ROLES_DIR
 
 
 def _count_chars(messages: list[dict]) -> int:
@@ -560,13 +558,10 @@ async def chat_websocket(ws: WebSocket):
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
                         1
                     ))
-                    # ── 运行环境（P1 — 让 LLM 知道 Windows 环境）──
+                    # ── 运行环境（P1 — 启动时自动检测，让 LLM 适配 Windows）──
                     system_pieces.append((
                         "platform_info",
-                        f"当前运行环境：Windows {platform.release()}，"
-                        f"路径分隔符为反斜杠（如 D:\\AICraft\\workspace），"
-                        f"Shell 为 cmd.exe，"
-                        f"执行文件操作和 shell 命令时请使用 Windows 风格",
+                        get_platform_info(),
                         1
                     ))
 
@@ -603,13 +598,10 @@ async def chat_websocket(ws: WebSocket):
                         f"当前日期时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
                         1
                     ))
-                    # ── 运行环境（P1 — 让 LLM 知道 Windows 环境）──
+                    # ── 运行环境（P1 — 启动时自动检测，让 LLM 适配 Windows）──
                     system_pieces.append((
                         "platform_info",
-                        f"当前运行环境：Windows {platform.release()}，"
-                        f"路径分隔符为反斜杠（如 D:\\AICraft\\workspace），"
-                        f"Shell 为 cmd.exe，"
-                        f"执行文件操作和 shell 命令时请使用 Windows 风格",
+                        get_platform_info(),
                         1
                     ))
 
