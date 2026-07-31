@@ -20,6 +20,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { SettingRow, SectionLabel, NumberStepper } from '@/components/settings-ui'
 import { api } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface RAGSource {
   name: string
@@ -90,6 +91,7 @@ export default function RAGPage() {
   const [sources, setSources] = useState<RAGSource[]>([])
   const [sourcesLoading, setSourcesLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [indexing, setIndexing] = useState<Record<string, boolean>>({})
   const [form, setForm] = useState({ name: '', path: '' })
 
@@ -535,7 +537,7 @@ export default function RAGPage() {
                           <RefreshCw className={`h-4 w-4 mr-1 ${indexing[s.name] ? 'animate-spin' : ''}`} />
                           {indexing[s.name] ? '索引中...' : '索引'}
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(s.name)} className="text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s.name)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -571,6 +573,18 @@ export default function RAGPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── 删除确认 ── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title="删除数据源"
+        description={`确定要删除数据源 ${deleteTarget} 吗？此操作不可撤销。`}
+        onConfirm={async () => {
+          if (deleteTarget) await handleDelete(deleteTarget)
+          setDeleteTarget(null)
+        }}
+      />
     </div>
   )
 }

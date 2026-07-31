@@ -1,5 +1,5 @@
 {
-  "model_id": "",
+  "model_id": "deepseek-v4-flash",
   "role": "Aiki",
   "web_search": false,
   "rag": false,
