@@ -13,12 +13,22 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-const PROVIDER_GRADIENT: Record<string, string> = {
-  deepseek: 'from-[#5B6ABF] to-[#4A5599]',
-  openai: 'from-[#5A9E8F] to-[#487A6E]',
-  anthropic: 'from-[#B8956A] to-[#96794C]',
+function cardGradient(provider: string): React.CSSProperties {
+  const tints: Record<string, string> = {
+    deepseek: '#4F6BD0',
+    openai: '#10B981',
+    anthropic: '#C5933D',
+  }
+  const tint = tints[provider]
+  if (tint) {
+    return {
+      background: `linear-gradient(to bottom right, color-mix(in srgb, var(--theme-nav-bg) 65%, ${tint} 35%), color-mix(in srgb, var(--theme-nav-bg) 88%, ${tint} 12%))`,
+    }
+  }
+  return {
+    background: 'linear-gradient(to bottom right, var(--theme-nav-bg), color-mix(in srgb, var(--theme-nav-bg) 85%, #FFFFFF 15%))',
+  }
 }
-const FALLBACK_GRADIENT = 'from-[#7A7A85] to-[#5E5E6A]'
 
 interface ModelConfig {
   name: string
@@ -355,7 +365,7 @@ export default function ModelPage() {
               return (
                 <Card
                   key={m.name}
-                  className={`relative overflow-hidden group bg-gradient-to-br ${PROVIDER_GRADIENT[m.provider] || FALLBACK_GRADIENT} border-0 text-white`}
+                  className="relative overflow-hidden group border-0 text-white" style={cardGradient(m.provider)}
                 >
                   {/* 首字母丝印 */}
                   <div className="absolute -bottom-3 -right-4 text-[130px] font-black text-white/[0.05] leading-none select-none pointer-events-none">
