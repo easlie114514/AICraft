@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { api } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface MCPConnection {
   name: string
@@ -50,6 +51,7 @@ export default function MCPPage() {
   const [connections, setConnections] = useState<MCPConnection[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [envStatus, setEnvStatus] = useState<{ available: boolean; path: string | null; version: string | null } | null>(null)
   const [permConfig, setPermConfig] = useState<PermissionConfig | null>(null)
   const [newTrustedPath, setNewTrustedPath] = useState('')
@@ -234,7 +236,7 @@ export default function MCPPage() {
                             <span className="text-[10px] text-text-tertiary/60 leading-none">自动授权</span>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(conn.name)} className="text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(conn.name)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -442,6 +444,18 @@ export default function MCPPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── 删除确认 ── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title="删除 MCP 服务器"
+        description={`确定要删除 MCP 服务器 ${deleteTarget} 吗？此操作不可撤销。`}
+        onConfirm={async () => {
+          if (deleteTarget) await handleDelete(deleteTarget)
+          setDeleteTarget(null)
+        }}
+      />
     </div>
   )
 }

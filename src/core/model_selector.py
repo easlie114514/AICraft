@@ -57,14 +57,18 @@ def _looks_like_tool_use(message: str) -> bool:
 def get_flash_model_config() -> dict[str, Any] | None:
     """获取当前 provider 的 Flash 模型配置，用于后台降级
 
-    遍历所有已配置模型，返回第一个 tier="flash" 的模型配置。
-    如果当前 provider 没有 Flash 模型，返回 None。
+    遍历所有已配置模型，优先返回 is_default 的 flash 模型，
+    否则返回第一个 tier="flash" 的模型。
     """
     models = get_all_model_configs()
-    for m in models:
-        if m.get("tier") == "flash":
+    flash_models = [m for m in models if m.get("tier") == "flash"]
+    if not flash_models:
+        return None
+    # 优先选标记了 is_default 的
+    for m in flash_models:
+        if m.get("is_default"):
             return m
-    return None
+    return flash_models[0]
 
 
 def select_model_for_task(task: str, user_model_config: dict[str, Any]) -> dict[str, Any]:
@@ -120,14 +124,26 @@ def select_model_auto(
         (model_config, reason) — 选中的模型配置 + 路由原因
     """
     models = get_all_model_configs()
-    pro_model = None
-    flash_model = None
+    pro_models = []
+    flash_models = []
 
     for m in models:
         if m.get("tier") == "pro":
-            pro_model = m
+            pro_models.append(m)
         elif m.get("tier") == "flash":
-            flash_model = m
+            flash_models.append(m)
+
+    # 同 tier 内优先选 is_default 的，否则取第一个
+    def _pick_preferred(pool: list) -> dict | None:
+        if not pool:
+            return None
+        for m in pool:
+            if m.get("is_default"):
+                return m
+        return pool[0]
+
+    pro_model = _pick_preferred(pro_models)
+    flash_model = _pick_preferred(flash_models)
 
     # 没有Flash模型时，全走Pro（兜底）
     if not flash_model:

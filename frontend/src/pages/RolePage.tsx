@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import EmotionSlotGrid, { type EmotionKey } from '@/components/EmotionSlotGrid'
 import EmotionCropModal from '@/components/EmotionCropModal'
 import { api } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Role {
   name: string
@@ -26,6 +27,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
   const [showAdd, setShowAdd] = useState(false)
   const [showView, setShowView] = useState<Role | null>(null)
   const [showEdit, setShowEdit] = useState<Role | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', content: '' })
   const [editForm, setEditForm] = useState({ name: '', content: '' })
   // 情绪画像状态
@@ -236,7 +238,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                         <Star className="h-4 w-4 mr-1" />
                         设为当前
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(r.name)} className="text-muted-foreground hover:text-destructive" title="删除">
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(r.name)} className="text-muted-foreground hover:text-destructive" title="删除">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -508,6 +510,18 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
           }}
         />
       )}
+
+      {/* ── 删除确认 ── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title="删除角色"
+        description={`确定要删除角色 ${deleteTarget} 吗？此操作不可撤销。`}
+        onConfirm={async () => {
+          if (deleteTarget) await handleDelete(deleteTarget)
+          setDeleteTarget(null)
+        }}
+      />
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { api } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Conversation {
   id: string
@@ -85,6 +86,8 @@ export default function MemoryPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [viewConv, setViewConv] = useState<Record<string, unknown> | null>(null)
   const [viewNote, setViewNote] = useState<{ name: string; content: string; kind: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteTargetType, setDeleteTargetType] = useState<'conv' | 'note'>('conv')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState('conversations')
@@ -308,7 +311,7 @@ export default function MemoryPage() {
                           <Button variant="ghost" size="sm" onClick={() => handleView(c.id)} >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteConv(c.id)} className="text-muted-foreground hover:text-destructive">
+                          <Button variant="ghost" size="sm" onClick={() => { setDeleteTargetType('conv'); setDeleteTarget(c.id) }} className="text-muted-foreground hover:text-destructive">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -359,7 +362,7 @@ export default function MemoryPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteNote(n.filename)}
+                            onClick={() => { setDeleteTargetType('note'); setDeleteTarget(n.filename) }}
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             title="删除"
                           >
@@ -756,6 +759,23 @@ export default function MemoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── 删除确认 ── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null) } }}
+        title={deleteTargetType === 'conv' ? '删除对话' : '删除记忆'}
+        description={`确定要删除该${deleteTargetType === 'conv' ? '对话记录' : '记忆笔记'}吗？此操作不可撤销。`}
+        onConfirm={async () => {
+          if (!deleteTarget) return
+          if (deleteTargetType === 'conv') {
+            await handleDeleteConv(deleteTarget)
+          } else {
+            await handleDeleteNote(deleteTarget)
+          }
+          setDeleteTarget(null)
+        }}
+      />
     </div>
   )
 }

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverTitle } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export interface ProjectItem {
   id: string
@@ -35,6 +36,7 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
   const [editName, setEditName] = useState('')
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ProjectItem | null>(null)
 
   // 加载项目列表
   const loadProjects = useCallback(() => {
@@ -226,7 +228,7 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDelete(p.id)}
+                          onClick={() => setDeleteTarget(p)}
                           title="删除"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -262,6 +264,18 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
           </>
         )}
       </PopoverContent>
+
+      {/* ── 删除确认 ── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title="删除项目上下文"
+        description={`确定要删除项目 ${deleteTarget?.name} 吗？此操作不可撤销。`}
+        onConfirm={async () => {
+          if (deleteTarget) await handleDelete(deleteTarget.id)
+          setDeleteTarget(null)
+        }}
+      />
     </Popover>
   )
 }
