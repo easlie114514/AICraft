@@ -15,18 +15,41 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 function cardGradient(provider: string): React.CSSProperties {
   const tints: Record<string, string> = {
-    deepseek: '#4F6BD0',
-    openai: '#10B981',
-    anthropic: '#C5933D',
+    deepseek: '#4D6BFE',
+    openai: '#10A37F',
+    anthropic: '#D97757',
   }
   const tint = tints[provider]
   if (tint) {
+    // 底板：主题渐变 + 左上自然光（与其他页面统一）
+    // 中间~22%：左下→右上厂商纯色带，两侧各~5%过渡区柔和融入主题底
     return {
-      background: `linear-gradient(to bottom right, color-mix(in srgb, var(--theme-nav-bg) 65%, ${tint} 35%), color-mix(in srgb, var(--theme-nav-bg) 88%, ${tint} 12%))`,
+      background: `
+        radial-gradient(ellipse 40% 50% at 18% 18%, rgba(255,255,255,0.10) 0%, transparent 60%),
+        linear-gradient(135deg,
+          color-mix(in srgb, var(--theme-nav-bg) 68%, var(--theme-primary) 32%) 0%,
+          color-mix(in srgb, var(--theme-nav-bg) 50%, ${tint} 50%) 34%,
+          ${tint} 39%,
+          ${tint} 61%,
+          color-mix(in srgb, var(--theme-nav-bg) 50%, ${tint} 50%) 66%,
+          color-mix(in srgb, var(--theme-nav-bg) 88%, var(--theme-primary) 12%) 100%
+        )
+      `,
     }
   }
   return {
-    background: 'linear-gradient(to bottom right, var(--theme-nav-bg), color-mix(in srgb, var(--theme-nav-bg) 85%, #FFFFFF 15%))',
+    // 其他/中转站：岩灰紫 #8E8EA0 色带
+    background: `
+      radial-gradient(ellipse 40% 50% at 18% 18%, rgba(255,255,255,0.10) 0%, transparent 60%),
+      linear-gradient(135deg,
+        color-mix(in srgb, var(--theme-nav-bg) 68%, var(--theme-primary) 32%) 0%,
+        color-mix(in srgb, var(--theme-nav-bg) 50%, #8E8EA0 50%) 34%,
+        #8E8EA0 39%,
+        #8E8EA0 61%,
+        color-mix(in srgb, var(--theme-nav-bg) 50%, #8E8EA0 50%) 66%,
+        color-mix(in srgb, var(--theme-nav-bg) 88%, var(--theme-primary) 12%) 100%
+      )
+    `,
   }
 }
 

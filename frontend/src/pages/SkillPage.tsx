@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, FolderOpen, Zap, FileText, Puzzle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { api } from '@/lib/api'
+import { themeCardGradient } from '@/lib/utils'
 import { getSkillIcon, getSkillCategory } from './skill-icons'
 
 interface Skill {
@@ -109,14 +109,14 @@ export default function SkillPage() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pr-1">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-5 pt-6 flex flex-col items-center text-center animate-pulse">
-                  <div className="w-16 h-16 rounded-2xl bg-muted/70 mb-3" />
-                  <div className="h-4 w-20 bg-muted/70 rounded mb-2" />
-                  <div className="h-4 w-12 bg-muted/50 rounded-full mb-3" />
-                  <div className="h-3.5 w-full bg-muted/50 rounded" />
-                  <div className="h-3.5 w-3/4 bg-muted/50 rounded mt-1.5 mb-4" />
-                  <div className="h-5 w-16 bg-muted/70 rounded-full" />
+              <Card key={i} className="border-0 text-white" style={themeCardGradient()}>
+                <CardContent className="p-5 pt-5 flex flex-col items-center text-center animate-pulse">
+                  <div className="w-16 h-16 rounded-2xl bg-white/10 mb-3" />
+                  <div className="h-4 w-20 bg-white/15 rounded mb-2" />
+                  <div className="h-4 w-12 bg-white/10 rounded-full mb-3" />
+                  <div className="h-3.5 w-full bg-white/10 rounded" />
+                  <div className="h-3.5 w-3/4 bg-white/10 rounded mt-1.5 mb-4" />
+                  <div className="h-5 w-16 bg-white/10 rounded-full" />
                 </CardContent>
               </Card>
             ))}
@@ -143,45 +143,47 @@ export default function SkillPage() {
               const SkillIcon = getSkillIcon(s.name)
               const category = getSkillCategory(s.name)
               return (
-                <Card key={s.name} className="relative hover:shadow-card-hover transition-all duration-200 overflow-hidden group">
-                  {/* 顶部强调色条 */}
-                  <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r transition-opacity duration-200 ${s.enabled ? 'from-transparent via-primary/45 to-transparent' : 'from-transparent via-muted/30 to-transparent'}`} />
+                <Card key={s.name} className={`relative overflow-hidden group text-white transition-colors duration-300 ${s.enabled ? 'border-0' : 'border border-white/5'}`} style={themeCardGradient(s.enabled)}>
+                  {/* 首字母丝印 */}
+                  <div className={`absolute -bottom-3 -right-4 text-[130px] font-black leading-none select-none pointer-events-none transition-opacity duration-300 ${s.enabled ? 'text-white/[0.05]' : 'text-white/[0.02]'}`}>
+                    {(s.name.trim()[0]?.toUpperCase() || 'S')}
+                  </div>
 
-                  <CardContent className="px-5 pt-[calc(1.25rem+3px)] pb-1 flex flex-col items-center text-center">
+                  <CardContent className="px-5 pt-5 pb-1 flex flex-col items-center text-center relative z-10">
                     {/* 大图标 */}
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-all duration-200 ${
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-all duration-300 ${
                       s.enabled
-                        ? 'bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/15'
-                        : 'bg-muted/50 ring-1 ring-border'
+                        ? 'bg-white/15 ring-1 ring-white/25'
+                        : 'bg-white/6 ring-1 ring-white/5'
                     }`}>
-                      <SkillIcon className={`w-8 h-8 transition-colors duration-200 ${s.enabled ? 'text-primary' : 'text-text-disabled'}`} />
+                      <SkillIcon className={`w-8 h-8 transition-colors duration-300 ${s.enabled ? 'text-white' : 'text-white/35'}`} />
                     </div>
 
                     {/* 名称 */}
-                    <span className={`font-semibold truncate max-w-full ${s.enabled ? 'text-foreground' : 'text-text-tertiary'}`}>
+                    <span className={`font-semibold truncate max-w-full transition-colors duration-300 ${s.enabled ? 'text-white/95' : 'text-white/45'}`}>
                       {s.name}
                     </span>
 
                     {/* 分类标签 */}
-                    <Badge variant={s.enabled ? 'outline' : 'secondary'} className="rounded-full text-[11px] px-2 py-0 mt-1.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md mt-1.5 transition-colors duration-300 ${s.enabled ? 'bg-white/18 backdrop-blur-sm text-white/80' : 'bg-white/6 text-white/35'}`}>
                       {category}
-                    </Badge>
+                    </span>
 
                     {/* 描述 */}
-                    <p className="text-sm text-text-secondary line-clamp-2 leading-relaxed mt-2.5 min-h-[2.75rem]">
+                    <p className={`text-sm line-clamp-2 leading-relaxed mt-2.5 min-h-[2.75rem] transition-colors duration-300 ${s.enabled ? 'text-white/55' : 'text-white/30'}`}>
                       {s.description || '无描述'}
                     </p>
 
                     {/* 路径（小字） */}
-                    <div className="flex items-center gap-1 mt-2 text-[11px] text-text-tertiary/70 w-full justify-center">
+                    <div className={`flex items-center gap-1 mt-2 text-[11px] w-full justify-center transition-colors duration-300 ${s.enabled ? 'text-white/35' : 'text-white/20'}`}>
                       <FileText className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate font-mono max-w-[180px]">{s.path}</span>
                     </div>
 
                     {/* 分隔 + 开关 */}
-                    <div className="w-full mt-3 pt-3 border-t border-border/60">
+                    <div className={`w-full mt-3 pt-3 border-t transition-colors duration-300 ${s.enabled ? 'border-white/8' : 'border-white/5'}`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-text-tertiary select-none">
+                        <span className={`text-xs font-medium select-none transition-colors duration-300 ${s.enabled ? 'text-white/45' : 'text-white/25'}`}>
                           {s.enabled ? '已启用' : '已禁用'}
                         </span>
                         <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} />

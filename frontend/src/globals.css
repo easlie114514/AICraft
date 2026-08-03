@@ -129,10 +129,10 @@
   --color-card: hsl(0 0% 100%);
   --color-card-foreground: #1C1917;
 
-  --color-muted: #EBE9E6;
-  --color-muted-foreground: #57534E;
+  --color-muted: #E0DDD9;
+  --color-muted-foreground: #4A4742;
 
-  --color-border: #D6D3D1;
+  --color-border: #C5C2BE;
   --color-border-light: #E8E5E2;
   --color-input: var(--theme-input);
   --color-ring: var(--theme-ring);
@@ -161,7 +161,7 @@
   --color-accent-foreground: #1C1917;
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: #1C1917;
-  --color-secondary: #F0EFED;
+  --color-secondary: #E2DFDB;
   --color-secondary-foreground: #1C1917;
 
   --radius: 0.5rem;

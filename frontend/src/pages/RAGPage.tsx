@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import {
   Select,
@@ -20,6 +19,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { SettingRow, SectionLabel, NumberStepper } from '@/components/settings-ui'
 import { api } from '@/lib/api'
+import { themeCardGradient } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface RAGSource {
@@ -469,21 +469,21 @@ export default function RAGPage() {
           {sourcesLoading ? (
             <div className="grid gap-4 pr-1">
               {[1, 2].map((i) => (
-                <Card key={i}>
+                <Card key={i} className="border-0 text-white" style={themeCardGradient()}>
                   <CardContent className="p-4">
                     <div className="flex items-center gap-4 animate-pulse">
-                      <div className="h-10 w-10 rounded-full bg-muted/70 shrink-0" />
+                      <div className="h-10 w-10 rounded-full bg-white/10 shrink-0" />
                       <div className="flex-1 space-y-2.5">
                         <div className="flex items-center gap-2">
-                          <div className="h-4 w-20 bg-muted/70 rounded" />
-                          <div className="h-4 w-12 bg-muted/50 rounded-lg" />
+                          <div className="h-4 w-20 bg-white/15 rounded" />
+                          <div className="h-4 w-12 bg-white/10 rounded-lg" />
                         </div>
-                        <div className="h-3 w-48 bg-muted/50 rounded font-mono" />
-                        <div className="h-3 w-32 bg-muted/50 rounded" />
+                        <div className="h-3 w-48 bg-white/10 rounded font-mono" />
+                        <div className="h-3 w-32 bg-white/10 rounded" />
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 bg-muted/50 rounded" />
-                        <div className="h-8 w-8 bg-muted/50 rounded" />
+                        <div className="h-8 w-8 bg-white/10 rounded" />
+                        <div className="h-8 w-8 bg-white/10 rounded" />
                       </div>
                     </div>
                   </CardContent>
@@ -507,21 +507,26 @@ export default function RAGPage() {
           ) : (
             <div className="grid gap-4 pr-1">
               {sources.map((s) => (
-                <Card key={s.name} className="hover:shadow-card-hover transition-shadow duration-200">
-                  <CardContent className="p-4">
+                <Card key={s.name} className={`relative overflow-hidden group text-white transition-colors duration-300 ${s.enabled ? 'border-0' : 'border border-white/5'}`} style={themeCardGradient(s.enabled)}>
+                  {/* 首字母丝印 */}
+                  <div className={`absolute -bottom-3 -right-4 text-[130px] font-black leading-none select-none pointer-events-none transition-opacity duration-300 ${s.enabled ? 'text-white/[0.05]' : 'text-white/[0.02]'}`}>
+                    {(s.name.trim()[0]?.toUpperCase() || 'R')}
+                  </div>
+
+                  <CardContent className="p-4 relative z-10">
                     <div className="flex items-center gap-4">
-                      <Avatar className="h-10 w-10 shrink-0 rounded-full bg-primary/15">
-                        <AvatarFallback className="bg-transparent text-primary">
-                          <Folder className="h-5 w-5" />
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                        s.enabled ? 'bg-white/12 backdrop-blur-sm ring-1 ring-white/10' : 'bg-white/5 ring-1 ring-white/5'
+                      }`}>
+                        <Folder className={`h-5 w-5 transition-colors duration-300 ${s.enabled ? 'text-white/80' : 'text-white/30'}`} />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{s.name}</span>
-                          {s.indexed && <Badge className="rounded-lg text-xs">已索引</Badge>}
+                          <span className={`font-medium transition-colors duration-300 ${s.enabled ? 'text-white/95' : 'text-white/50'}`}>{s.name}</span>
+                          {s.indexed && <span className={`text-[10px] px-1.5 py-0.5 rounded-md transition-colors duration-300 ${s.enabled ? 'bg-white/18 backdrop-blur-sm text-white/80' : 'bg-white/5 text-white/35'}`}>已索引</span>}
                         </div>
-                        <p className="text-sm text-muted-foreground font-mono truncate mt-0.5">{s.path}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className={`text-sm font-mono truncate mt-0.5 transition-colors duration-300 ${s.enabled ? 'text-white/50' : 'text-white/25'}`}>{s.path}</p>
+                        <p className={`text-xs mt-0.5 transition-colors duration-300 ${s.enabled ? 'text-white/40' : 'text-white/20'}`}>
                           {s.file_count > 0 && `${s.file_count} 个文件`}
                           {s.chroma_docs > 0 && ` | ChromaDB: ${s.chroma_docs} 片段`}
                         </p>
@@ -529,15 +534,16 @@ export default function RAGPage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Switch checked={s.enabled} onCheckedChange={(v) => handleToggle(s.name, v)} />
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleIndex(s.name)}
                           disabled={indexing[s.name]}
+                          className={`text-xs transition-colors duration-300 ${s.enabled ? 'text-white/60 hover:text-white hover:bg-white/8' : 'text-white/30 hover:text-white/50 hover:bg-white/5'}`}
                         >
                           <RefreshCw className={`h-4 w-4 mr-1 ${indexing[s.name] ? 'animate-spin' : ''}`} />
                           {indexing[s.name] ? '索引中...' : '索引'}
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s.name)} className="text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s.name)} className={`transition-colors duration-300 ${s.enabled ? 'text-white/25 hover:text-red-200/80 hover:bg-white/8' : 'text-white/15 hover:text-red-200/60 hover:bg-white/5'}`}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
