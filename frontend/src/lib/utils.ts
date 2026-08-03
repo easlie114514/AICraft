@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** 数值边界钳制 */
+export function clamp(v: number, min: number, max: number): number {
+  if (Number.isNaN(v)) return min
+  return Math.max(min, Math.min(max, v))
+}
+
 /** 生成主题色变体卡片渐变背景 — 用 --theme-primary 与 --theme-nav-bg 混合
  *  @param enabled true=深色渐变+左上光照(启用态) false=暗色降饱和(关闭态)
  */

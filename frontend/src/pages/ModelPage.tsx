@@ -110,13 +110,14 @@ function ModelFormFields({
     <div className="space-y-3 py-2">
       {/* 模型名称 — 独占一行 */}
       <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">模型名称</Label>
+        <Label className="text-xs text-muted-foreground">模型名称 <span className="text-red-500">*</span></Label>
         <Input
           placeholder="例如: DeepSeek V4、GPT-4o"
           value={value.name}
           onChange={(e) => onChange({ ...value, name: e.target.value })}
           className="h-8 text-sm"
           disabled={nameDisabled}
+          maxLength={100}
         />
         {nameDisabled && (
           <p className="text-[11px] text-text-tertiary">模型名称创建后不可修改，如确需改名请删除后重新添加</p>
@@ -144,12 +145,13 @@ function ModelFormFields({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Model ID</Label>
+          <Label className="text-xs text-muted-foreground">Model ID <span className="text-red-500">*</span></Label>
           <Input
             placeholder="deepseek-chat"
             value={value.model_id}
             onChange={(e) => onChange({ ...value, model_id: e.target.value })}
             className="h-8 text-sm"
+            maxLength={100}
           />
         </div>
       </div>
@@ -193,6 +195,7 @@ function ModelFormFields({
           value={value.api_key}
           onChange={(e) => onChange({ ...value, api_key: e.target.value })}
           className="h-8 text-sm"
+          maxLength={500}
         />
       </div>
 
@@ -204,6 +207,7 @@ function ModelFormFields({
           value={value.api_base}
           onChange={(e) => onChange({ ...value, api_base: e.target.value })}
           className="h-8 text-sm font-mono"
+          maxLength={500}
         />
       </div>
 
@@ -500,6 +504,7 @@ export default function ModelPage() {
                 placeholder="sk-..."
                 value={channelApiKey}
                 onChange={(e) => setChannelApiKey(e.target.value)}
+                maxLength={500}
               />
             </div>
 

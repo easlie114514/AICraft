@@ -263,7 +263,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
             {/* ── 基本信息 ── */}
             <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-text-secondary">角色名称</Label>
+                <Label className="text-xs text-text-secondary">角色名称 <span className="text-red-500">*</span></Label>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center shrink-0">
                     <span className="text-lg font-bold text-primary">
@@ -275,6 +275,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="例如: 代码助手"
                     className="flex-1 bg-card"
+                    maxLength={100}
                   />
                 </div>
               </div>
@@ -286,6 +287,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                   rows={8}
                   className="max-h-[300px] bg-card"
                   placeholder="描述 AI 的角色和行为..."
+                  maxLength={5000}
                 />
                 <p className="text-[11px] text-text-tertiary text-right">{form.content.length} 字符</p>
               </div>
@@ -461,7 +463,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
             <div className="absolute inset-y-0 left-0 w-[58%] overflow-y-auto py-4 pr-2">
               <div className="rounded-xl border border-border/50 bg-muted/20 p-4 flex flex-col h-full">
                 <div className="space-y-1.5 shrink-0">
-                  <Label className="text-xs text-text-secondary">角色名称</Label>
+                  <Label className="text-xs text-text-secondary">角色名称 <span className="text-red-500">*</span></Label>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10 flex items-center justify-center shrink-0">
                       <span className="text-lg font-bold text-primary">
@@ -473,6 +475,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                       placeholder="角色名称"
                       className="flex-1 bg-card"
+                      maxLength={100}
                     />
                   </div>
                 </div>
@@ -483,6 +486,7 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                     onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
                     className="flex-1 min-h-[120px] bg-card"
                     placeholder="描述 AI 的角色和行为..."
+                    maxLength={5000}
                   />
                   <p className="text-[11px] text-text-tertiary text-right shrink-0">{editForm.content.length} 字符</p>
                 </div>

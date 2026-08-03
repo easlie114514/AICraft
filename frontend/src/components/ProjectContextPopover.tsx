@@ -162,12 +162,14 @@ export default function ProjectContextPopover({ enabled, onToggle }: Props) {
               placeholder="项目名称"
               className="h-8 text-sm"
               autoFocus
+              maxLength={100}
             />
             <Textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
               placeholder="项目描述、工作重点、偏好等..."
               className="min-h-[120px] text-xs resize-y"
+              maxLength={5000}
             />
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={handleCancelEdit} className="h-7 text-xs">
