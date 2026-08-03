@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { api } from '@/lib/api'
-import { themeCardGradient } from '@/lib/utils'
+import { themeCardGradient, clamp } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Conversation {
@@ -99,6 +99,7 @@ export default function MemoryPage() {
   const [configLoaded, setConfigLoaded] = useState(false)
   const [convsLoading, setConvsLoading] = useState(true)
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   const loadConversations = useCallback(async () => {
     setConvsLoading(true)
@@ -183,7 +184,12 @@ export default function MemoryPage() {
   }
 
   const handleResetConfig = () => {
+    setResetConfirmOpen(true)
+  }
+
+  const confirmReset = () => {
     setConfig(DEFAULT_CONFIG)
+    setResetConfirmOpen(false)
   }
 
   const handleMergeNow = async () => {
@@ -227,6 +233,7 @@ export default function MemoryPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           className="flex-1 rounded-lg bg-card border border-border"
+          maxLength={200}
         />
         <Button variant="outline" size="icon" onClick={handleSearch} className="shrink-0">
           <Search className="h-4 w-4" />
@@ -427,7 +434,11 @@ export default function MemoryPage() {
                         type="number"
                         min={1000}
                         value={config.memory_compact_interval_chars}
-                        onChange={(e) => updateConfig('memory_compact_interval_chars', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('memory_compact_interval_chars', clamp(v, 1000, 1000000))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">字符</span>
@@ -440,7 +451,11 @@ export default function MemoryPage() {
                         type="number"
                         min={5}
                         value={config.memory_compact_interval_msgs}
-                        onChange={(e) => updateConfig('memory_compact_interval_msgs', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('memory_compact_interval_msgs', clamp(v, 5, 1000))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">条消息</span>
@@ -454,7 +469,11 @@ export default function MemoryPage() {
                         min={10}
                         max={200}
                         value={config.memory_compact_window}
-                        onChange={(e) => updateConfig('memory_compact_window', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('memory_compact_window', clamp(v, 10, 200))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">条消息</span>
@@ -468,7 +487,11 @@ export default function MemoryPage() {
                         min={100}
                         max={4000}
                         value={config.memory_compact_max_tokens}
-                        onChange={(e) => updateConfig('memory_compact_max_tokens', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('memory_compact_max_tokens', clamp(v, 100, 4000))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">tokens</span>
@@ -491,7 +514,11 @@ export default function MemoryPage() {
                         min={2}
                         max={50}
                         value={config.memory_merge_threshold}
-                        onChange={(e) => updateConfig('memory_merge_threshold', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('memory_merge_threshold', clamp(v, 2, 50))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">个片段</span>
@@ -517,7 +544,11 @@ export default function MemoryPage() {
                         min={500}
                         max={50000}
                         value={config.memory_inject_max_chars}
-                        onChange={(e) => updateConfig('memory_inject_max_chars', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('memory_inject_max_chars', clamp(v, 500, 50000))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">字符</span>
@@ -546,7 +577,11 @@ export default function MemoryPage() {
                         min={0}
                         max={50}
                         value={config.cross_session_inject_count}
-                        onChange={(e) => updateConfig('cross_session_inject_count', Number(e.target.value))}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (e.target.value === '' || isNaN(v)) return
+                          updateConfig('cross_session_inject_count', clamp(v, 0, 50))
+                        }}
                         className="w-24 h-8 rounded-lg text-xs"
                       />
                       <span className="text-xs text-muted-foreground">条</span>
@@ -585,7 +620,11 @@ export default function MemoryPage() {
                             max={1000000}
                             step={1000}
                             value={config.context_window_override}
-                            onChange={(e) => updateConfig('context_window_override', Number(e.target.value))}
+                            onChange={(e) => {
+                              const v = Number(e.target.value)
+                              if (e.target.value === '' || isNaN(v)) return
+                              updateConfig('context_window_override', clamp(v, 0, 1000000))
+                            }}
                             className="w-24 h-8 rounded-lg text-xs"
                           />
                           <span className="text-xs text-muted-foreground">tokens</span>
@@ -600,7 +639,11 @@ export default function MemoryPage() {
                             max={0.50}
                             step={0.05}
                             value={config.output_reserve_ratio}
-                            onChange={(e) => updateConfig('output_reserve_ratio', Number(e.target.value))}
+                            onChange={(e) => {
+                              const v = Number(e.target.value)
+                              if (e.target.value === '' || isNaN(v)) return
+                              updateConfig('output_reserve_ratio', clamp(v, 0.05, 0.50))
+                            }}
                             className="w-24 h-8 rounded-lg text-xs"
                           />
                           <span className="text-xs text-muted-foreground">{(config.output_reserve_ratio * 100).toFixed(0)}%</span>
@@ -615,7 +658,11 @@ export default function MemoryPage() {
                             max={1.0}
                             step={0.05}
                             value={config.budget_alert_threshold}
-                            onChange={(e) => updateConfig('budget_alert_threshold', Number(e.target.value))}
+                            onChange={(e) => {
+                              const v = Number(e.target.value)
+                              if (e.target.value === '' || isNaN(v)) return
+                              updateConfig('budget_alert_threshold', clamp(v, 0.25, 1.0))
+                            }}
                             className="w-24 h-8 rounded-lg text-xs"
                           />
                           <span className="text-xs text-muted-foreground">{(config.budget_alert_threshold * 100).toFixed(0)}%</span>
@@ -773,6 +820,15 @@ export default function MemoryPage() {
           }
           setDeleteTarget(null)
         }}
+      />
+
+      {/* ── 恢复默认确认 ── */}
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        onOpenChange={setResetConfirmOpen}
+        title="恢复默认设置"
+        description="确定要恢复所有记忆设置为默认值吗？当前修改将丢失。"
+        onConfirm={confirmReset}
       />
     </div>
   )

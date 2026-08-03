@@ -501,6 +501,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
               className="flex-1 h-20 resize-none overflow-y-auto"
               rows={1}
               disabled={streaming}
+              maxLength={50000}
             />
 
             {streaming ? (

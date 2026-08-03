@@ -319,6 +319,7 @@ export default function MCPPage() {
                       placeholder="添加路径..."
                       value={newTrustedPath}
                       onChange={(e) => setNewTrustedPath(e.target.value)}
+                      maxLength={500}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && newTrustedPath.trim()) {
                           savePermissions({ ...permConfig, trusted_paths: [...permConfig.trusted_paths, newTrustedPath.trim()] })
@@ -374,6 +375,7 @@ export default function MCPPage() {
                       placeholder="添加路径..."
                       value={newDeniedPath}
                       onChange={(e) => setNewDeniedPath(e.target.value)}
+                      maxLength={500}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && newDeniedPath.trim()) {
                           savePermissions({ ...permConfig, denied_paths: [...permConfig.denied_paths, newDeniedPath.trim()] })
@@ -410,8 +412,8 @@ export default function MCPPage() {
           <div className="space-y-3 py-4">
             <div className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-text-secondary">连接名称</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: Jira MCP" />
+                <Label className="text-xs text-text-secondary">连接名称 <span className="text-red-500">*</span></Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: Jira MCP" maxLength={100} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-text-secondary">连接类型</Label>
@@ -428,17 +430,17 @@ export default function MCPPage() {
               {form.type === 'sse' ? (
                 <div className="space-y-1.5">
                   <Label className="text-xs text-text-secondary">URL</Label>
-                  <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="http://localhost:8080/sse" />
+                  <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="http://localhost:8080/sse" maxLength={500} />
                 </div>
               ) : (
                 <>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-text-secondary">命令</Label>
-                    <Input value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} placeholder="例如: npx" />
+                    <Input value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} placeholder="例如: npx" maxLength={200} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-text-secondary">参数（空格分隔）</Label>
-                    <Input value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} placeholder="例如: -y @modelcontextprotocol/server-filesystem" />
+                    <Input value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} placeholder="例如: -y @modelcontextprotocol/server-filesystem" maxLength={500} />
                   </div>
                 </>
               )}

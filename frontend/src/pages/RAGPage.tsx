@@ -352,6 +352,7 @@ export default function RAGPage() {
                           onBlur={handleApiBaseBlur}
                           className="w-[400px] h-8 text-sm font-mono"
                           placeholder="https://api.siliconflow.cn/v1"
+                          maxLength={500}
                         />
                         <InfoTip text="硅基流动 API 的基础地址。默认使用官方服务，如使用兼容 OpenAI 格式的代理服务可在此更改地址。" />
                       </div>
@@ -381,6 +382,7 @@ export default function RAGPage() {
                                 onChange={(e) => setApiKey(e.target.value)}
                                 className="w-80 h-8 text-sm pr-8"
                                 placeholder={ragConfig?.has_api_key ? '输入新 Key 覆盖旧值' : 'sk-...'}
+                                maxLength={500}
                               />
                               <button
                                 type="button"
@@ -435,7 +437,11 @@ export default function RAGPage() {
                       min={100}
                       max={8192}
                       value={isLocalMode ? 200 : chunkMaxTokens}
-                      onChange={(e) => setChunkMaxTokens(Number(e.target.value))}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        if (e.target.value === '' || isNaN(v)) return
+                        setChunkMaxTokens(Math.max(100, Math.min(8192, v)))
+                      }}
                       onBlur={handleChunkTokensBlur}
                       disabled={isLocalMode}
                       className="w-24 h-8 text-sm text-center"
@@ -565,12 +571,12 @@ export default function RAGPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>数据源名称</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: 项目文档" />
+              <Label>数据源名称 <span className="text-red-500">*</span></Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: 项目文档" maxLength={100} />
             </div>
             <div className="space-y-2">
-              <Label>数据源路径</Label>
-              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} placeholder="rag/使用指导 (相对项目根)" />
+              <Label>数据源路径 <span className="text-red-500">*</span></Label>
+              <Input value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} placeholder="rag/使用指导 (相对项目根)" maxLength={500} />
             </div>
           </div>
           <DialogFooter>
