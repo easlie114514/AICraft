@@ -6,13 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 
 import EmotionSlotGrid, { type EmotionKey } from '@/components/EmotionSlotGrid'
 import EmotionCropModal from '@/components/EmotionCropModal'
 import { api } from '@/lib/api'
+import { themeCardGradient } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Role {
@@ -138,14 +138,14 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pr-1">
             {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardContent className="px-5 pt-[calc(1.25rem+3px)] pb-1 flex flex-col items-center text-center animate-pulse">
-                  <div className="w-16 h-16 rounded-2xl bg-muted/70 mb-3" />
-                  <div className="h-4 w-20 bg-muted/70 rounded mb-2" />
-                  <div className="h-4 w-12 bg-muted/50 rounded-full mb-3" />
-                  <div className="h-3.5 w-full bg-muted/50 rounded" />
-                  <div className="h-3.5 w-3/4 bg-muted/50 rounded mt-1.5 mb-4" />
-                  <div className="h-8 w-full bg-muted/50 rounded" />
+              <Card key={i} className="border-0 text-white" style={themeCardGradient()}>
+                <CardContent className="px-5 pt-5 pb-1 flex flex-col items-center text-center animate-pulse">
+                  <div className="w-16 h-16 rounded-2xl bg-white/10 mb-3" />
+                  <div className="h-4 w-20 bg-white/15 rounded mb-2" />
+                  <div className="h-3 w-12 bg-white/10 rounded-full mb-3" />
+                  <div className="h-3.5 w-full bg-white/10 rounded" />
+                  <div className="h-3.5 w-3/4 bg-white/10 rounded mt-1.5 mb-4" />
+                  <div className="h-8 w-full bg-white/10 rounded" />
                 </CardContent>
               </Card>
             ))}
@@ -169,46 +169,48 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
           /* 角色卡片网格 */
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pr-1">
             {roles.map((r) => (
-              <Card key={r.name} className="relative hover:shadow-card-hover transition-all duration-200 overflow-hidden group">
-                {/* 顶部强调色条 */}
-                <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r transition-opacity duration-200 ${r.is_current ? 'from-transparent via-primary/45 to-transparent' : 'from-transparent via-muted/30 to-transparent'}`} />
+              <Card key={r.name} className="relative overflow-hidden group border-0 text-white" style={themeCardGradient()}>
+                {/* 首字母丝印 */}
+                <div className="absolute -bottom-3 -right-4 text-[130px] font-black text-white/[0.05] leading-none select-none pointer-events-none">
+                  {(r.name.trim()[0]?.toUpperCase() || '?')}
+                </div>
 
-                <CardContent className="px-5 pt-[calc(1.25rem+3px)] pb-1 flex flex-col items-center text-center">
+                <CardContent className="px-5 pt-5 pb-1 flex flex-col items-center text-center relative z-10">
                   {/* 角色头像 */}
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-all duration-200 ${
                     r.is_current
-                      ? 'bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/15'
-                      : 'bg-muted/50 ring-1 ring-border'
+                      ? 'bg-white/15 ring-1 ring-white/25'
+                      : 'bg-white/8 ring-1 ring-white/10'
                   }`}>
-                    <span className={`text-2xl font-bold transition-colors duration-200 ${r.is_current ? 'text-primary' : 'text-text-disabled'}`}>
+                    <span className={`text-2xl font-bold transition-colors duration-200 ${r.is_current ? 'text-white' : 'text-white/60'}`}>
                       {r.name[0]}
                     </span>
                   </div>
 
                   {/* 名称 */}
-                  <span className={`font-semibold truncate max-w-full ${r.is_current ? 'text-foreground' : 'text-text-primary'}`}>
+                  <span className="font-semibold truncate max-w-full text-white/95">
                     {r.name}
                   </span>
 
                   {/* 当前角色标记 */}
                   {r.is_current && (
-                    <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0 mt-1.5">当前</Badge>
+                    <span className="text-[10px] bg-white/18 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-white/80 mt-1.5">当前</span>
                   )}
                   {!r.is_current && <div className="mt-1.5" />}
 
                   {/* 描述 */}
-                  <p className="text-sm text-text-secondary line-clamp-2 leading-relaxed mt-2.5 min-h-[2.75rem]">
+                  <p className="text-sm text-white/55 line-clamp-2 leading-relaxed mt-2.5 min-h-[2.75rem]">
                     {r.content || '无描述'}
                   </p>
 
                   {/* 分隔 + 操作按钮 */}
-                  <div className="w-full mt-3 pt-3 border-t border-border/60">
+                  <div className="w-full mt-3 pt-3 border-t border-white/8">
                     <div className="flex items-center justify-center gap-1">
-                      <Button variant="outline" size="sm" onClick={() => setShowView(r)} title="查看">
+                      <Button variant="ghost" size="sm" onClick={() => setShowView(r)} className="text-white/60 hover:text-white hover:bg-white/8 text-xs">
                         <Eye className="h-4 w-4 mr-1" />
                         查看
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => {
+                      <Button variant="ghost" size="sm" onClick={() => {
                         setShowEdit(r)
                         setEditForm({ name: r.name, content: r.content })
                         setEmotionVersion(0)
@@ -230,15 +232,15 @@ export default function RolePage({ isActive }: { isActive?: boolean }) {
                             setHumanTouchEnabled(false)
                             setHumanTouchLevel(1)
                           })
-                      }} title="编辑">
+                      }} className="text-white/60 hover:text-white hover:bg-white/8 text-xs">
                         <Pencil className="h-4 w-4 mr-1" />
                         编辑
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleSetCurrent(r.name)} title="设为当前">
+                      <Button variant="ghost" size="sm" onClick={() => handleSetCurrent(r.name)} className="text-white/60 hover:text-white hover:bg-white/8 text-xs">
                         <Star className="h-4 w-4 mr-1" />
                         设为当前
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(r.name)} className="text-muted-foreground hover:text-destructive" title="删除">
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(r.name)} className="text-white/25 hover:text-red-200/80 hover:bg-white/8" title="删除">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

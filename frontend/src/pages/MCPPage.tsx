@@ -7,12 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { api } from '@/lib/api'
+import { themeCardGradient } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface MCPConnection {
@@ -152,22 +151,22 @@ export default function MCPPage() {
         {loading ? (
           <div className="grid gap-4 pr-1">
             {[1, 2].map((i) => (
-              <Card key={i}>
+              <Card key={i} className="border-0 text-white" style={themeCardGradient()}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4 animate-pulse">
-                    <div className="h-10 w-10 rounded-full bg-muted/70 shrink-0" />
+                    <div className="h-10 w-10 rounded-full bg-white/10 shrink-0" />
                     <div className="flex-1 space-y-2.5 py-0.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-4 w-20 bg-muted/70 rounded" />
-                        <div className="h-4 w-10 bg-muted/50 rounded-lg" />
-                        <div className="h-4 w-12 bg-muted/50 rounded-lg" />
+                        <div className="h-4 w-20 bg-white/15 rounded" />
+                        <div className="h-4 w-10 bg-white/10 rounded-lg" />
+                        <div className="h-4 w-12 bg-white/10 rounded-lg" />
                       </div>
-                      <div className="h-3 w-48 bg-muted/50 rounded font-mono" />
+                      <div className="h-3 w-48 bg-white/10 rounded font-mono" />
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <div className="h-5 w-10 bg-muted/70 rounded-full" />
-                      <div className="h-5 w-10 bg-muted/70 rounded-full" />
-                      <div className="h-8 w-8 bg-muted/50 rounded" />
+                      <div className="h-5 w-10 bg-white/15 rounded-full" />
+                      <div className="h-5 w-10 bg-white/15 rounded-full" />
+                      <div className="h-8 w-8 bg-white/10 rounded" />
                     </div>
                   </div>
                 </CardContent>
@@ -185,47 +184,54 @@ export default function MCPPage() {
             {connections.map((conn) => {
               const status = statusMap[conn.status] || statusMap.disconnected
               return (
-                <Card key={conn.name} className="hover:shadow-card-hover transition-shadow duration-200">
-                  <CardContent className="p-4">
+                <Card key={conn.name} className={`relative overflow-hidden group text-white transition-colors duration-300 ${conn.enabled ? 'border-0' : 'border border-white/5'}`} style={themeCardGradient(conn.enabled)}>
+                  {/* 首字母丝印 */}
+                  <div className={`absolute -bottom-3 -right-4 text-[130px] font-black leading-none select-none pointer-events-none transition-opacity duration-300 ${conn.enabled ? 'text-white/[0.05]' : 'text-white/[0.02]'}`}>
+                    {(conn.name.trim()[0]?.toUpperCase() || 'M')}
+                  </div>
+
+                  <CardContent className="p-4 relative z-10">
                     <div className="flex items-start gap-4">
-                      <Avatar className="h-10 w-10 shrink-0 rounded-full bg-primary/15">
-                        <AvatarFallback className="bg-transparent text-primary">
-                          <Zap className="h-5 w-5" />
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                        conn.enabled ? 'bg-white/12 backdrop-blur-sm ring-1 ring-white/10' : 'bg-white/5 ring-1 ring-white/5'
+                      }`}>
+                        <Zap className={`h-5 w-5 transition-colors duration-300 ${conn.enabled ? 'text-white/80' : 'text-white/30'}`} />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium">{conn.name}</span>
-                          <Badge variant="secondary" className="rounded-lg text-xs">{conn.type.toUpperCase()}</Badge>
-                          <Badge variant={status.variant} className="rounded-lg text-xs">{status.label}</Badge>
+                          <span className={`font-medium transition-colors duration-300 ${conn.enabled ? 'text-white/95' : 'text-white/50'}`}>{conn.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md transition-colors duration-300 ${conn.enabled ? 'bg-white/12 backdrop-blur-sm text-white/70' : 'bg-white/5 text-white/35'}`}>{conn.type.toUpperCase()}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md transition-colors duration-300 ${
+                            conn.status === 'connected' ? 'bg-emerald-400/15 text-emerald-200/90' : conn.status === 'error' ? 'bg-red-400/15 text-red-200/90' : conn.enabled ? 'bg-white/8 text-white/50' : 'bg-white/5 text-white/30'
+                          }`}>{status.label}</span>
                           {envStatus && FACTORY_MCP_NAMES.includes(conn.name) && (
                             envStatus.available ? (
-                              <Badge className="rounded-lg text-xs bg-success-light text-success border border-success/30 hover:bg-success-light">
-                                <CheckCircle2 className="h-3 w-3 mr-0.5" />
+                              <span className="text-[10px] bg-emerald-400/15 text-emerald-200/90 px-1.5 py-0.5 rounded-md">
+                                <CheckCircle2 className="h-3 w-3 mr-0.5 inline" />
                                 环境就绪
-                              </Badge>
+                              </span>
                             ) : (
                               <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">
-                                <Badge className="rounded-lg text-xs bg-danger-light text-danger border border-danger/30 hover:bg-danger-light cursor-pointer">
-                                  <AlertTriangle className="h-3 w-3 mr-0.5" />
+                                <span className="text-[10px] bg-red-400/15 text-red-200/90 px-1.5 py-0.5 rounded-md cursor-pointer">
+                                  <AlertTriangle className="h-3 w-3 mr-0.5 inline" />
                                   需要Node.js
-                                </Badge>
+                                </span>
                               </a>
                             )
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground font-mono mt-0.5 truncate">
+                        <p className={`text-sm font-mono mt-0.5 truncate transition-colors duration-300 ${conn.enabled ? 'text-white/50' : 'text-white/25'}`}>
                           {conn.type === 'sse' ? conn.display_url : conn.command}
                         </p>
                         {conn.error_msg && (
-                          <p className="text-xs text-destructive mt-1 truncate">{conn.error_msg}</p>
+                          <p className={`text-xs mt-1 truncate transition-colors duration-300 ${conn.enabled ? 'text-red-200/80' : 'text-red-300/50'}`}>{conn.error_msg}</p>
                         )}
                       </div>
                       <div className="flex items-start gap-3 shrink-0">
                         <div className="flex flex-col gap-2">
                           <div className="flex flex-col items-center gap-0.5">
                             <Switch checked={conn.enabled} onCheckedChange={(v) => handleToggle(conn.name, v)} />
-                            <span className="text-[10px] text-text-tertiary/60 leading-none">启用</span>
+                            <span className={`text-[10px] leading-none transition-colors duration-300 ${conn.enabled ? 'text-white/40' : 'text-white/20'}`}>启用</span>
                           </div>
                           <div className="flex flex-col items-center gap-0.5">
                             <Switch
@@ -233,10 +239,10 @@ export default function MCPPage() {
                               onCheckedChange={(v) => handleToggleApproval(conn.name, v)}
                               disabled={!conn.enabled}
                             />
-                            <span className="text-[10px] text-text-tertiary/60 leading-none">自动授权</span>
+                            <span className={`text-[10px] leading-none transition-colors duration-300 ${conn.enabled ? 'text-white/40' : 'text-white/20'}`}>自动授权</span>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(conn.name)} className="text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(conn.name)} className={`transition-colors duration-300 ${conn.enabled ? 'text-white/25 hover:text-red-200/80 hover:bg-white/8' : 'text-white/15 hover:text-red-200/60 hover:bg-white/5'}`}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -245,16 +251,16 @@ export default function MCPPage() {
                     {conn.tools.length > 0 && (
                       <Collapsible className="mt-3">
                         <CollapsibleTrigger>
-                          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground -ml-2">
-                            <Badge variant="outline" className="rounded-lg mr-2">{conn.tools.length} 个工具</Badge>
+                          <Button variant="ghost" size="sm" className={`text-xs -ml-2 transition-colors duration-300 ${conn.enabled ? 'text-white/45 hover:text-white/70 hover:bg-white/8' : 'text-white/25 hover:text-white/40 hover:bg-white/5'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md mr-2 transition-colors duration-300 ${conn.enabled ? 'bg-white/10' : 'bg-white/5'}`}>{conn.tools.length} 个工具</span>
                             <ChevronDown className="h-3 w-3" />
                           </Button>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <div className="mt-2 space-y-1 pl-2">
                             {conn.tools.map((t) => (
-                              <div key={t.name} className="text-xs text-muted-foreground">
-                                <span className="font-mono font-medium text-foreground">{t.name}</span>
+                              <div key={t.name} className={`text-xs transition-colors duration-300 ${conn.enabled ? 'text-white/55' : 'text-white/30'}`}>
+                                <span className={`font-mono font-medium transition-colors duration-300 ${conn.enabled ? 'text-white/80' : 'text-white/40'}`}>{t.name}</span>
                                 {t.description && <span className="ml-2">{t.description}</span>}
                               </div>
                             ))}

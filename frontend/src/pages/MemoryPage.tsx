@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { api } from '@/lib/api'
+import { themeCardGradient } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Conversation {
@@ -268,19 +269,19 @@ export default function MemoryPage() {
             {convsLoading ? (
               <div className="grid gap-3 pr-1">
                 {[1, 2, 3].map((i) => (
-                  <Card key={i}>
+                  <Card key={i} className="border-0 text-white" style={themeCardGradient(true)}>
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between animate-pulse">
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
-                            <div className="h-4 w-48 bg-muted/70 rounded font-mono" />
-                            <div className="h-4 w-14 bg-muted/50 rounded-lg" />
+                            <div className="h-4 w-48 bg-white/15 rounded font-mono" />
+                            <div className="h-4 w-14 bg-white/10 rounded-lg" />
                           </div>
-                          <div className="h-3 w-40 bg-muted/50 rounded" />
+                          <div className="h-3 w-40 bg-white/10 rounded" />
                         </div>
                         <div className="flex items-center gap-1">
-                          <div className="h-8 w-8 bg-muted/50 rounded" />
-                          <div className="h-8 w-8 bg-muted/50 rounded" />
+                          <div className="h-8 w-8 bg-white/10 rounded" />
+                          <div className="h-8 w-8 bg-white/10 rounded" />
                         </div>
                       </div>
                     </CardContent>
@@ -295,23 +296,23 @@ export default function MemoryPage() {
             ) : (
               <div className="grid gap-3 pr-1">
                 {conversations.map((c) => (
-                  <Card key={c.id} className="hover:shadow-card-hover transition-shadow duration-200">
-                    <CardContent className="p-3">
+                  <Card key={c.id} className="relative overflow-hidden group border-0 text-white transition-colors duration-300" style={themeCardGradient(true)}>
+                    <CardContent className="p-3 relative z-10">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium font-mono">{c.id}</span>
-                            <Badge variant="secondary" className="rounded-lg text-xs">{c.message_count} 条消息</Badge>
+                            <span className="text-sm font-medium font-mono text-white/90">{c.id}</span>
+                            <span className="text-[10px] bg-white/12 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-white/70">{c.message_count} 条消息</span>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
+                          <p className="text-xs text-white/45 mt-0.5">
                             {c.created} &middot; {c.model} &middot; {c.role}
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <Button variant="ghost" size="sm" onClick={() => handleView(c.id)} >
+                          <Button variant="ghost" size="sm" onClick={() => handleView(c.id)} className="text-white/55 hover:text-white hover:bg-white/8">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => { setDeleteTargetType('conv'); setDeleteTarget(c.id) }} className="text-muted-foreground hover:text-destructive">
+                          <Button variant="ghost" size="sm" onClick={() => { setDeleteTargetType('conv'); setDeleteTarget(c.id) }} className="text-white/35 hover:text-red-200/80 hover:bg-white/8">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -336,25 +337,22 @@ export default function MemoryPage() {
             ) : (
               <div className="grid gap-3 pr-1">
                 {notes.map((n) => (
-                  <Card key={n.name} className="hover:shadow-card-hover transition-shadow duration-200">
-                    <CardContent className="p-3">
+                  <Card key={n.name} className="relative overflow-hidden group border-0 text-white transition-colors duration-300" style={themeCardGradient(true)}>
+                    <CardContent className="p-3 relative z-10">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Badge
-                            variant={n.kind === 'long_term' ? 'default' : 'outline'}
-                            className="rounded-lg text-xs shrink-0"
-                          >
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md shrink-0 ${n.kind === 'long_term' ? 'bg-white/18 backdrop-blur-sm text-white/85' : 'bg-white/8 text-white/55'}`}>
                             {n.kind === 'long_term' ? '长期记忆' : '短期'}
-                          </Badge>
-                          <span className="text-sm font-medium truncate">{n.name}</span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">{formatTokens(n.tokens)}</span>
+                          </span>
+                          <span className="text-sm font-medium truncate text-white/90">{n.name}</span>
+                          <span className="text-[10px] text-white/40 shrink-0">{formatTokens(n.tokens)}</span>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0 ml-2">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleViewNote(n.filename)}
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            className="h-8 w-8 text-white/50 hover:text-white hover:bg-white/8"
                             title="查看全文"
                           >
                             <Eye className="h-4 w-4" />
@@ -363,14 +361,14 @@ export default function MemoryPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => { setDeleteTargetType('note'); setDeleteTarget(n.filename) }}
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-white/30 hover:text-red-200/80 hover:bg-white/8"
                             title="删除"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{n.preview}</p>
+                      <p className="text-xs text-white/45 mt-1 truncate">{n.preview}</p>
                     </CardContent>
                   </Card>
                 ))}
