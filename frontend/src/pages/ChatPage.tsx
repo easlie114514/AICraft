@@ -54,6 +54,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   streamingRef.current = streaming
   const isNearBottomRef = useRef(true)       // 同步读取，消除 state 竞态
   const lastScrollTimeRef = useRef(0)         // 滚动节流时间戳
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)  // 输入框 ref，用于右键菜单操作
 
   // Reset the pause flag when streaming ends
   const prevStreamingRef = useRef(false)
@@ -184,6 +185,103 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       userPausedScrollRef.current = true
     }
   }, [])
+
+  // ── 自定义右键菜单 ──
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const savedSelectionRef = useRef<{ start: number; end: number } | null>(null)
+
+  // 点击菜单外部关闭
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    // 用 setTimeout 避免右键 click 本身触发关闭
+    const id = setTimeout(() => document.addEventListener('click', close, { once: true }), 0)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('click', close)
+    }
+  }, [contextMenu])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const ta = textareaRef.current
+    if (ta) {
+      ta.focus()
+      savedSelectionRef.current = { start: ta.selectionStart, end: ta.selectionEnd }
+    }
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }, [])
+
+  const closeMenu = useCallback(() => setContextMenu(null), [])
+
+  const handlePaste = useCallback(async () => {
+    closeMenu()
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.focus()
+    const sel = savedSelectionRef.current
+    const start = sel ? sel.start : ta.selectionStart
+    const end = sel ? sel.end : ta.selectionEnd
+
+    // 优先通过 Python 后端读剪贴板（无需浏览器权限）
+    let text: string | null = null
+    const pywebviewApi = (window as any).pywebview?.api
+    if (pywebviewApi?.get_clipboard) {
+      try { text = await pywebviewApi.get_clipboard() } catch { /* fallback */ }
+    }
+    if (!text) {
+      try { text = await navigator.clipboard.readText() } catch { /* ignore */ }
+    }
+
+    if (text) {
+      const newValue = input.slice(0, start) + text + input.slice(end)
+      setInput(newValue)
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + text.length
+        ta.focus()
+      })
+    }
+  }, [input, closeMenu])
+
+  const handleCopy = useCallback(async () => {
+    closeMenu()
+    const ta = textareaRef.current
+    if (!ta) return
+    const sel = savedSelectionRef.current
+    const selected = sel
+      ? ta.value.slice(sel.start, sel.end)
+      : ta.value.slice(ta.selectionStart, ta.selectionEnd)
+    if (selected) {
+      try { await navigator.clipboard.writeText(selected) } catch {}
+    }
+    ta.focus()
+  }, [closeMenu])
+
+  const handleCut = useCallback(async () => {
+    closeMenu()
+    const ta = textareaRef.current
+    if (!ta) return
+    const sel = savedSelectionRef.current
+    const start = sel ? sel.start : ta.selectionStart
+    const end = sel ? sel.end : ta.selectionEnd
+    const selected = ta.value.slice(start, end)
+    if (selected) {
+      try { await navigator.clipboard.writeText(selected) } catch {}
+      const newValue = input.slice(0, start) + input.slice(end)
+      setInput(newValue)
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start
+        ta.focus()
+      })
+    }
+  }, [input, closeMenu])
+
+  const handleSelectAll = useCallback(() => {
+    closeMenu()
+    textareaRef.current?.select()
+    textareaRef.current?.focus()
+  }, [closeMenu])
 
   // 记住最后一条用户消息（用于重试）
   const lastUserMessageRef = useRef('')
@@ -501,15 +599,55 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           {/* 输入面板：Textarea + 发送 */}
           <div className="flex-1 bg-white border border-border rounded-xl shadow-card p-2 flex items-end gap-2">
             <Textarea
+              ref={textareaRef}
               placeholder="输入消息... (Shift+Enter 换行)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onContextMenu={handleContextMenu}
               className="flex-1 h-20 resize-none overflow-y-auto"
               rows={1}
               disabled={streaming}
               maxLength={50000}
             />
+
+            {/* 自定义右键菜单浮层 */}
+            {contextMenu && (
+              <div
+                className="fixed z-[100] min-w-36 bg-popover border border-border rounded-lg shadow-lg p-1 text-sm"
+                style={{ left: contextMenu.x, top: contextMenu.y, transform: 'translateY(-100%)' }}
+              >
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+                  onClick={handlePaste}
+                >
+                  粘贴
+                </button>
+                <div className="my-1 h-px bg-border -mx-1" />
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default disabled:text-muted-foreground disabled:pointer-events-none"
+                  onClick={handleCopy}
+                  disabled={!input}
+                >
+                  复制
+                </button>
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default disabled:text-muted-foreground disabled:pointer-events-none"
+                  onClick={handleCut}
+                  disabled={!input}
+                >
+                  剪切
+                </button>
+                <div className="my-1 h-px bg-border -mx-1" />
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default disabled:text-muted-foreground disabled:pointer-events-none"
+                  onClick={handleSelectAll}
+                  disabled={!input}
+                >
+                  全选
+                </button>
+              </div>
+            )}
 
             {streaming ? (
               <Button variant="destructive" size="icon" onClick={stopStreaming} className="h-20 w-10 rounded-lg shrink-0">
