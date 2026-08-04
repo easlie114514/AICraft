@@ -68,14 +68,43 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
     }
   }, [thinkingDuration])
 
-  // 一键复制
+  // ── Markdown → 纯文本 ──
+  function stripMarkdown(md: string): string {
+    return md
+      // 代码块（优先处理，避免内部语法被后续规则破坏）
+      .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').replace(/```/g, '').trim())
+      // 行内代码
+      .replace(/`([^`]+)`/g, '$1')
+      // 图片
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+      // 链接
+      .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')
+      // 粗体/斜体
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/~~(.+?)~~/g, '$1')
+      // 标题
+      .replace(/^#{1,6}\s+/gm, '')
+      // 列表标记
+      .replace(/^[\s]*[-*+]\s+/gm, '')
+      .replace(/^[\s]*\d+\.\s+/gm, '')
+      // 引用
+      .replace(/^>\s?/gm, '')
+      // 水平线
+      .replace(/^[-*_]{3,}\s*$/gm, '')
+      // 多余空行
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  }
+
+  // 一键复制（纯文本）
   const [copied, setCopied] = useState(false)
   const handleCopy = useCallback(async () => {
-    const text = content || ''
+    const text = typeof content === 'string' ? stripMarkdown(content) : ''
     try {
       await navigator.clipboard.writeText(text)
     } catch {
-      // Fallback for older browsers or insecure contexts
       const ta = document.createElement('textarea')
       ta.value = text
       ta.style.position = 'fixed'
@@ -138,7 +167,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
 
   const handleCopyFromMenu = useCallback(async () => {
     setCopyMenu(null)
-    const text = content || ''
+    const text = typeof content === 'string' ? stripMarkdown(content) : ''
     try {
       await navigator.clipboard.writeText(text)
     } catch {
