@@ -19,6 +19,7 @@ import { api } from '@/lib/api'
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD = 60
 const SCROLL_NEAR_TOP_THRESHOLD = 60
+const SCROLL_THROTTLE_MS = 80  // 约 12fps，防止高频滚动造成视觉抖动
 
 interface ModelOption {
   name: string
@@ -51,6 +52,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   const userPausedScrollRef = useRef(false)
   const streamingRef = useRef(false)
   streamingRef.current = streaming
+  const isNearBottomRef = useRef(true)       // 同步读取，消除 state 竞态
+  const lastScrollTimeRef = useRef(0)         // 滚动节流时间戳
 
   // Reset the pause flag when streaming ends
   const prevStreamingRef = useRef(false)
@@ -143,6 +146,9 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   // ── Scroll helpers ──
 
   const scrollToBottom = useCallback(() => {
+    const now = performance.now()
+    if (now - lastScrollTimeRef.current < SCROLL_THROTTLE_MS) return
+    lastScrollTimeRef.current = now
     const el = viewportRef.current
     if (el) {
       el.scrollTop = el.scrollHeight
@@ -155,6 +161,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     if (!el) return
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight
     const nearBottom = dist <= SCROLL_NEAR_BOTTOM_THRESHOLD
+    isNearBottomRef.current = nearBottom  // 同步更新 ref，供 auto-scroll effect 立即读取
     setIsNearBottom(nearBottom)
     const nearTop = el.scrollTop <= SCROLL_NEAR_TOP_THRESHOLD
     setIsNearTop(nearTop)
@@ -166,20 +173,17 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
 
   // Auto-scroll when messages change — but NOT if user has paused
   useEffect(() => {
-    if (!userPausedScrollRef.current && isNearBottom) {
+    if (!userPausedScrollRef.current && isNearBottomRef.current) {
       requestAnimationFrame(scrollToBottom)
     }
-  }, [messages, isNearBottom, scrollToBottom])
+  }, [messages, scrollToBottom])
 
-  // When streaming starts and user hasn't paused, scroll to bottom (catch late-arriving renders)
-  useEffect(() => {
-    if (streaming && !userPausedScrollRef.current) {
-      const id = setTimeout(() => {
-        if (!userPausedScrollRef.current && isNearBottom) scrollToBottom()
-      }, 50)
-      return () => clearTimeout(id)
+  // wheel：用户在 AI 输出期间向上滚动 → 立即暂停自动跟随（比 scroll 事件更早触发）
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (streamingRef.current && e.deltaY < 0) {
+      userPausedScrollRef.current = true
     }
-  }, [streaming, isNearBottom, scrollToBottom])
+  }, [])
 
   // 记住最后一条用户消息（用于重试）
   const lastUserMessageRef = useRef('')
@@ -192,6 +196,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       lastUserMessageRef.current = text
     }
     userPausedScrollRef.current = false
+    isNearBottomRef.current = true
     setIsNearBottom(true)
     scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles, retry)
@@ -205,6 +210,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     if (streaming) return
     lastUserMessageRef.current = text
     userPausedScrollRef.current = false
+    isNearBottomRef.current = true
     setIsNearBottom(true)
     scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles, false)
@@ -228,6 +234,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
         className="flex-1 min-h-0 px-4 bg-background rounded-b-[20px] chat-bg-pattern"
         viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
         onScroll={checkScrollPosition}
+        onWheel={handleWheel}
       >
         <div className="relative h-full">
         {/* 继续上次对话 — 绝对定位在顶部，不影响欢迎内容居中 */}
@@ -369,7 +376,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
           <Button
             variant="default"
             size="sm"
-            onClick={() => { userPausedScrollRef.current = false; scrollToBottom(); setIsNearBottom(true) }}
+            onClick={() => { userPausedScrollRef.current = false; isNearBottomRef.current = true; scrollToBottom(); setIsNearBottom(true) }}
             className="rounded-full shadow-lg hover:shadow-xl h-9 w-16 p-0"
           >
             <ArrowDown className="h-4 w-4" />
