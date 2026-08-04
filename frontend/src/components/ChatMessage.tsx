@@ -38,7 +38,7 @@ interface Props {
 
 export default function ChatMessage({ message, convId, userMessage, onRetry, streaming }: Props) {
   const { id, role, content, timestamp, thinking, thinkingDuration } = message
-  const isThinkingStreaming = typeof thinking === 'string' && thinking.trim() && thinkingDuration === undefined
+  const isThinkingStreaming = !!(typeof thinking === 'string' && thinking.trim() && thinkingDuration === undefined)
   const hasThinking = typeof thinking === 'string' && thinking.trim()
 
   // ── 反馈状态 ──
@@ -153,7 +153,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg mb-2 max-h-64 overflow-auto border border-border/50 select-text">
-                    <MarkdownRenderer content={thinking} />
+                    <MarkdownRenderer content={thinking} streaming={isThinkingStreaming} />
                   </div>
                 </CollapsibleContent>
               </Collapsible>
