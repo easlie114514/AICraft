@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Brain, ChevronDown, Copy, Check, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -115,6 +115,46 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
 
   const isUser = role === 'user'
 
+  // ── 右键菜单（复制）──
+  const [copyMenu, setCopyMenu] = useState<{ x: number; y: number } | null>(null)
+  const bubbleRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!copyMenu) return
+    const close = () => setCopyMenu(null)
+    const id = setTimeout(() => document.addEventListener('click', close, { once: true }), 0)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('click', close)
+    }
+  }, [copyMenu])
+
+  const handleBubbleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isUser) return
+    e.preventDefault()
+    e.stopPropagation()
+    setCopyMenu({ x: e.clientX, y: e.clientY })
+  }, [isUser])
+
+  const handleCopyFromMenu = useCallback(async () => {
+    setCopyMenu(null)
+    const text = content || ''
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [content])
+
   return (
     <div className={cn('flex flex-col py-1.5', isUser ? 'items-end' : 'items-start')}>
       {/* Timestamp */}
@@ -125,13 +165,29 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
       </div>
       {/* Bubble */}
       <div
+        ref={bubbleRef}
+        onContextMenu={handleBubbleContextMenu}
         className={cn(
-          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text',
+          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed select-text relative',
           isUser
             ? 'bg-gradient-to-b from-primary/8 to-primary/18 text-text-primary rounded-tr-md border border-primary/25 shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.65)]'
             : 'bg-gradient-to-b from-[#FEFDFB]/65 to-[#FCFAF6]/78 text-text-primary rounded-tl-md border border-border/60 shadow-[0_2px_6px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.75)]'
         )}
       >
+        {/* 右键菜单浮层 */}
+        {copyMenu && (
+          <div
+            className="fixed z-[100] min-w-24 bg-popover border border-border rounded-lg shadow-lg p-1 text-sm"
+            style={{ left: copyMenu.x, top: copyMenu.y, transform: 'translateY(-100%)' }}
+          >
+            <button
+              className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+              onClick={handleCopyFromMenu}
+            >
+              复制
+            </button>
+          </div>
+        )}
         {isUser ? (
           <p className="whitespace-pre-wrap break-words select-text">{content}</p>
         ) : (

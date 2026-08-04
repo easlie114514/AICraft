@@ -12,6 +12,8 @@ import sys
 import threading
 import time
 
+import pyperclip
+
 # ── 日志配置（写入文件，方便排查问题）──
 def _setup_logging():
     """配置根日志：aictaft.log 写入 exe 同级目录"""
@@ -174,6 +176,13 @@ class WindowAPI:
 
         # SWP_NOZORDER | SWP_NOACTIVATE 避免焦点切换
         user32.SetWindowPos(hwnd, None, x, y, w, h, 0x0004 | 0x0010)
+
+    def get_clipboard(self) -> str:
+        """读取系统剪贴板文本（通过 pyperclip，无需浏览器权限）"""
+        try:
+            return pyperclip.paste()
+        except Exception:
+            return ""
 
 
 def start_server():
