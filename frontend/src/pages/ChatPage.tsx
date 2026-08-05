@@ -450,6 +450,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                     userMessage={prevUser?.content || ''}
                     onRetry={(msg) => handleSend(true, msg)}
                     streaming={streaming}
+                    onQuoteInInput={(text) => setInput(text)}
                   />
                 )
               })}
