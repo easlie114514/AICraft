@@ -32,7 +32,7 @@ interface Props {
   message: ChatMessageType
   convId?: string
   userMessage?: string
-  onRetry?: () => void
+  onRetry?: (userMessage: string) => void
   streaming?: boolean
 }
 
@@ -307,7 +307,7 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
               {/* 点踩后显示"重新回答" */}
               {feedback === 'down' && onRetry && !message.readOnly && (
                 <button
-                  onClick={onRetry}
+                  onClick={() => onRetry(userMessage || '')}
                   className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-orange-500 hover:text-orange-600 hover:bg-orange-50 transition-colors"
                 >
                   <RefreshCw className="h-3 w-3" />
