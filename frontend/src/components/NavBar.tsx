@@ -36,6 +36,8 @@ export default function NavBar({ tabs, activeTab, onTabChange }: NavBarProps) {
         <img
           src="/logo_craft.png"
           alt="AICraft"
+          width={1948}
+          height={750}
           className="h-9 w-auto relative"
           style={{
             filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.30)) drop-shadow(0 0 2px rgba(255,255,255,0.15))',
