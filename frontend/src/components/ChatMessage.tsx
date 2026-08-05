@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react'
 import { Brain, ChevronDown, Copy, Check, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -34,9 +34,10 @@ interface Props {
   userMessage?: string
   onRetry?: (userMessage: string) => void
   streaming?: boolean
+  onQuoteInInput?: (text: string) => void
 }
 
-export default function ChatMessage({ message, convId, userMessage, onRetry, streaming }: Props) {
+export default function ChatMessage({ message, convId, userMessage, onRetry, streaming, onQuoteInInput }: Props) {
   const { id, role, content, timestamp, thinking, thinkingDuration } = message
   const isThinkingStreaming = !!(typeof thinking === 'string' && thinking.trim() && thinkingDuration === undefined)
   const hasThinking = typeof thinking === 'string' && thinking.trim()
@@ -71,6 +72,8 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
   // ── Markdown → 纯文本 ──
   function stripMarkdown(md: string): string {
     return md
+      // [EMOTION:xxx] 标记
+      .replace(/\[EMOTI(?:TI)?ON:\w+\]/g, '')
       // 代码块（优先处理，避免内部语法被后续规则破坏）
       .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').replace(/```/g, '').trim())
       // 行内代码
@@ -144,12 +147,18 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
 
   const isUser = role === 'user'
 
-  // ── 右键菜单（复制）──
+  // ── 右键菜单（复制 / 在输入框中提问）──
   const [copyMenu, setCopyMenu] = useState<{ x: number; y: number } | null>(null)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
   const bubbleRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const selectedTextRef = useRef('')  // 右键时保存选中文本
 
   useEffect(() => {
-    if (!copyMenu) return
+    if (!copyMenu) {
+      setMenuStyle({})
+      return
+    }
     const close = () => setCopyMenu(null)
     const id = setTimeout(() => document.addEventListener('click', close, { once: true }), 0)
     return () => {
@@ -158,12 +167,49 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
     }
   }, [copyMenu])
 
+  // 菜单渲染后测量尺寸，修正位置保持在聊天视口内（导航栏下方、工具栏上方）
+  useLayoutEffect(() => {
+    if (!copyMenu || !menuRef.current) return
+    const menuRect = menuRef.current.getBoundingClientRect()
+    const pad = 8
+
+    // 以滚动视口作为安全区域边界
+    const viewport = document.querySelector('[data-slot="scroll-area-viewport"]')
+    const bounds = viewport
+      ? viewport.getBoundingClientRect()
+      : { left: 0, top: 56, right: window.innerWidth, bottom: window.innerHeight - 195 }
+
+    let left = copyMenu.x
+    let top = copyMenu.y - menuRect.height  // 默认显示在光标上方
+
+    // 右侧溢出
+    if (left + menuRect.width > bounds.right - pad) {
+      left = bounds.right - menuRect.width - pad
+    }
+    // 左侧溢出
+    if (left < bounds.left + pad) left = bounds.left + pad
+    // 顶部溢出（导航栏下方）
+    if (top < bounds.top + pad) {
+      top = copyMenu.y + pad  // 改为光标下方显示
+    }
+    // 底部溢出（工具栏上方）
+    if (top + menuRect.height > bounds.bottom - pad) {
+      top = bounds.bottom - menuRect.height - pad
+    }
+
+    setMenuStyle({ left, top, visibility: 'visible' })
+  }, [copyMenu])
+
   const handleBubbleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (isUser) return
+    // 没有选中文字时不显示菜单
+    const sel = window.getSelection()
+    const selected = sel && sel.toString().trim() ? sel.toString().trim() : ''
+    if (!selected) return
     e.preventDefault()
     e.stopPropagation()
+    selectedTextRef.current = selected
     setCopyMenu({ x: e.clientX, y: e.clientY })
-  }, [isUser])
+  }, [])
 
   const handleCopyFromMenu = useCallback(async () => {
     setCopyMenu(null)
@@ -183,6 +229,15 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }, [content])
+
+  const handleQuoteInInput = useCallback(() => {
+    setCopyMenu(null)
+    // 优先使用右键时选中的文本，否则使用完整消息内容
+    const text = selectedTextRef.current || (typeof content === 'string' ? stripMarkdown(content) : '')
+    if (text && onQuoteInInput) {
+      onQuoteInInput(text)
+    }
+  }, [content, onQuoteInInput])
 
   return (
     <div className={cn('flex flex-col py-1.5', isUser ? 'items-end' : 'items-start')}>
@@ -206,8 +261,9 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
         {/* 右键菜单浮层 */}
         {copyMenu && (
           <div
-            className="fixed z-[100] min-w-24 bg-popover border border-border rounded-lg shadow-lg p-1 text-sm"
-            style={{ left: copyMenu.x, top: copyMenu.y, transform: 'translateY(-100%)' }}
+            ref={menuRef}
+            className="fixed z-[100] min-w-36 bg-popover border border-border rounded-lg shadow-lg p-1 text-sm"
+            style={{ visibility: 'hidden', ...menuStyle }}
           >
             <button
               className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
@@ -215,6 +271,14 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
             >
               复制
             </button>
+            {onQuoteInInput && (
+              <button
+                className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-default"
+                onClick={handleQuoteInInput}
+              >
+                在输入框中提问
+              </button>
+            )}
           </div>
         )}
         {isUser ? (
