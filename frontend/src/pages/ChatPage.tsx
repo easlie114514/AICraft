@@ -286,8 +286,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   // 记住最后一条用户消息（用于重试）
   const lastUserMessageRef = useRef('')
 
-  const handleSend = (retry: boolean = false) => {
-    const text = retry ? lastUserMessageRef.current : input.trim()
+  const handleSend = (retry: boolean = false, retryMessage?: string) => {
+    const text = retry ? (retryMessage || lastUserMessageRef.current) : input.trim()
     if (!text || streaming) return
     if (!retry) {
       setInput('')
@@ -444,7 +444,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
                     message={msg}
                     convId={localStorage.getItem('aicraft_last_conv_id') || ''}
                     userMessage={prevUser?.content || ''}
-                    onRetry={() => handleSend(true)}
+                    onRetry={(msg) => handleSend(true, msg)}
                     streaming={streaming}
                   />
                 )
