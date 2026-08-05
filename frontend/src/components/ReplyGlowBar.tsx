@@ -10,23 +10,27 @@ interface Props {
 /**
  * 呼吸灯带 — 支持两种样式：
  * - "bar"（条状）：碗形区域，独立布局空间，底色与聊天区同色，active 时主题色呼吸
- * - "bloom"（泛光）：径向渐变椭圆泛光，居中悬浮
+ * - "bloom"（泛光）：径向渐变椭圆泛光，悬浮于聊天区与输入区交界处
  */
 export default function ReplyGlowBar({ active, variant = 'bar' }: Props) {
   if (variant === 'bloom') {
     return (
-      <div className={cn(
-        'flex justify-center w-full h-4 px-[5%] transition-opacity duration-700',
-        active ? 'opacity-100' : 'opacity-25',
-      )}>
-        <div
-          className="w-full h-full"
-          style={{
-            background: 'radial-gradient(ellipse 50% 100% at 50% 100%, var(--theme-secondary, var(--theme-glow-bar)), transparent)',
-            clipPath: 'inset(0 0 50% 0)',
-            animation: 'glow-bloom 2s ease-in-out infinite',
-          }}
-        />
+      <div className="relative h-0 w-full z-10 pointer-events-none">
+        <div className="absolute -top-[10px] left-0 right-0">
+          <div className={cn(
+            'flex justify-center w-full h-4 px-[5%] transition-opacity duration-700',
+            active ? 'opacity-100' : 'opacity-25',
+          )}>
+            <div
+              className="w-full h-full"
+              style={{
+                background: 'radial-gradient(ellipse 50% 100% at 50% 100%, var(--theme-secondary, var(--theme-glow-bar)), transparent)',
+                clipPath: 'inset(0 0 50% 0)',
+                animation: 'glow-bloom 2s ease-in-out infinite',
+              }}
+            />
+          </div>
+        </div>
       </div>
     )
   }

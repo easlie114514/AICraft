@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { Settings2, Smile, Bug, Zap, Repeat, Info, CheckCircle2, RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
 import DataExportImport from '@/components/DataExportImport'
@@ -158,15 +158,32 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
                   title="呼吸灯样式"
                   description="AI 回复时聊天区底部的灯光效果样式"
                 >
-                  <Select value={glowBarStyle} onValueChange={handleGlowBarStyle}>
-                    <SelectTrigger className="w-[120px] h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent side="top" sideOffset={6}>
-                      <SelectItem value="bar">条状</SelectItem>
-                      <SelectItem value="bloom">泛光</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-1 rounded-lg border border-border bg-muted/50 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleGlowBarStyle('bar')}
+                      className={cn(
+                        'px-3 py-1 text-xs rounded-md transition-colors',
+                        glowBarStyle === 'bar'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      条状
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGlowBarStyle('bloom')}
+                      className={cn(
+                        'px-3 py-1 text-xs rounded-md transition-colors',
+                        glowBarStyle === 'bloom'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      泛光
+                    </button>
+                  </div>
                 </SettingRow>
               </div>
 
