@@ -227,9 +227,19 @@ pre, code {
 ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
 
-@keyframes glow-bloom {
-  0%, 100% { opacity: 0.5; transform: scaleY(0.6); }
-  50% { opacity: 1; transform: scaleY(1); }
+/* 碗状泛光 — 水位呼吸（ReplyGlowBar 呼吸层引用） */
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.12; transform: scaleY(0.85); }
+  50%      { opacity: 0.85; transform: scaleY(1.0); }
+}
+
+.glow-breathe {
+  transform-origin: bottom;
+  animation: glow-breathe 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-breathe { animation: none; }
 }
 
 ::selection { background: var(--theme-primary); color: var(--theme-primary-foreground); }

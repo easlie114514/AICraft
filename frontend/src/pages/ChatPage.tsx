@@ -333,7 +333,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative bg-nav-bg">
       {/* Messages */}
       <ScrollArea
-        className="flex-1 min-h-0 px-4 bg-background rounded-b-[20px] chat-bg-pattern"
+        className="flex-1 min-h-0 px-4 bg-background chat-bg-pattern"
         viewportRef={(el: HTMLDivElement | null) => { viewportRef.current = el }}
         onScroll={checkScrollPosition}
         onWheel={handleWheel}
@@ -396,7 +396,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
             </div>
           </div>
         ) : (
-          <div className="py-4 space-y-0 relative">
+          <div className="pt-4 pb-10 space-y-0 relative">
             {/* 加载更早对话 — 滚动到顶时出现 */}
             {hasOlderConversations && isNearTop && (
               <div className="flex justify-center pb-3">
@@ -466,12 +466,8 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       </div>
       </ScrollArea>
 
-      {/* ── 泛光条（聊天区与 Input 交接处，偏上 4px）── */}
-      <div className="relative h-0 w-full z-10 pointer-events-none">
-        <div className="absolute -top-[10px] left-0 right-0">
-          <ReplyGlowBar active={streaming} />
-        </div>
-      </div>
+      {/* ── 碗中光条（聊天区与 Input 之间，与 rounded-b-[20px] 同弧）── */}
+      <ReplyGlowBar active={streaming} />
 
       {/* Scroll-to-bottom floating button */}
       {!isNearBottom && hasMessages && (
