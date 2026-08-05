@@ -43,6 +43,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
   const [selectedRole, setSelectedRole] = useState('')
   const [tokenPanelOpen, setTokenPanelOpen] = useState(false)
   const [showEmotionGlobal, setShowEmotionGlobal] = useState(true)
+  const [glowBarStyle, setGlowBarStyle] = useState('bar')
   const [emotionVersion, setEmotionVersion] = useState(0)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -104,11 +105,12 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     if (isActive) {
       loadModels()
       loadRoles()
-      // 加载全局情绪画像开关 & 调试模式
-      api.get<{ show_emotion_portrait?: boolean; debug_mode?: boolean }>('/settings')
+      // 加载全局情绪画像开关 & 调试模式 & 呼吸灯样式
+      api.get<{ show_emotion_portrait?: boolean; debug_mode?: boolean; glow_bar_style?: string }>('/settings')
         .then((data) => {
           setShowEmotionGlobal(data.show_emotion_portrait ?? true)
           setDebugMode(data.debug_mode ?? false)
+          setGlowBarStyle(data.glow_bar_style ?? 'bar')
         })
         .catch(() => {})
     }
@@ -467,7 +469,7 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
       </ScrollArea>
 
       {/* ── 碗中光条（聊天区与 Input 之间，与 rounded-b-[20px] 同弧）── */}
-      <ReplyGlowBar active={streaming} />
+      <ReplyGlowBar active={streaming} variant={glowBarStyle as 'bar' | 'bloom'} />
 
       {/* Scroll-to-bottom floating button */}
       {!isNearBottom && hasMessages && (

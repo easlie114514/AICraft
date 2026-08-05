@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Settings2, Smile, Bug, Zap, Repeat, Info, CheckCircle2, RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { api } from '@/lib/api'
@@ -45,6 +46,7 @@ function SettingsSkeleton() {
 export default function SettingsPage({ isActive }: { isActive?: boolean }) {
   const [showEmotion, setShowEmotion] = useState(true)
   const [debugMode, setDebugMode] = useState(false)
+  const [glowBarStyle, setGlowBarStyle] = useState('bar')
   const [maxToolRounds, setMaxToolRounds] = useState(25)
   const [currentVersion, setCurrentVersion] = useState("")
   const [checking, setChecking] = useState(false)
@@ -56,11 +58,12 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
     if (isActive) {
       setSettingsLoading(true)
       Promise.all([
-        api.get<{ show_emotion_portrait?: boolean; debug_mode?: boolean; max_tool_rounds?: number }>('/settings')
+        api.get<{ show_emotion_portrait?: boolean; debug_mode?: boolean; max_tool_rounds?: number; glow_bar_style?: string }>('/settings')
           .then((data) => {
             setShowEmotion(data.show_emotion_portrait ?? true)
             setDebugMode(data.debug_mode ?? false)
             setMaxToolRounds(data.max_tool_rounds ?? 25)
+            setGlowBarStyle(data.glow_bar_style ?? 'bar')
           }),
         api.get<{ current_version: string }>('/update/check')
           .then((data) => setCurrentVersion(data.current_version)),
@@ -81,6 +84,14 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
     setDebugMode(v)
     await api.put('/settings', { debug_mode: v }).catch(() => {
       setDebugMode(!v)
+    })
+  }
+
+  const handleGlowBarStyle = async (v: string | null) => {
+    if (!v) return
+    setGlowBarStyle(v)
+    await api.put('/settings', { glow_bar_style: v }).catch(() => {
+      setGlowBarStyle('bar')
     })
   }
 
@@ -141,6 +152,21 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
                   description="开启后在聊天中展示工具调用、回答评分、角色切换等调试信息"
                 >
                   <Switch checked={debugMode} onCheckedChange={handleDebugMode} />
+                </SettingRow>
+                <Separator />
+                <SettingRow
+                  title="呼吸灯样式"
+                  description="AI 回复时聊天区底部的灯光效果样式"
+                >
+                  <Select value={glowBarStyle} onValueChange={handleGlowBarStyle}>
+                    <SelectTrigger className="w-[120px] h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent side="top" sideOffset={6}>
+                      <SelectItem value="bar">条状</SelectItem>
+                      <SelectItem value="bloom">泛光</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </SettingRow>
               </div>
 
