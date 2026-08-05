@@ -296,11 +296,13 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     userPausedScrollRef.current = false
     isNearBottomRef.current = true
     setIsNearBottom(true)
-    scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles, retry)
+    // 双 rAF：等 React commit 新用户消息到 DOM 后再滚动，避免滚到旧底部
     requestAnimationFrame(() => {
-      userPausedScrollRef.current = false
-      scrollToBottom()
+      requestAnimationFrame(() => {
+        userPausedScrollRef.current = false
+        scrollToBottom()
+      })
     })
   }
 
@@ -310,11 +312,13 @@ export default function ChatPage({ isActive }: { isActive?: boolean }) {
     userPausedScrollRef.current = false
     isNearBottomRef.current = true
     setIsNearBottom(true)
-    scrollToBottom()
     sendMessage(text, selectedModel, selectedRole, toggles, false)
+    // 双 rAF：等 React commit 新用户消息到 DOM 后再滚动
     requestAnimationFrame(() => {
-      userPausedScrollRef.current = false
-      scrollToBottom()
+      requestAnimationFrame(() => {
+        userPausedScrollRef.current = false
+        scrollToBottom()
+      })
     })
   }
 
