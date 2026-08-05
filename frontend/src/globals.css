@@ -227,7 +227,13 @@ pre, code {
 ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
 
-/* 碗状泛光 — 水位呼吸（ReplyGlowBar 呼吸层引用） */
+/* 泛光呼吸（ReplyGlowBar "bloom" 样式） */
+@keyframes glow-bloom {
+  0%, 100% { opacity: 0.5; transform: scaleY(0.6); }
+  50%      { opacity: 1;   transform: scaleY(1); }
+}
+
+/* 条状呼吸（ReplyGlowBar "bar" 样式） */
 @keyframes glow-breathe {
   0%, 100% { opacity: 0.12; transform: scaleY(0.85); }
   50%      { opacity: 0.85; transform: scaleY(1.0); }

@@ -20,6 +20,7 @@ class SettingsUpdate(BaseModel):
     show_emotion_portrait: bool | None = None
     max_tool_rounds: int | None = None
     debug_mode: bool | None = None
+    glow_bar_style: str | None = None
 
 
 def _read_config() -> dict:
@@ -51,6 +52,7 @@ async def get_settings():
         "show_emotion_portrait": config.get("show_emotion_portrait", True),
         "max_tool_rounds": config.get("max_tool_rounds", 25),
         "debug_mode": config.get("debug_mode", False),
+        "glow_bar_style": config.get("glow_bar_style", "bar"),
     }
 
 
@@ -71,5 +73,9 @@ async def update_settings(body: SettingsUpdate):
         config["max_tool_rounds"] = body.max_tool_rounds
     if body.debug_mode is not None:
         config["debug_mode"] = body.debug_mode
+    if body.glow_bar_style is not None:
+        if body.glow_bar_style not in ("bar", "bloom"):
+            return {"ok": False, "error": f"无效呼吸灯样式: {body.glow_bar_style}"}
+        config["glow_bar_style"] = body.glow_bar_style
     _write_config(config)
     return {"ok": True, "theme": config.get("theme", "blue")}
