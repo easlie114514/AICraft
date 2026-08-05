@@ -209,6 +209,9 @@ main,
     linear-gradient(to bottom right, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.62) 35%, transparent 35%),
     /* 右下大三角 — 延伸到对角线 35%，更明显的白色块面 */
     linear-gradient(to top left, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.55) 35%, transparent 35%);
+}
+/* main 不滚动（内部 ScrollArea 负责滚动），fixed 无副作用；chat-bg-pattern 的 ScrollArea 不能用 fixed，否则 Chromium 内容变化时滚位跳回 */
+main {
   background-attachment: fixed;
 }
 
