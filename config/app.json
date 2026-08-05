@@ -4,6 +4,7 @@
   "language": "zh-CN",
   "skills_dir": "",
   "show_emotion_portrait": true,
-  "debug_mode": true,
-  "max_tool_rounds": 25
+  "debug_mode": false,
+  "max_tool_rounds": 25,
+  "glow_bar_style": "bar"
 }

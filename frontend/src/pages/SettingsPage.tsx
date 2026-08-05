@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { Settings2, Smile, Bug, Zap, Repeat, Info, CheckCircle2, RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import UpdateDialog, { type UpdateInfo } from '@/components/UpdateDialog'
 import DataExportImport from '@/components/DataExportImport'
@@ -162,24 +162,22 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
                     <button
                       type="button"
                       onClick={() => handleGlowBarStyle('bar')}
-                      className={cn(
-                        'px-3 py-1 text-xs rounded-md transition-colors',
+                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
                         glowBarStyle === 'bar'
                           ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
                     >
                       条状
                     </button>
                     <button
                       type="button"
                       onClick={() => handleGlowBarStyle('bloom')}
-                      className={cn(
-                        'px-3 py-1 text-xs rounded-md transition-colors',
+                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
                         glowBarStyle === 'bloom'
                           ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
                     >
                       泛光
                     </button>
