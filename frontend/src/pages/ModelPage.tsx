@@ -13,44 +13,27 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-function cardGradient(provider: string): React.CSSProperties {
+// 通用卡片背景（主题色渐变 + 左上自然光，不含品牌色）
+function cardBackground(): React.CSSProperties {
+  return {
+    background: `
+      radial-gradient(ellipse 40% 50% at 18% 18%, rgba(255,255,255,0.08) 0%, transparent 60%),
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--theme-nav-bg) 85%, var(--theme-primary) 15%) 0%,
+        var(--theme-nav-bg) 100%
+      )
+    `,
+  }
+}
+
+// 厂商品牌色（用于分割线等点缀元素）
+function providerTint(provider: string): string {
   const tints: Record<string, string> = {
     deepseek: '#4D6BFE',
     openai: '#10A37F',
     anthropic: '#D97757',
   }
-  const tint = tints[provider]
-  if (tint) {
-    // 底板：主题渐变 + 左上自然光（与其他页面统一）
-    // 中间~22%：左下→右上厂商纯色带，两侧各~5%过渡区柔和融入主题底
-    return {
-      background: `
-        radial-gradient(ellipse 40% 50% at 18% 18%, rgba(255,255,255,0.10) 0%, transparent 60%),
-        linear-gradient(135deg,
-          color-mix(in srgb, var(--theme-nav-bg) 68%, var(--theme-primary) 32%) 0%,
-          color-mix(in srgb, var(--theme-nav-bg) 50%, ${tint} 50%) 34%,
-          ${tint} 39%,
-          ${tint} 61%,
-          color-mix(in srgb, var(--theme-nav-bg) 50%, ${tint} 50%) 66%,
-          color-mix(in srgb, var(--theme-nav-bg) 88%, var(--theme-primary) 12%) 100%
-        )
-      `,
-    }
-  }
-  return {
-    // 其他/中转站：岩灰紫 #8E8EA0 色带
-    background: `
-      radial-gradient(ellipse 40% 50% at 18% 18%, rgba(255,255,255,0.10) 0%, transparent 60%),
-      linear-gradient(135deg,
-        color-mix(in srgb, var(--theme-nav-bg) 68%, var(--theme-primary) 32%) 0%,
-        color-mix(in srgb, var(--theme-nav-bg) 50%, #8E8EA0 50%) 34%,
-        #8E8EA0 39%,
-        #8E8EA0 61%,
-        color-mix(in srgb, var(--theme-nav-bg) 50%, #8E8EA0 50%) 66%,
-        color-mix(in srgb, var(--theme-nav-bg) 88%, var(--theme-primary) 12%) 100%
-      )
-    `,
-  }
+  return tints[provider] || '#8E8EA0'
 }
 
 interface ModelConfig {
@@ -392,7 +375,7 @@ export default function ModelPage() {
               return (
                 <Card
                   key={m.name}
-                  className="relative overflow-hidden group border-0 text-white" style={cardGradient(m.provider)}
+                  className="relative overflow-hidden group border-0 text-white" style={cardBackground()}
                 >
                   {/* 首字母丝印 */}
                   <div className="absolute -bottom-3 -right-4 text-[130px] font-black text-white/[0.05] leading-none select-none pointer-events-none">
@@ -470,8 +453,14 @@ export default function ModelPage() {
                       <p className="text-xs text-red-200/80 mt-1 line-clamp-2 break-all">{test.message}</p>
                     )}
 
+                    {/* 品牌色分割线 */}
+                    <div
+                      className="mt-3 h-[2px] w-full rounded-full"
+                      style={{ background: `linear-gradient(to right, transparent, ${providerTint(m.provider)}80, transparent)` }}
+                    />
+
                     {/* 操作栏 */}
-                    <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-white/8">
+                    <div className="flex items-center gap-1.5 mt-2">
                       <Button variant="ghost" size="sm" onClick={() => handleTest(m.name)} className="text-white/60 hover:text-white hover:bg-white/8 text-xs">
                         测试
                       </Button>
