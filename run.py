@@ -85,6 +85,58 @@ class WindowAPI:
         if win:
             win.destroy()
 
+    def upgrade_restart(self, staging_dir: str, target_dir: str = ""):
+        """一键升级：写入升级 bat → 分离启动 → 关闭窗口。
+
+        bat 脚本等待旧进程退出后 robocopy 覆盖文件并重启。
+        与 restart() 的区别：增加了 robocopy 镜像同步步骤。
+
+        Args:
+            staging_dir: 暂存目录路径
+            target_dir: 升级目标目录（空字符串=使用默认 USER_DIR）
+        """
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        from src.utils.upgrader import build_upgrade_bat
+
+        _target = Path(target_dir) if target_dir else None
+        logger = logging.getLogger("aicraft")
+
+        logger.warning("upgrade_restart called: staging=%s target=%s", staging_dir, _target or str(USER_DIR))
+
+        bat_content = build_upgrade_bat(staging_dir, _target, pid=os.getpid())
+        logger.warning("bat content built, %d chars", len(bat_content))
+
+        if getattr(sys, 'frozen', False):
+            fd, bat_path = tempfile.mkstemp(suffix='.bat', prefix='_aicraft_upgrade_')
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.write(bat_content)
+            logger.warning("bat written (frozen): %s", bat_path)
+            subprocess.Popen(
+                ['cmd', '/c', bat_path],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        else:
+            # 开发模式：bat 写到项目根目录
+            bat_path = os.path.join(ROOT, "_aicraft_upgrade.bat")
+            with open(bat_path, 'w', encoding='utf-8') as f:
+                f.write(bat_content)
+            logger.warning("bat written (dev): %s", bat_path)
+            subprocess.Popen(
+                ['cmd', '/c', bat_path],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+
+        logger.warning("bat spawned, closing window...")
+
+        # 关闭当前窗口
+        win = webview.active_window()
+        if win:
+            win.destroy()
+        # 暴力退出立即释放文件句柄，让 bat 的 robocopy 能覆盖 exe 和 dll
+        os._exit(0)
+
     def restart(self):
         """重启应用：等旧进程退出后重新启动，新窗口自动置顶"""
         import subprocess

@@ -251,8 +251,20 @@ pre, code {
   animation: glow-breathe 2.4s ease-in-out infinite;
 }
 
+/* 进度条不确定态（总大小未知时滑动动画） */
+@keyframes progress-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.progress-indeterminate {
+  width: 30%;
+  animation: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glow-breathe { animation: none; }
+  .progress-indeterminate { animation: none; }
 }
 
 ::selection { background: var(--theme-primary); color: var(--theme-primary-foreground); }

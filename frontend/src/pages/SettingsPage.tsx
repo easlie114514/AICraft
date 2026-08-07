@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings2, Smile, Bug, Zap, Repeat, Info, CheckCircle2, RefreshCw } from 'lucide-react'
+import { Settings2, Smile, Bug, Zap, Repeat, Info, CheckCircle2, RefreshCw, FlaskConical, Loader2, AlertCircle } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -53,6 +54,12 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [noUpdateToast, setNoUpdateToast] = useState(false)
   const [settingsLoading, setSettingsLoading] = useState(true)
+
+  // 升级测试（debug 模式）
+  const [testZipPath, setTestZipPath] = useState("")
+  const [testTargetDir, setTestTargetDir] = useState("")
+  const [testStatus, setTestStatus] = useState<"idle" | "running" | "ok" | "error">("idle")
+  const [testError, setTestError] = useState("")
 
   useEffect(() => {
     if (isActive) {
@@ -117,6 +124,36 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
       setChecking(false)
     }
   }, [])
+
+  // 本地升级测试：解压 → 替换 → 重启
+  const handleTestUpgrade = async () => {
+    if (!testZipPath.trim()) return
+    setTestStatus("running")
+    setTestError("")
+    try {
+      const result = await api.post<{ staging_dir: string; file_count: number; new_version: string | null }>(
+        "/update/extract",
+        { zip_path: testZipPath.trim(), target_dir: testTargetDir.trim() }
+      )
+      setTestStatus("ok")
+      // 直接调用 upgrade_restart 关闭窗口并重启
+      // 注意：不能 await，因为方法内部会 win.destroy() 切断 JS bridge
+      const pyApi = (window as any).pywebview?.api
+      if (pyApi?.upgrade_restart) {
+        pyApi.upgrade_restart(result.staging_dir, testTargetDir.trim())
+      } else {
+        // 开发模式降级
+        await api.post("/update/upgrade", {
+          staging_dir: result.staging_dir,
+          target_dir: testTargetDir.trim(),
+        })
+        if (pyApi?.close) pyApi.close()
+      }
+    } catch (err: any) {
+      setTestStatus("error")
+      setTestError(err.message || "升级测试失败")
+    }
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 animate-in fade-in duration-200">
@@ -236,6 +273,74 @@ export default function SettingsPage({ isActive }: { isActive?: boolean }) {
                   </div>
                 </SettingRow>
               </div>
+
+              {/* ── 升级测试（仅 debug 模式） ── */}
+              {debugMode && (
+                <>
+                  <SectionLabel icon={FlaskConical} title="升级测试" description="用本地 zip 包测试一键升级流程" />
+                  <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <SettingRow
+                      title="升级包路径"
+                      description="本地 .zip 文件路径（新版）"
+                    >
+                      <Input
+                        value={testZipPath}
+                        onChange={(e) => setTestZipPath(e.target.value)}
+                        placeholder="D:\AICraft_upgrade_test\v1.1.4.zip"
+                        className="w-72 text-xs font-mono"
+                        disabled={testStatus === "running"}
+                      />
+                    </SettingRow>
+                    <Separator />
+                    <SettingRow
+                      title="目标目录"
+                      description="要替换的旧版根目录（留空=当前应用目录）"
+                    >
+                      <Input
+                        value={testTargetDir}
+                        onChange={(e) => setTestTargetDir(e.target.value)}
+                        placeholder="留空使用当前应用目录"
+                        className="w-72 text-xs font-mono"
+                        disabled={testStatus === "running"}
+                      />
+                    </SettingRow>
+                    <Separator />
+                    <div className="flex items-center justify-between px-5 py-3">
+                      <span className="text-xs text-muted-foreground">
+                        {testTargetDir
+                          ? `解压到 ${testTargetDir.trim().replace(/[\\/]$/, "")}_new → robocopy 覆盖 → 重启`
+                          : "解压到应用同级目录 → robocopy 覆盖 → 重启"}
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={handleTestUpgrade}
+                        disabled={testStatus === "running" || !testZipPath.trim()}
+                      >
+                        {testStatus === "running" ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            解压中...
+                          </span>
+                        ) : (
+                          "测试升级"
+                        )}
+                      </Button>
+                    </div>
+                    {testStatus === "error" && (
+                      <div className="px-5 pb-4 flex items-center gap-2 text-sm text-red-500">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{testError}</span>
+                      </div>
+                    )}
+                    {testStatus === "ok" && (
+                      <div className="px-5 pb-4 flex items-center gap-2 text-sm text-green-500">
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        <span>解压完成，准备重启...</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
