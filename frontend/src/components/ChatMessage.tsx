@@ -213,7 +213,8 @@ export default function ChatMessage({ message, convId, userMessage, onRetry, str
 
   const handleCopyFromMenu = useCallback(async () => {
     setCopyMenu(null)
-    const text = typeof content === 'string' ? stripMarkdown(content) : ''
+    // 优先复制右键时选中的文本，否则复制完整消息内容
+    const text = selectedTextRef.current || (typeof content === 'string' ? stripMarkdown(content) : '')
     try {
       await navigator.clipboard.writeText(text)
     } catch {
